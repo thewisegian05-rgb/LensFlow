@@ -1,66 +1,81 @@
-# LensFlow — AI-Assisted Studio Management & Culling Platform
+# LensFlow — Studio Management & AI Culling Platform
 
-> **Thesis Project:** *LensFlow: An AI-Assisted Studio Management and Automated Computer Vision Culling Platform for Digital Media Professionals*
-
-LensFlow is an all-in-one web platform engineered for freelance photographers, videographers, and creative media studios. It bridges the gap between client relationship management (CRM), financial operations, cloud asset storage, and high-performance media processing by incorporating a zero-server-compute, client-side computer vision culling engine.
+> **Thesis Title:** *LensFlow: An AI-Assisted Studio Management and Automated Computer Vision Culling Platform for Digital Media Professionals*
 
 ---
 
-## 📌 Problem & Solution
+## 📌 Project Overview & Thesis Details
 
-* **The Problem:** Digital media professionals face fragmented workflows—jumping between disparate tools for scheduling, contract management, client communication, photo culling, and gallery delivery. Traditional AI photo culling tools require uploading gigabytes of RAW files to third-party cloud servers, resulting in heavy bandwidth costs, high latency, and privacy concerns.
-* **The Solution:** LensFlow unifies full-suite studio management (invoicing, scheduling, CRM, and gallery proofing) with an in-browser WebAssembly/Web Worker computer vision engine. LensFlow processes and culls thousands of local images in seconds with zero server compute costs and zero upload overhead before selection.
+* **Target Audience:** Freelance Photographers, Videographers, & Creative Media Studios.
+* **Core Problem:** Fragmented workflows across scheduling, client management, manual photo culling, and cloud storage management.
+* **Solution:** A unified web platform combining business tools (CRM, invoicing, scheduling) with client-side AI computer vision for instant image culling.
 
 ---
 
-## 🚀 Key Features Matrix
+## 🚀 Core Features Matrix
 
-### 1. 📊 Central Executive Dashboard
-* **Real-Time Analytics:** Visual revenue performance widgets, financial forecasting, and invoice status breakdowns.
-* **Task Management:** Overview of upcoming shoots, pending client deliverables, and active tasks.
-* **Quick Actions:** One-click modals to launch new shoot briefs, generate client invoices, or initiate an AI culling session.
+### 1. 📊 Central Dashboard
+* **Overview:** Summarizes upcoming shoots, pending invoices, and active tasks at a glance.
+* **Widgets:** Includes real-time revenue and financial performance monitoring widgets.
+* **Quick Actions:** One-click action buttons to instantly create shoots or upload galleries.
 
-### 2. 📅 Schedules & Smart Calendar
-* **Timeline View:** Unified calendar mapping pre-production, client consultation meetings, shoot dates, editing milestones, and gallery delivery deadlines.
-* **Interactive Gear Checklists:** Dynamic pre-shoot packing lists tailored to specific shoot profiles (e.g., Wedding, Commercial Portrait, Real Estate, Drone Videography).
+### 2. 📅 Schedules & Calendar
+* **Timeline:** Visual timeline mapping out shoots, client consultation meetings, and editing deadlines.
+* **Gear Checklists:** Interactive pre-shoot checklists tied to specific shoot profiles (e.g., Wedding, Portrait, Drone Video).
 
-### 3. 👥 Client CRM & Automated Invoicing
-* **Client Directory:** Centralized contact ledger with linked shoot history, communication archives, and active project states.
-* **Contract Management:** E-signature pipeline with automated status tracking (*Drafted*, *Sent*, *Signed*).
-* **Flexible Invoicing:** Dynamic billing engine calculating package rates, custom add-ons, tax liabilities, and payment milestones (*Unpaid*, *Deposit Received*, *Paid in Full*).
+### 3. 👥 Client Management (CRM) & Invoicing
+* **Directory:** Client directory containing contact history and linked shoot archives.
+* **Contracts:** Contract status tracker (*Drafted*, *Sent*, *Signed*).
+* **Invoicing:** Automated invoice generator calculating package prices, add-ons, and payment milestones (*Unpaid*, *Deposit Received*, *Paid in Full*).
 
-### 4. 🎯 Client-Side ML Image Culling (Flagship Feature)
-* **Blur Detection:** Utilizes OpenCV.js and Laplacian Variance scoring to immediately identify and flag out-of-focus or motion-blurred frames.
-* **Blink & Expression Analysis:** Employs lightweight computer vision models (MediaPipe / Face-API.js) to detect subject faces, facial orientation, and closed eyes.
-* **Duplicate/Burst Grouping:** Employs Perceptual Hashing (pHash) to cluster high-speed burst shots for rapid side-by-side selection.
-* **Privacy & Zero Compute Cost:** Runs entirely inside the client's browser using Web Workers and WebAssembly (WASM). Images never leave the user's local machine during culling.
+### 4. 🎯 Machine Learning Image Culling (Client-Side)
+* **Blur Detection:** Uses Laplacian Variance (`OpenCV.js`) to detect out-of-focus or motion-blurred shots instantly.
+* **Eye-Blink & Face Detection:** Detects subject facial features and closed eyes using lightweight models (`MediaPipe` / `Face-API.js`).
+* **Duplicate Detection:** Employs perceptual hashing (`pHash`) to group rapid-fire sequence shots for fast manual selection.
+* **Processing Location:** Runs 100% inside the client's browser (0 server/cloud compute cost).
 
 ### 5. 📁 Cloud Storage & Past Shoot Archives
-* **Relational Storage Tree:** Nested folder structure using a `parent_id` hierarchy to organize multi-year shoot archives.
-* **Object Storage Integration:** Direct-to-bucket client uploads leveraging Cloudflare R2 or Amazon S3 via pre-signed URLs to prevent egress fees and server bottlenecks.
+* **Directory Hierarchy:** Cloud folder hierarchy (`parent_id` structure) for organizing past albums and delivered RAW/JPG files.
+* **Object Storage:** Direct upload integration to Cloudflare R2 / S3 object storage.
 
-### 6. 🖼️ Client Proofing & Gallery Delivery
-* **Tokenized Access:** Secure, shareable client proofing portals via hashed public URLs (`/gallery/view?token=...`).
-* **Interactive Proofing Grid:** Watermarked preview galleries allowing clients to favorite, comment on, and select final photos for post-processing.
+### 6. 🖼️ Client Proofing & Delivery
+* **Shareable Links:** Secure, public client links (`/gallery/view?token=...`).
+* **Interactive Proofing:** Watermarked preview grids allowing clients to "favorite" and select final photos for editing.
 
-### 7. 🔔 Notifications & System Settings
-* **Automated Alerts:** Reminders for upcoming shoot dates, unpaid invoices, contract sign-offs, and project deadlines.
-* **Storage Telemetry:** Storage allocation monitoring across client galleries with configurable quota notifications.
-
----
-
-## 🛠️ Technology Stack
-
-| Category | Technology / Library |
-| :--- | :--- |
-| **Framework & Build** | React 18, Vite |
-| **Styling & UI** | Tailwind CSS, Glassmorphism UI Design |
-| **Typography** | Space Grotesk, Instrument Serif, JetBrains Mono |
-| **Icons & Charts** | Lucide Icons, Chart.js |
-| **In-Browser ML / CV** | OpenCV.js (WASM), MediaPipe / Face-API.js, pHash |
-| **Concurrency** | Web Workers |
-| **Storage Architecture** | Cloudflare R2 / AWS S3 (Direct Uploads via Pre-Signed URLs) |
+### 7. 🔔 Notifications & Settings
+* **Reminders:** Alerts for upcoming shoot dates, unpaid invoices, and task deadlines.
+* **System Control:** Storage allocation monitoring, system configurations, and profile management.
 
 ---
 
-## ⚙️ Architecture: In-Browser Culling Engine
+## 🛠️ Recommended Tech Stack & Deployment ($0 Cost Architecture)
+
+| Component | Technology | Hosting / Infrastructure | Cost |
+| :--- | :--- | :--- | :--- |
+| **Front-End** | React (Vite) + Tailwind CSS | Vercel / Render | $0.00 |
+| **Database** | PostgreSQL or MySQL | Supabase / Neon (Cloud SQL) | $0.00 |
+| **Machine Learning** | TensorFlow.js / OpenCV.js | Client Browser (Local CPU) | $0.00 |
+| **Cloud File Storage** | Cloudflare R2 | 10 GB Free Tier | $0.00 |
+| **API Backend** | Node.js / Express or Serverless | Vercel API Routes / Render | $0.00 |
+
+---
+
+## 🗄️ Database Schema Design Overview
+
+* `users` — `id`, `name`, `email`, `password_hash`, `created_at`
+* `clients` — `id`, `user_id`, `name`, `email`, `phone`, `company`
+* `shoots` — `id`, `client_id`, `title`, `shoot_date`, `status`, `location`
+* `invoices` — `id`, `shoot_id`, `total_amount`, `amount_paid`, `status`
+* `gear_checklists` — `id`, `shoot_id`, `item_name`, `is_packed`
+* `folders` — `id`, `shoot_id`, `name`, `parent_id`
+* `photos` — `id`, `folder_id`, `file_url`, `is_culled`, `ai_score`, `is_favorite`
+
+---
+
+## 📋 Action Plan & Next Steps
+
+- [ ] Initialize GitHub repository and set up React (Vite) + Tailwind CSS.
+- [ ] Connect local Docker SQL / Supabase instance to the React app.
+- [ ] Build basic sidebar navigation and Dashboard UI components.
+- [ ] Prototype client-side OpenCV.js / TensorFlow.js blur detection module.
+- [ ] Set up Cloudflare R2 bucket for file upload testing.

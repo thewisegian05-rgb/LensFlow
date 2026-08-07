@@ -1,0 +1,156 @@
+/* ===========================
+   LensEase Calendar Theme
+=========================== */
+
+.rbc-calendar {
+  background: #0f172a;
+  color: white;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* Toolbar */
+
+.rbc-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.rbc-toolbar button {
+  background: #1e293b;
+  color: white;
+  border: 1px solid #334155;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: .2s;
+  cursor: pointer;
+}
+
+.rbc-toolbar button:hover {
+  background: #0ea5e9;
+  color: #fff;
+}
+
+.rbc-toolbar button.rbc-active {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.rbc-toolbar-label {
+  color: white;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* Week header */
+
+.rbc-header {
+  background: #1e293b;
+  color: #cbd5e1;
+  padding: 12px 0;
+  border: 1px solid #334155;
+  font-weight: 600;
+}
+
+/* Day cells */
+
+.rbc-day-bg {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+.rbc-day-bg:hover {
+  background: #172554;
+}
+
+/* Date numbers */
+
+.rbc-date-cell {
+  color: #cbd5e1;
+  padding: 6px;
+}
+
+.rbc-off-range-bg {
+  background: #111827;
+}
+
+.rbc-off-range {
+  color: #64748b;
+}
+
+/* Today */
+
+.rbc-today {
+  background: rgba(56, 189, 248, .12) !important;
+}
+
+/* Events */
+
+.rbc-event {
+  background: #38bdf8 !important;
+  border: none !important;
+  border-radius: 6px;
+  color: #0f172a;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rbc-event:hover {
+  background: #0ea5e9 !important;
+}
+
+/* Borders */
+
+.rbc-month-view,
+.rbc-time-view,
+.rbc-time-header,
+.rbc-time-content,
+.rbc-month-row,
+.rbc-row-content {
+  border-color: #334155;
+}
+
+.rbc-time-content>*+*>* {
+  border-color: #334155;
+}
+
+.rbc-timeslot-group {
+  border-color: #334155;
+}
+
+/* Month row */
+
+.rbc-month-row {
+  border-color: #334155;
+}
+
+/* Time labels */
+
+.rbc-time-gutter,
+.rbc-label {
+  color: #94a3b8;
+}
+
+/* Agenda */
+
+.rbc-agenda-view table {
+  background: #0f172a;
+  color: white;
+}
+
+.rbc-agenda-view table tbody>tr>td {
+  border-color: #334155;
+}
+
+.rbc-agenda-view table thead>tr>th {
+  border-color: #334155;
+  background: #1e293b;
+}
+/* Hide built-in toolbar groups */
+
+.rbc-btn-group {
+    display: none;
+}

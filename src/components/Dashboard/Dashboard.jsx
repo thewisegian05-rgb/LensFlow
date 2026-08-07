@@ -9,6 +9,7 @@ import StatCard from "./StatCard";
 import TodaySchedule from "./TodaySchedule";
 import RecentProjects from "./RecentProjects";
 import WorkflowSummary from "./WorkflowSummary";
+import RevenueChart from "./RevenueChart";
 
 function Dashboard() {
   return (
@@ -57,8 +58,11 @@ function Dashboard() {
         <RecentProjects />
       </div>
 
-      {/* Workflow Summary */}
-      <WorkflowSummary />
+      {/* Workflow + Revenue */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <WorkflowSummary />
+        <RevenueChart />
+      </div>
     </div>
   );
 }

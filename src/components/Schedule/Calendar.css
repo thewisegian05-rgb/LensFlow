@@ -1,156 +1,712 @@
-/* ===========================
-   LensEase Calendar Theme
-=========================== */
+/* =========================================================
+   CALENDAR WRAPPER
+   ========================================================= */
 
-.rbc-calendar {
-  background: #0f172a;
-  color: white;
-  border-radius: 14px;
+.calendar-wrapper {
+  width: 100%;
+  background: #0b1424;
+  border: 1px solid #263b57;
+  border-radius: 12px;
   overflow: hidden;
+  color: #ffffff;
 }
 
-/* Toolbar */
 
-.rbc-toolbar {
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.calendar-header {
+  min-height: 64px;
+  padding: 12px 16px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 18px;
+  justify-content: space-between;
+  background: #111f34;
+  border-bottom: 1px solid #2b405c;
 }
 
-.rbc-toolbar button {
-  background: #1e293b;
-  color: white;
-  border: 1px solid #334155;
-  padding: 8px 16px;
-  border-radius: 8px;
-  transition: .2s;
+.calendar-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.calendar-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+
+/* =========================================================
+   TITLE
+   ========================================================= */
+
+.calendar-title {
+  margin: 0;
+  min-width: 190px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+
+.calendar-nav-button {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #304763;
+  border-radius: 7px;
+  background: #172940;
+  color: #ffffff;
+  font-size: 18px;
   cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
 }
 
-.rbc-toolbar button:hover {
-  background: #0ea5e9;
-  color: #fff;
+.calendar-nav-button:hover {
+  background: #203651;
+  border-color: #4a6686;
 }
 
-.rbc-toolbar button.rbc-active {
-  background: #38bdf8;
-  color: #0f172a;
+.calendar-nav-button:active {
+  transform: scale(0.96);
 }
 
-.rbc-toolbar-label {
-  color: white;
-  font-size: 22px;
+
+/* =========================================================
+   VIEW SWITCHER
+   ========================================================= */
+
+.calendar-view-switcher {
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid #304763;
+  border-radius: 8px;
+  background: #0c1728;
+}
+
+.calendar-view-button {
+  min-width: 60px;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #8fb0d5;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.calendar-view-button:hover {
+  color: #ffffff;
+}
+
+.calendar-view-button.active {
+  background: #1e3856;
+  color: #ffffff;
+}
+
+
+/* =========================================================
+   TODAY BUTTON
+   ========================================================= */
+
+.calendar-today-button {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #36516f;
+  border-radius: 7px;
+  background: #172940;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.calendar-today-button:hover {
+  background: #20476c;
+  border-color: #4d7196;
+}
+
+
+/* =========================================================
+   MONTH
+   ========================================================= */
+
+.calendar-month {
+  width: 100%;
+}
+
+
+/* =========================================================
+   WEEKDAY HEADER
+   ========================================================= */
+
+.calendar-weekday-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  background: #1b2c43;
+  border-bottom: 1px solid #30445e;
+}
+
+.calendar-weekday {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #30445e;
+  color: #6db6ff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.calendar-weekday:last-child {
+  border-right: none;
+}
+
+
+/* =========================================================
+   MONTH GRID
+   ========================================================= */
+
+.calendar-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: minmax(105px, auto);
+  background: #0b1424;
+}
+
+
+/* =========================================================
+   DAY
+   ========================================================= */
+
+.calendar-day {
+  position: relative;
+  min-width: 0;
+  min-height: 105px;
+  padding: 8px;
+  border-right: 1px solid #2a3e58;
+  border-bottom: 1px solid #2a3e58;
+  background: #0b1424;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.calendar-day:hover {
+  background: #101d30;
+}
+
+
+/* =========================================================
+   OUTSIDE MONTH
+   ========================================================= */
+
+.calendar-day.outside-month {
+  background: #09111f;
+}
+
+.calendar-day.outside-month .calendar-day-number {
+  color: #405775;
+}
+
+
+/* =========================================================
+   TODAY
+   ========================================================= */
+
+.calendar-day.today {
+  background: #163a5b;
+}
+
+.calendar-day.today:hover {
+  background: #1b466c;
+}
+
+.calendar-day.today .calendar-day-number {
+  color: #00b7ff;
+  font-weight: 800;
+}
+
+
+/* =========================================================
+   DAY NUMBER
+   ========================================================= */
+
+.calendar-day-number {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: #76a4d3;
+  font-size: 11px;
+  font-weight: 500;
+  z-index: 2;
+}
+
+
+/* =========================================================
+   TODAY LABEL
+   ========================================================= */
+
+.today-label {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  color: #00b7ff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+
+/* =========================================================
+   EVENTS CONTAINER
+   ========================================================= */
+
+.calendar-day-events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 30px;
+}
+
+
+/* =========================================================
+   MONTH EVENT BASE
+   ========================================================= */
+
+.calendar-event {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 5px 7px 5px 10px;
+  display: block;
+  border: 1px solid;
+  /* Thick solid category line only on the left. */
+  border-left-width: 4px;
+  border-radius: 6px;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  transition: filter 0.2s ease, transform 0.15s ease;
+}
+
+.calendar-event:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   EVENT TITLE
+   ========================================================= */
+
+.calendar-event-title {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+
+/* =========================================================
+   EVENT TIME
+   ========================================================= */
+
+.calendar-event-time {
+  margin-top: 1px;
+  font-size: 9px;
+  line-height: 11px;
+  opacity: 0.8;
+}
+
+
+/* =========================================================
+   CATEGORY COLORS (MONTH VIEW)
+   ---------------------------------------------------------
+   Each category gets its own hue so they stay distinguishable
+   at a glance — no two categories share a color family.
+
+     birthday   → rose
+     wedding    → violet
+     prenup     → amber
+     photoshoot → sky blue
+     party      → green
+     corporate  → teal      (previously duplicated prenup's amber)
+     default    → fuchsia   (previously duplicated wedding's violet)
+   ========================================================= */
+
+.calendar-event.birthday {
+  background: rgba(255, 61, 120, 0.10);
+  border-color: rgba(255, 61, 120, 0.28);
+  border-left-color: #ff3d78;
+  color: #ff78a4;
+}
+
+.calendar-event.wedding {
+  background: rgba(155, 92, 255, 0.10);
+  border-color: rgba(155, 92, 255, 0.28);
+  border-left-color: #9b5cff;
+  color: #c19aff;
+}
+
+.calendar-event.prenup {
+  background: rgba(245, 158, 11, 0.10);
+  border-color: rgba(245, 158, 11, 0.28);
+  border-left-color: #f59e0b;
+  color: #ffc15c;
+}
+
+.calendar-event.photoshoot {
+  background: rgba(0, 168, 255, 0.10);
+  border-color: rgba(0, 168, 255, 0.28);
+  border-left-color: #00a8ff;
+  color: #67caff;
+}
+
+.calendar-event.party {
+  background: rgba(34, 197, 94, 0.10);
+  border-color: rgba(34, 197, 94, 0.28);
+  border-left-color: #22c55e;
+  color: #69e69a;
+}
+
+.calendar-event.corporate {
+  background: rgba(20, 184, 166, 0.10);
+  border-color: rgba(20, 184, 166, 0.28);
+  border-left-color: #14b8a6;
+  color: #5eead4;
+}
+
+.calendar-event.default {
+  background: rgba(217, 70, 239, 0.10);
+  border-color: rgba(217, 70, 239, 0.28);
+  border-left-color: #d946ef;
+  color: #f0abfc;
+}
+
+
+/* =========================================================
+   MORE EVENTS
+   ========================================================= */
+
+.calendar-more-button {
+  width: fit-content;
+  margin-top: 1px;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: #59b7ff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.calendar-more-button:hover {
+  color: #8ed0ff;
+  text-decoration: underline;
+}
+
+
+/* =========================================================
+   WEEK VIEW
+   ========================================================= */
+
+.calendar-week-view {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.calendar-week-grid {
+  min-width: 850px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  background: #0b1424;
+}
+
+
+/* =========================================================
+   WEEK DAY
+   ========================================================= */
+
+.calendar-week-day {
+  min-height: 500px;
+  background: #0b1424;
+  border-right: 1px solid #2a3e58;
+}
+
+.calendar-week-day:last-child {
+  border-right: none;
+}
+
+
+/* =========================================================
+   WEEK TODAY
+   ========================================================= */
+
+.calendar-week-day.today {
+  background: #163a5b;
+}
+
+
+/* =========================================================
+   WEEK DAY HEADER
+   ========================================================= */
+
+.calendar-week-day-header {
+  min-height: 70px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #172a42;
+  border-bottom: 1px solid #30445e;
+}
+
+.calendar-week-day.today .calendar-week-day-header {
+  background: #1e496e;
+}
+
+
+/* =========================================================
+   WEEK DAY NAME
+   ========================================================= */
+
+.calendar-week-day-name {
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 700;
 }
 
-/* Week header */
 
-.rbc-header {
-  background: #1e293b;
-  color: #cbd5e1;
-  padding: 12px 0;
-  border: 1px solid #334155;
-  font-weight: 600;
+/* =========================================================
+   WEEK DAY NUMBER
+   ========================================================= */
+
+.calendar-week-day-number {
+  margin-top: 3px;
+  color: #83a7cf;
+  font-size: 12px;
 }
 
-/* Day cells */
-
-.rbc-day-bg {
-  background: #0f172a;
-  border-color: #334155;
+.calendar-week-day-number.today-number {
+  color: #00b7ff;
+  font-weight: 800;
 }
 
-.rbc-day-bg:hover {
-  background: #172554;
+
+/* =========================================================
+   WEEK EVENTS
+   ========================================================= */
+
+.calendar-week-events {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-/* Date numbers */
 
-.rbc-date-cell {
-  color: #cbd5e1;
-  padding: 6px;
+/* =========================================================
+   EMPTY WEEK
+   ========================================================= */
+
+.calendar-week-empty {
+  padding: 20px 8px;
+  text-align: center;
+  color: #526b88;
+  font-size: 12px;
 }
 
-.rbc-off-range-bg {
-  background: #111827;
+
+/* =========================================================
+   WEEK EVENT BASE
+   ========================================================= */
+
+.calendar-week-event {
+  padding: 12px;
+  border: 1px solid;
+  border-left-width: 4px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s ease, filter 0.2s ease;
 }
 
-.rbc-off-range {
-  color: #64748b;
+.calendar-week-event:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
 }
 
-/* Today */
 
-.rbc-today {
-  background: rgba(56, 189, 248, .12) !important;
+/* =========================================================
+   CATEGORY COLORS (WEEK VIEW)
+   Same 7-color mapping as the month view — kept in sync so an
+   event looks identical whether you're in Month or Week mode.
+   ========================================================= */
+
+.calendar-week-event.birthday {
+  background: rgba(255, 61, 120, 0.10);
+  border-color: rgba(255, 61, 120, 0.28);
+  border-left-color: #ff3d78;
+  color: #ff78a4;
 }
 
-/* Events */
+.calendar-week-event.wedding {
+  background: rgba(155, 92, 255, 0.10);
+  border-color: rgba(155, 92, 255, 0.28);
+  border-left-color: #9b5cff;
+  color: #c19aff;
+}
 
-.rbc-event {
-  background: #38bdf8 !important;
-  border: none !important;
-  border-radius: 6px;
-  color: #0f172a;
-  padding: 2px 6px;
+.calendar-week-event.prenup {
+  background: rgba(245, 158, 11, 0.10);
+  border-color: rgba(245, 158, 11, 0.28);
+  border-left-color: #f59e0b;
+  color: #ffc15c;
+}
+
+.calendar-week-event.photoshoot {
+  background: rgba(0, 168, 255, 0.10);
+  border-color: rgba(0, 168, 255, 0.28);
+  border-left-color: #00a8ff;
+  color: #67caff;
+}
+
+.calendar-week-event.party {
+  background: rgba(34, 197, 94, 0.10);
+  border-color: rgba(34, 197, 94, 0.28);
+  border-left-color: #22c55e;
+  color: #69e69a;
+}
+
+.calendar-week-event.corporate {
+  background: rgba(20, 184, 166, 0.10);
+  border-color: rgba(20, 184, 166, 0.28);
+  border-left-color: #14b8a6;
+  color: #5eead4;
+}
+
+.calendar-week-event.default {
+  background: rgba(217, 70, 239, 0.10);
+  border-color: rgba(217, 70, 239, 0.28);
+  border-left-color: #d946ef;
+  color: #f0abfc;
+}
+
+
+/* =========================================================
+   WEEK EVENT TITLE
+   ========================================================= */
+
+.calendar-week-event-title {
+  margin-bottom: 5px;
+  color: inherit;
   font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+
+/* =========================================================
+   WEEK EVENT INFO
+   ========================================================= */
+
+.calendar-week-event-info {
+  margin-bottom: 10px;
+  color: inherit;
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+
+/* =========================================================
+   WEEK EVENT BUTTON
+   ========================================================= */
+
+.calendar-week-event-button {
+  width: 100%;
+  height: 30px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.10);
+  color: inherit;
+  font-size: 11px;
   font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
 }
 
-.rbc-event:hover {
-  background: #0ea5e9 !important;
+.calendar-week-event-button:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
-/* Borders */
 
-.rbc-month-view,
-.rbc-time-view,
-.rbc-time-header,
-.rbc-time-content,
-.rbc-month-row,
-.rbc-row-content {
-  border-color: #334155;
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .calendar-header {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .calendar-header-left {
+    flex-wrap: wrap;
+  }
+
+  .calendar-header-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .calendar-title {
+    min-width: auto;
+    font-size: 17px;
+  }
+
+  .calendar-month-grid {
+    grid-auto-rows: minmax(110px, auto);
+  }
 }
 
-.rbc-time-content>*+*>* {
-  border-color: #334155;
-}
 
-.rbc-timeslot-group {
-  border-color: #334155;
-}
+@media (max-width: 650px) {
+  .calendar-header {
+    flex-direction: column;
+  }
 
-/* Month row */
+  .calendar-header-left,
+  .calendar-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
 
-.rbc-month-row {
-  border-color: #334155;
-}
+  .calendar-title {
+    text-align: center;
+  }
 
-/* Time labels */
+  .calendar-month {
+    overflow-x: auto;
+  }
 
-.rbc-time-gutter,
-.rbc-label {
-  color: #94a3b8;
-}
-
-/* Agenda */
-
-.rbc-agenda-view table {
-  background: #0f172a;
-  color: white;
-}
-
-.rbc-agenda-view table tbody>tr>td {
-  border-color: #334155;
-}
-
-.rbc-agenda-view table thead>tr>th {
-  border-color: #334155;
-  background: #1e293b;
-}
-/* Hide built-in toolbar groups */
-
-.rbc-btn-group {
-    display: none;
+  .calendar-month-grid {
+    min-width: 700px;
+  }
 }

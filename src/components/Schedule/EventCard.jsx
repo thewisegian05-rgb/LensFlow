@@ -1,14 +1,19 @@
+import { getEventCategory, CATEGORY_LABELS, CATEGORY_BADGE_CLASSES, CATEGORY_HOVER_BORDER_CLASSES } from "./eventCategory";
+
 function EventCard({ event }) {
-  const colors = {
-    Wedding: "bg-pink-500",
-    Portrait: "bg-sky-500",
-    Corporate: "bg-green-500",
-    Birthday: "bg-yellow-500",
-    Other: "bg-purple-500",
-  };
+  // Same detection logic Calendar.jsx uses — reads event.category /
+  // event.title instead of a `type` field that doesn't actually exist
+  // on these objects (that mismatch is why every badge was falling
+  // back to the same purple before).
+  const category = getEventCategory(event);
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
+    <div
+      className={`rounded-lg border border-slate-700 bg-slate-800 p-4 cursor-pointer
+        transition-all duration-200 ease-out
+        hover:-translate-y-1 hover:shadow-lg hover:shadow-black/30 hover:bg-slate-800/80
+        ${CATEGORY_HOVER_BORDER_CLASSES[category]}`}
+    >
       <div className="flex justify-between items-start mb-2">
         <div>
           <h3 className="text-white font-semibold">
@@ -21,11 +26,9 @@ function EventCard({ event }) {
         </div>
 
         <span
-          className={`px-2 py-1 rounded text-xs text-white ${
-            colors[event.type] || colors.Other
-          }`}
+          className={`px-2 py-1 rounded text-xs text-white ${CATEGORY_BADGE_CLASSES[category]}`}
         >
-          {event.type}
+          {CATEGORY_LABELS[category]}
         </span>
       </div>
 

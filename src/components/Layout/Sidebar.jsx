@@ -3,6 +3,7 @@ import {
   FaHome,
   FaCalendarAlt,
   FaTasks,
+  FaCheckDouble,
   FaUsers,
   FaImages,
   FaUser,
@@ -68,6 +69,14 @@ function Sidebar() {
         >
           <FaTasks />
           Workflow
+        </NavLink>
+
+        <NavLink
+          to="/dashboard/culling"
+          className={linkStyle}
+        >
+          <FaCheckDouble />
+          Culling
         </NavLink>
 
         <NavLink

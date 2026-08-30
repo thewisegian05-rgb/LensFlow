@@ -6,6 +6,7 @@ import Layout from "../components/Layout/Layout";
 import DashboardPage from "../pages/DashboardPage";
 import SchedulePage from "../pages/SchedulePage";
 import WorkflowPage from "../pages/WorkflowPage";
+import CullingPage from "../pages/CullingPage";
 import ClientPage from "../pages/ClientPage";
 import StoragePage from "../pages/StoragePage";
 import ProfilePage from "../pages/ProfilePage";
@@ -23,6 +24,7 @@ function AppRoutes() {
           <Route index element={<DashboardPage />} />
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="workflow" element={<WorkflowPage />} />
+          <Route path="culling" element={<CullingPage />} />
           <Route path="clients" element={<ClientPage />} />
           <Route path="storage" element={<StoragePage />} />
           <Route path="profile" element={<ProfilePage />} />

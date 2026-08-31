@@ -1,0 +1,323 @@
+/* ==========================================
+   LIST CONTAINER
+========================================== */
+
+.client-list-container {
+  width: 100%;
+
+  overflow-x: auto;
+
+  background: #111b2e;
+
+  border: 1px solid #293a55;
+  border-radius: 12px;
+}
+
+
+/* ==========================================
+   TABLE
+========================================== */
+
+.client-list-table {
+  width: 100%;
+
+  min-width: 850px;
+
+  border-collapse: collapse;
+
+  table-layout: auto;
+}
+
+
+/* ==========================================
+   TABLE HEADER
+========================================== */
+
+.client-list-table thead {
+  background: #0d1728;
+}
+
+.client-list-table th {
+  padding: 14px 18px;
+
+  border-bottom: 1px solid #2b3c56;
+
+  color: #75869e;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  letter-spacing: 0.5px;
+
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.client-list-table th:first-child {
+  padding-left: 22px;
+}
+
+.client-list-table .actions-heading {
+  text-align: center;
+}
+
+
+/* ==========================================
+   TABLE ROW
+========================================== */
+
+.client-list-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.client-list-table tbody tr:hover {
+  background: #142136;
+}
+
+.client-list-table td {
+  padding: 16px 18px;
+
+  border-bottom: 1px solid #223149;
+
+  color: #d9e2ee;
+
+  font-size: 13px;
+
+  vertical-align: middle;
+}
+
+.client-list-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+
+/* ==========================================
+   CLIENT INFO
+========================================== */
+
+.list-client-info {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+}
+
+
+/* Avatar */
+
+.list-client-avatar {
+  width: 38px;
+  height: 38px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #173d58;
+
+  border: 1px solid #246589;
+
+  color: #2fc0f3;
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+/* Name */
+
+.list-client-name {
+  margin: 0 0 3px;
+
+  color: #f0f4f9;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  white-space: nowrap;
+}
+
+.list-client-type {
+  color: #718198;
+
+  font-size: 11px;
+
+  white-space: nowrap;
+}
+
+
+/* ==========================================
+   CONTACT
+========================================== */
+
+.list-contact p {
+  margin: 0 0 4px;
+
+  color: #d6dfeb;
+
+  font-size: 12px;
+
+  white-space: nowrap;
+}
+
+.list-contact span {
+  display: block;
+
+  max-width: 190px;
+
+  overflow: hidden;
+
+  color: #718198;
+
+  font-size: 11px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ==========================================
+   PROJECT
+========================================== */
+
+.list-project {
+  color: #32b8ed;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  white-space: nowrap;
+}
+
+
+/* ==========================================
+   TOTAL SPENT
+========================================== */
+
+.list-spent {
+  color: #edf2f8;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  white-space: nowrap;
+}
+
+
+/* ==========================================
+   ACTIONS
+========================================== */
+
+.list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+}
+
+.list-action-btn {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border-radius: 6px;
+
+  background: transparent;
+
+  font-size: 15px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+
+/* View */
+
+.list-view-btn {
+  border: 1px solid #31435e;
+
+  color: #8da7c5;
+}
+
+.list-view-btn:hover {
+  background: #1b2b42;
+
+  border-color: #486487;
+
+  color: #ffffff;
+}
+
+
+/* Edit */
+
+.list-edit-btn {
+  border: 1px solid #245676;
+
+  color: #4ab7e9;
+}
+
+.list-edit-btn:hover {
+  background: #12354c;
+
+  border-color: #2b82ae;
+
+  color: #ffffff;
+}
+
+
+/* Delete */
+
+.list-delete-btn {
+  border: 1px solid #62383d;
+
+  color: #f17878;
+}
+
+.list-delete-btn:hover {
+  background: #44252a;
+
+  border-color: #915158;
+
+  color: #ffffff;
+}
+
+
+/* ==========================================
+   EMPTY STATE
+========================================== */
+
+.list-empty-state {
+  padding: 70px 20px;
+
+  text-align: center;
+}
+
+.list-empty-state h3 {
+  margin: 0 0 6px;
+
+  color: #dde5ef;
+
+  font-size: 16px;
+}
+
+.list-empty-state p {
+  margin: 0;
+
+  color: #718198;
+
+  font-size: 13px;
+}

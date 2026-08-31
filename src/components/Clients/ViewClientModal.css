@@ -198,11 +198,99 @@
 
 .view-client-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+
+  gap: 12px;
 
   padding-top: 18px;
 
   border-top: 1px solid #263650;
+}
+
+/* Ensure primary action group lays out buttons horizontally */
+.view-client-actions > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.view-edit-btn,
+.view-complete-btn {
+  white-space: nowrap;
+}
+
+.view-client-primary-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.view-edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 10px 18px;
+
+  border: 1px solid #236a91;
+  border-radius: 7px;
+
+  background: transparent;
+
+  color: #38b6ea;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.view-edit-btn:hover {
+  background: rgba(56, 182, 234, 0.1);
+  border-color: #38b6ea;
+}
+.view-complete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 10px 18px;
+
+  border: 1px solid rgba(53, 199, 111, 0.4);
+  border-radius: 7px;
+
+  background: rgba(53, 199, 111, 0.1);
+
+  color: #35c76f;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.view-complete-btn:hover {
+  background: rgba(53, 199, 111, 0.18);
+  border-color: #35c76f;
+}
+
+.view-edit-btn svg,
+.view-complete-btn svg {
+  font-size: 15px;
 }
 
 .view-close-btn {
@@ -248,10 +336,10 @@
   }
 
   .view-client-actions {
-    justify-content: stretch;
+    justify-content: flex-end;
   }
 
   .view-close-btn {
-    width: 100%;
+    width: auto;
   }
 }

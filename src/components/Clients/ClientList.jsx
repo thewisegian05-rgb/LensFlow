@@ -5,10 +5,11 @@ import {
   FiEdit2,
   FiTrash2,
   FiMessageSquare,
+  FiCheckCircle,
 } from "react-icons/fi";
 
 
-function ClientList({ clients, onView, onDelete }) {
+function ClientList({ clients, onView, onDelete, onComplete }) {
 
   return (
 
@@ -60,7 +61,7 @@ function ClientList({ clients, onView, onDelete }) {
 
           {clients.map((client) => (
 
-            <tr key={client.id}>
+            <tr key={client.id} className={(client.projectStatus || "").toLowerCase()}>
 
 
               {/* CLIENT */}
@@ -68,6 +69,8 @@ function ClientList({ clients, onView, onDelete }) {
               <td>
 
                 <div className="list-client-info">
+
+                  <span className={`list-status-dot ${(client.projectStatus || "").toLowerCase()}`} aria-hidden />
 
                   <div className="list-client-avatar">
                     {client.initials}
@@ -80,9 +83,12 @@ function ClientList({ clients, onView, onDelete }) {
                       {client.name}
                     </p>
 
-                    <span className="list-client-type">
-                      {client.type}
-                    </span>
+                    <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+                      <span className="list-client-type">
+                        {client.type}
+                      </span>
+                      <span className="list-status-label">{client.projectStatus}</span>
+                    </div>
 
                   </div>
 
@@ -123,8 +129,8 @@ function ClientList({ clients, onView, onDelete }) {
               {/* SPENT */}
 
               <td>
-                <span className="list-spent">
-                  {client.spent}
+                <span className="list-talentFee">
+                  {client.talentFee}
                 </span>
               </td>
 
@@ -161,6 +167,17 @@ function ClientList({ clients, onView, onDelete }) {
                   >
                     <FiTrash2 />
                   </button>
+
+                  {/* COMPLETE (hidden when already completed) */}
+                  {(client.projectStatus || "").toLowerCase() !== "completed" && (
+                    <button
+                      className="list-action-btn list-complete-btn"
+                      title="Mark Complete"
+                      onClick={() => onComplete && onComplete(client.id)}
+                    >
+                      <FiCheckCircle />
+                    </button>
+                  )}
 
                   <button 
                     className="list-action-btn list-message-btn"

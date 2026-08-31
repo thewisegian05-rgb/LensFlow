@@ -7,6 +7,7 @@ import {
   FiPhone,
   FiMail,
   FiFolder,
+  FiCheckCircle,
   FiMessageSquare,
 } from "react-icons/fi";
 
@@ -14,10 +15,13 @@ import { FaPesoSign } from "react-icons/fa6";
 
 import "./ClientCard.css";
 
-function ClientCard({ client, onView, onDelete }) {
+function ClientCard({ client, onView, onDelete, onComplete }) {
 
   return (
-    <div className="client-card">
+    <div className={`client-card ${
+    client.projectStatus?.toLowerCase() || ""
+  }`}
+>
 
       {/* Client Header */}
 
@@ -30,6 +34,18 @@ function ClientCard({ client, onView, onDelete }) {
         <div className="client-heading">
           <h2>{client.name}</h2>
           <span>{client.type}</span>
+        </div>
+
+        <div className="client-status">
+          <span
+            className={`status-dot ${
+              (client.projectStatus || "").toLowerCase()
+            }`}
+            aria-hidden
+          />
+          <span className="status-label">
+            {client.projectStatus}
+          </span>
         </div>
 
       </div>
@@ -128,6 +144,19 @@ function ClientCard({ client, onView, onDelete }) {
         </button>
         
       </div>
+
+      {client.projectStatus !== "Completed" && (
+        <div className="complete-action">
+            <button
+            className="complete-btn"
+            title="Mark as Complete"
+            onClick={() => onComplete(client.id)}
+            >
+            <FiCheckCircle />
+            <span>Mark as Complete</span>
+            </button>
+        </div>
+        )}
 
     </div>
   );

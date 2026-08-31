@@ -127,6 +127,30 @@
   font-weight: 700;
 }
 
+/* Status dot in list rows */
+.list-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 10px;
+  flex-shrink: 0;
+  background: #8b9bb0;
+}
+
+.list-status-label {
+  color: #9fb0c8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.list-status-dot.completed { background: #2db66e; box-shadow: 0 0 8px rgba(45,182,110,0.28); }
+.list-status-dot.ongoing, .list-status-dot.pending { background: #e4b21c; box-shadow: 0 0 8px rgba(228,178,28,0.28); }
+
+/* subtle aura for rows */
+.client-list-table tbody tr.completed td { box-shadow: 0 6px 20px rgba(45,182,110,0.04) inset; }
+.client-list-table tbody tr.ongoing td, .client-list-table tbody tr.pending td { box-shadow: 0 6px 20px rgba(228,178,28,0.04) inset; }
+
 
 /* Name */
 
@@ -295,6 +319,19 @@
   color: #ffffff;
 }
 
+/* Complete button */
+.list-complete-btn {
+  border: 1px solid rgba(53, 199, 111, 0.35);
+  color: #35c76f;
+  background: transparent;
+}
+
+.list-complete-btn:hover {
+  background: rgba(53, 199, 111, 0.08);
+  border-color: #35c76f;
+  color: #ffffff;
+}
+
 .list-message-btn {
   border: 1px solid #245676;
 
@@ -336,3 +373,7 @@
 
   font-size: 13px;
 }
+
+/* ==========================================
+   PROJECT STATUS HIGHLIGHTS
+========================================== */

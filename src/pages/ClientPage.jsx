@@ -35,6 +35,7 @@ function ClientPage() {
       contact: "09123456789",
       email: "sarah@gmail.com",
       project: "Smith Wedding",
+      projectStatus: "Ongoing",
       talentFee: "₱4,500",
       initials: "JS",
     },
@@ -45,6 +46,7 @@ function ClientPage() {
       contact: "09676543210",
       email: "contact@techcorp.com",
       project: "TechCorp Event",
+      projectStatus: "Completed",
       talentFee: "₱6,200",
       initials: "TC",
     },
@@ -85,6 +87,30 @@ function ClientPage() {
 
     }
   };
+
+  // ==========================================
+  //  MARK AS COMPLETE PROJECT
+  // ==========================================
+  const handleCompleteClient = (id) => {
+
+  setClients((previousClients) =>
+    previousClients.map((client) =>
+      client.id === id
+        ? { ...client, projectStatus: "Completed" }
+        : client
+    )
+  );
+
+  setSelectedClient((previousClient) =>
+    previousClient?.id === id
+      ? {
+          ...previousClient,
+          projectStatus: "Completed",
+        }
+      : previousClient
+  );
+
+};
 
 
   return (
@@ -192,6 +218,7 @@ function ClientPage() {
             client={client}
             onDelete={handleDeleteClient}
             onView={() => setSelectedClient(client)}
+            onComplete={handleCompleteClient}
           />
         ))}
 
@@ -209,8 +236,9 @@ function ClientPage() {
 
         <ClientList
           clients={clients}
-          onDelete={handleDeleteClient}
-          onView={(client) => setSelectedClient(client)}
+            onDelete={handleDeleteClient}
+            onView={(client) => setSelectedClient(client)}
+            onComplete={handleCompleteClient}
         />
 
       )}
@@ -238,6 +266,8 @@ function ClientPage() {
         <ViewClientModal
           client={selectedClient}
           onClose={() => setSelectedClient(null)}
+          onComplete={handleCompleteClient}
+          onEdit={() => console.log("Edit client")}
         />
       )}
 

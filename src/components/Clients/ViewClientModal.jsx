@@ -8,14 +8,15 @@ import {
   FiMapPin,
   FiTag,
   FiUser,
-  FiMessageSquare,
+  FiEdit2,
+  FiCheckCircle,
 } from "react-icons/fi";
 
 import { FaPesoSign } from "react-icons/fa6";
 
 import "./ViewClientModal.css";
 
-function ViewClientModal({ client, onClose }) {
+function ViewClientModal({ client, onClose, onComplete, onEdit }) {
   if (!client) return null;
 
   return (
@@ -51,8 +52,11 @@ function ViewClientModal({ client, onClose }) {
           >
             <FiX />
           </button>
+          
 
         </div>
+
+        {/* primary actions moved to footer */}
 
 
         {/* Information */}
@@ -166,6 +170,26 @@ function ViewClientModal({ client, onClose }) {
 
         {/* Bottom Actions */}
         <div className="view-client-actions">
+
+          <div>
+            <button
+              className="view-edit-btn"
+              onClick={() => onEdit && onEdit(client)}
+            >
+              <FiEdit2 />
+              <span>Edit</span>
+            </button>
+
+            {client.projectStatus !== "Completed" && (
+              <button
+                className="view-complete-btn"
+                onClick={() => onComplete && onComplete(client.id)}
+              >
+                <FiCheckCircle />
+                <span>Mark as Complete</span>
+              </button>
+            )}
+          </div>
 
           <button
             className="view-close-btn"

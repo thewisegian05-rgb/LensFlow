@@ -43,6 +43,58 @@
   border-bottom: 1px solid #25344c;
 }
 
+.client-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  background: #8b9bb0; /* default gray */
+  box-shadow: 0 0 0 4px rgba(0,0,0,0.04) inset;
+}
+
+.status-label {
+  color: #9fb0c8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Status-specific highlight styles */
+.client-card.completed {
+  border-color: rgba(45, 182, 110, 0.32);
+  box-shadow:
+    0 6px 20px rgba(45, 182, 110, 0.05),
+    0 0 28px rgba(45, 182, 110, 0.08),
+    0 0 60px rgba(45, 182, 110, 0.06) inset;
+}
+
+.client-card.ongoing,
+.client-card.pending {
+  border-color: rgba(228, 178, 28, 0.34);
+  box-shadow:
+    0 6px 20px rgba(228, 178, 28, 0.05),
+    0 0 28px rgba(228, 178, 28, 0.08),
+    0 0 60px rgba(228, 178, 28, 0.04) inset;
+}
+
+.status-dot.completed {
+  background: #2db66e;
+  box-shadow: 0 0 8px rgba(45, 182, 110, 0.35), 0 0 18px rgba(45, 182, 110, 0.12);
+}
+
+.status-dot.ongoing,
+.status-dot.pending {
+  background: #e4b21c;
+  box-shadow: 0 0 8px rgba(228, 178, 28, 0.35), 0 0 18px rgba(228, 178, 28, 0.12);
+}
+
 
 /* ==========================================
    CLIENT AVATAR
@@ -72,6 +124,61 @@
   letter-spacing: 0.5px;
 }
 
+/* ==========================================
+   MARK AS COMPLETE
+========================================== */
+
+.complete-action {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.complete-btn {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 10px 16px;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(53, 199, 111, 0.35);
+  border-radius: 7px;
+
+  background: rgba(53, 199, 111, 0.1);
+
+  color: #35c76f;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.complete-btn:hover {
+  background: rgba(53, 199, 111, 0.18);
+  border-color: #35c76f;
+
+  transform: translateY(-1px);
+}
+
+.complete-btn:active {
+  transform: translateY(0);
+}
+
+.complete-btn svg {
+  font-size: 15px;
+  flex-shrink: 0;
+}
 
 /* ==========================================
    CLIENT NAME

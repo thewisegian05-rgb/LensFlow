@@ -276,6 +276,82 @@
   color: #ffffff;
 }
 
+/* ==========================================
+   MESSAGE ACTION
+========================================== */
+
+.message-action {
+  width: 100%;
+
+  margin-top: 10px;
+}
+
+
+/* ==========================================
+   MESSAGE BUTTON
+========================================== */
+
+.message-btn {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  padding: 10px 16px;
+
+  box-sizing: border-box;
+
+  border: none;
+  border-radius: 7px;
+
+  background: #08a9e8;
+  color: #07111e;
+
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+
+/* Hover */
+
+.message-btn:hover {
+  background: #3bc3f4;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 5px 15px rgba(8, 169, 232, 0.15);
+}
+
+
+/* Click */
+
+.message-btn:active {
+  transform: translateY(0);
+
+  box-shadow: none;
+}
+
+
+/* Message Icon */
+
+.message-btn svg {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+
 
 /* ==========================================
    SMALL SCREEN

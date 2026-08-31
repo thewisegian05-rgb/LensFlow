@@ -4,6 +4,7 @@ import {
   FiEye,
   FiEdit2,
   FiTrash2,
+  FiMessageSquare,
 } from "react-icons/fi";
 
 
@@ -159,6 +160,12 @@ function ClientList({ clients, onDelete }) {
                   >
                     <FiTrash2 />
                   </button>
+
+                  <button 
+                    className="list-action-btn list-message-btn"
+                    title="Message">
+                    <FiMessageSquare/>
+                    </button>
                 </div>
               </td>
             </tr>

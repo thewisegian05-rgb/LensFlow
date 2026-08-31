@@ -9,7 +9,9 @@ function AddClientModal({ onClose, onAddClient }) {
     contact: "",
     email: "",
     project: "",
-    spent: "",
+    category: "Weddings",
+    venue: "",
+    talentFee: "",
   });
 
   const handleChange = (e) => {
@@ -105,6 +107,50 @@ function AddClientModal({ onClose, onAddClient }) {
               placeholder="Project name"
             />
           </div>
+
+          <div className="form-group">
+            <label>Venue Location</label>
+            <input
+            name="venue"
+            value={form.venue}
+            onChange={handleChange}
+            placeholder="Location (venue, address, or area)"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Photography Category</label>
+
+            <select
+                name="category"
+                value={form.category}
+                onChange={handleChange}
+            >
+                <option value="Weddings">Weddings</option>
+                <option value="Prenup">Prenup</option>
+                <option value="Couple Shoot">Couple Shoot</option>
+                <option value="Life & Family Milestones">
+                Life & Family Milestones
+                </option>
+                <option value="Portrait & Lifestyle">
+                Portrait & Lifestyle
+                </option>
+                <option value="Events & Performance">
+                Events & Performance
+                </option>
+                <option value="Corporate & Commercial">
+                Corporate & Commercial
+                </option>
+                <option value="Real Estate">Real Estate</option>
+                <option value="Product & Business">
+                Product & Business
+                </option>
+                <option value="Baptism">Baptism</option>
+                <option value="Pet Photography">
+                Pet Photography
+                </option>
+            </select>
+            </div>
 
           <div className="form-group">
             <label>Talent Fee</label>

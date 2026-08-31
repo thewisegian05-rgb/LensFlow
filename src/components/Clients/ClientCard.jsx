@@ -7,9 +7,10 @@ import {
   FiPhone,
   FiMail,
   FiFolder,
+  FiMessageSquare,
 } from "react-icons/fi";
 
-import { FaPesoSign } from "react-icons/fa6";
+import { FaPesoSign, FaMessage } from "react-icons/fa6";
 
 import "./ClientCard.css";
 
@@ -115,6 +116,16 @@ function ClientCard({ client, onDelete }) {
           <span>Delete</span>
         </button>
 
+      </div>
+
+      <div className="message-action">
+        <button 
+        className="message-btn"
+        title="Message">
+            <FiMessageSquare/>
+            <span>Message</span>
+        </button>
+        
       </div>
 
     </div>

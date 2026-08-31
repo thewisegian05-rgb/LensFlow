@@ -37,7 +37,7 @@ function Login() {
         <div className="login-header">
           <FaCameraRetro className="login-icon" />
 
-          <h1>LensEase Studio</h1>
+          <h1>LensFlow Studio</h1>
 
           <p>Sign in to manage your studio</p>
         </div>
@@ -55,7 +55,7 @@ function Login() {
 
                 <input
                   type="email"
-                  placeholder="admin@lensease.com"
+                  placeholder="admin@lensflow.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

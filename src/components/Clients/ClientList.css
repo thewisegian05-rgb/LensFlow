@@ -295,6 +295,21 @@
   color: #ffffff;
 }
 
+.list-message-btn {
+  border: 1px solid #245676;
+
+  background: #08a9e8;
+  color: #000000
+}
+
+.list-message-btn:hover {
+  background: #2b7ea7;
+
+  border-color: #2b82ae;
+
+  color: #000000;
+}
+
 
 /* ==========================================
    EMPTY STATE

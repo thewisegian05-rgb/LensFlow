@@ -8,7 +8,7 @@ import {
 } from "react-icons/fi";
 
 
-function ClientList({ clients, onDelete }) {
+function ClientList({ clients, onView, onDelete }) {
 
   return (
 
@@ -136,6 +136,7 @@ function ClientList({ clients, onDelete }) {
                   <button
                     className="list-action-btn list-view-btn"
                     title="View Client"
+                    onClick={() => onView(client)}
                   >
                     <FiEye />
                   </button>

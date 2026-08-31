@@ -3,11 +3,13 @@ import React, { useState } from "react";
 import ClientCard from "../components/Clients/ClientCard.jsx";
 import ClientList from "../components/Clients/ClientList.jsx";
 import AddClientModal from "../components/Clients/AddClientModal.jsx";
+import ViewClientModal from "../components/Clients/ViewClientModal.jsx";
 
 import "../components/Clients/Clients.css";
 import "../components/Clients/ClientCard.css";
 import "../components/Clients/ClientList.css";
 import "../components/Clients/AddClientModal.css";
+import "../components/Clients/ViewClientModal.css";
 
 import {
   FiGrid,
@@ -18,6 +20,7 @@ import {
 function ClientPage() {
 
   const [showAddClient, setShowAddClient] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
 
   // "grid" = card/block view
   // "list" = table/list view
@@ -32,7 +35,7 @@ function ClientPage() {
       contact: "09123456789",
       email: "sarah@gmail.com",
       project: "Smith Wedding",
-      spent: "₱4,500",
+      talentFee: "₱4,500",
       initials: "JS",
     },
     {
@@ -42,7 +45,7 @@ function ClientPage() {
       contact: "09676543210",
       email: "contact@techcorp.com",
       project: "TechCorp Event",
-      spent: "₱6,200",
+      talentFee: "₱6,200",
       initials: "TC",
     },
   ]);
@@ -184,14 +187,13 @@ function ClientPage() {
         <div className="clients-grid">
 
           {clients.map((client) => (
-
-            <ClientCard
-              key={client.id}
-              client={client}
-              onDelete={handleDeleteClient}
-            />
-
-          ))}
+          <ClientCard
+            key={client.id}
+            client={client}
+            onDelete={handleDeleteClient}
+            onView={() => setSelectedClient(client)}
+          />
+        ))}
 
         </div>
 
@@ -208,6 +210,7 @@ function ClientPage() {
         <ClientList
           clients={clients}
           onDelete={handleDeleteClient}
+          onView={(client) => setSelectedClient(client)}
         />
 
       )}
@@ -227,6 +230,16 @@ function ClientPage() {
 
       )}
 
+      {/* ==========================================
+          VIEW CLIENT MODAL
+      ========================================== */}
+      
+      {selectedClient && (
+        <ViewClientModal
+          client={selectedClient}
+          onClose={() => setSelectedClient(null)}
+        />
+      )}
 
     </div>
   );

@@ -10,11 +10,11 @@ import {
   FiMessageSquare,
 } from "react-icons/fi";
 
-import { FaPesoSign, FaMessage } from "react-icons/fa6";
+import { FaPesoSign } from "react-icons/fa6";
 
 import "./ClientCard.css";
 
-function ClientCard({ client, onDelete }) {
+function ClientCard({ client, onView, onDelete }) {
 
   return (
     <div className="client-card">
@@ -76,8 +76,8 @@ function ClientCard({ client, onDelete }) {
 
           <div>
             <small>Talent Fee</small>
-            <p className="total-spent">
-              {client.spent}
+            <p className="talent-fee">
+              {client.talentFee}
             </p>
           </div>
         </div>
@@ -92,6 +92,7 @@ function ClientCard({ client, onDelete }) {
         <button
           className="action-btn view-btn"
           title="View Client"
+          onClick={onView}
         >
           <FiEye />
           <span>View</span>

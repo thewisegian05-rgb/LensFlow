@@ -9,8 +9,8 @@ function AddClientModal({ onClose, onAddClient }) {
     contact: "",
     email: "",
     project: "",
-    category: "Weddings",
     venue: "",
+    category: "Weddings",
     talentFee: "",
   });
 
@@ -36,7 +36,9 @@ function AddClientModal({ onClose, onAddClient }) {
       contact: form.contact,
       email: form.email,
       project: form.project,
-      spent: form.spent || "$0",
+      venue: form.venue,
+      category: form.category,
+      talentFee: form.talentFee || "₱0",
       initials,
     };
 

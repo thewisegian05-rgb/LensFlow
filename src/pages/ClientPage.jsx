@@ -4,6 +4,7 @@ import ClientCard from "../components/Clients/ClientCard.jsx";
 import ClientList from "../components/Clients/ClientList.jsx";
 import AddClientModal from "../components/Clients/AddClientModal.jsx";
 import ViewClientModal from "../components/Clients/ViewClientModal.jsx";
+import EditClientModal from "../components/Clients/EditClientModal.jsx";
 
 import "../components/Clients/Clients.css";
 import "../components/Clients/ClientCard.css";
@@ -24,6 +25,7 @@ function ClientPage() {
   // Modal States
   const [showAddClient, setShowAddClient] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
+  const [editingClient, setEditingClient] = useState(null);
 
   // Search and Filter States
   const [searchTerm, setSearchTerm] = useState("");
@@ -33,7 +35,7 @@ function ClientPage() {
   // "list" = table/list view
   const [viewType, setViewType] = useState("grid");
 
-
+  // Mock client data for demonstration purposes
   const [clients, setClients] = useState([
     {
       id: 1,
@@ -62,10 +64,7 @@ function ClientPage() {
   ]);
 
 
-  // ==========================================
-  // ADD CLIENT
-  // ==========================================
-
+  // Add New Client
   const handleAddClient = (newClient) => {
 
     setClients((previousClients) => [
@@ -76,10 +75,7 @@ function ClientPage() {
   };
 
 
-  // ==========================================
-  // DELETE CLIENT
-  // ==========================================
-
+  // Delete Client
   const handleDeleteClient = (id) => {
 
     const confirmed = window.confirm(
@@ -97,9 +93,7 @@ function ClientPage() {
     }
   };
 
-  // ==========================================
-  //  MARK AS COMPLETE PROJECT
-  // ==========================================
+  // Mark Client as Completed
   const handleCompleteClient = (id) => {
 
   setClients((previousClients) =>
@@ -121,6 +115,7 @@ function ClientPage() {
 
 };
 
+// Filter clients based on search term or selected category
 const filteredClients = clients.filter((client) => {
 
   const matchesSearch =
@@ -134,6 +129,26 @@ const filteredClients = clients.filter((client) => {
 
   return matchesSearch && matchesCategory;
 });
+
+// Edit Client
+const handleEditClient = (updatedClient) => {
+  setClients((previousClients) =>
+    previousClients.map((client) =>
+      client.id === updatedClient.id
+        ? updatedClient
+        : client
+    )
+  );
+
+  // Keep the View modal updated too if the same client is open
+  setSelectedClient((previousClient) =>
+    previousClient?.id === updatedClient.id
+      ? updatedClient
+      : previousClient
+  );
+
+  setEditingClient(null);
+};
 
 
   return (
@@ -298,6 +313,7 @@ const filteredClients = clients.filter((client) => {
             onDelete={handleDeleteClient}
             onView={() => setSelectedClient(client)}
             onComplete={handleCompleteClient}
+            onEdit={() => setEditingClient(client)}
           />
         ))}
 
@@ -318,6 +334,7 @@ const filteredClients = clients.filter((client) => {
             onDelete={handleDeleteClient}
             onView={(client) => setSelectedClient(client)}
             onComplete={handleCompleteClient}
+            onEdit={(client) => setEditingClient(client)}
         />
 
       )}
@@ -346,7 +363,15 @@ const filteredClients = clients.filter((client) => {
           client={selectedClient}
           onClose={() => setSelectedClient(null)}
           onComplete={handleCompleteClient}
-          onEdit={() => console.log("Edit client")}
+          onEdit={(client) => setEditingClient(client)}
+        />
+      )}
+
+      {editingClient && (
+        <EditClientModal
+          client={editingClient}
+          onClose={() => setEditingClient(null)}
+          onSave={handleEditClient}
         />
       )}
 

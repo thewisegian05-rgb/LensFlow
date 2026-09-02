@@ -9,7 +9,7 @@ import {
 } from "react-icons/fi";
 
 
-function ClientList({ clients, onView, onDelete, onComplete }) {
+function ClientList({ clients, onView, onDelete, onComplete, onEdit }) {
 
   return (
 
@@ -152,6 +152,7 @@ function ClientList({ clients, onView, onDelete, onComplete }) {
                   <button
                     className="list-action-btn list-edit-btn"
                     title="Edit Client"
+                    onClick={() => onEdit(client)}
                   >
                     <FiEdit2 />
                   </button>

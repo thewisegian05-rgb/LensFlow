@@ -15,7 +15,7 @@ import { FaPesoSign } from "react-icons/fa6";
 
 import "./ClientCard.css";
 
-function ClientCard({ client, onView, onDelete, onComplete }) {
+function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
 
   return (
     <div className={`client-card ${
@@ -117,6 +117,7 @@ function ClientCard({ client, onView, onDelete, onComplete }) {
         <button
           className="action-btn edit-btn"
           title="Edit Client"
+          onClick={onEdit}
         >
           <FiEdit2 />
           <span>Edit</span>

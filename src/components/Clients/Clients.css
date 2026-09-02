@@ -266,7 +266,7 @@
   width: 100%;
 
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: minmax(0, 1fr) 280px;
 
   gap: 15px;
 
@@ -391,6 +391,31 @@
 .client-category-filter option {
   background: #10192c;
   color: #f4f7fb;
+}
+
+.category-filter-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.category-filter-icon {
+  position: absolute;
+
+  left: 16px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  color: #71849f;
+  font-size: 18px;
+
+  pointer-events: none;
+
+  z-index: 1;
+}
+
+.client-category-filter {
+  padding: 0 45px 0 44px;
 }
 
 

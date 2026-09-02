@@ -19,6 +19,8 @@ import {
   FiX,
 } from "react-icons/fi";
 
+import { FaFilter } from "react-icons/fa6";
+
 
 function ClientPage() {
 
@@ -240,30 +242,37 @@ const handleEditClient = (updatedClient) => {
 
       </div>
 
+      {/* Search Bar and Category Filter */}
       <div className="client-filter-bar">
 
-        <div className="client-search">
-          <FiSearch />
+      <div className="client-search">
 
-          <input
-            type="text"
-            placeholder="Search by client..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              className="clear-search-btn"
-              onClick={() => setSearchTerm("")}
-              title="Clear search"
-              aria-label="Clear search"
-            >
-              <FiX />
-            </button>
-          )}
-        </div>
+        <FiSearch className="search-icon" />
 
+        <input
+          type="text"
+          placeholder="Search by client..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+
+        {searchTerm && (
+          <button
+            type="button"
+            className="clear-search-btn"
+            onClick={() => setSearchTerm("")}
+          >
+            <FiX />
+          </button>
+        )}
+
+      </div>
+
+
+      {/* Category Filter */}
+      <div className="category-filter-wrapper">
+
+        <FaFilter className="category-filter-icon" />
 
         <select
           className="client-category-filter"
@@ -271,36 +280,34 @@ const handleEditClient = (updatedClient) => {
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
           <option value="All Categories">All Categories</option>
-          <option value="Weddings">Weddings</option>
-          <option value="Prenup">Prenup</option>
-          <option value="Couple Shoot">Couple Shoot</option>
-          <option value="Life & Family Milestones">
-            Life & Family Milestones
-          </option>
-          <option value="Portrait & Lifestyle">
-            Portrait & Lifestyle
-          </option>
-          <option value="Events & Performance">
-            Events & Performance
-          </option>
-          <option value="Corporate & Commercial">
-            Corporate & Commercial
-          </option>
-          <option value="Real Estate">Real Estate</option>
-          <option value="Product & Business">
-            Product & Business
-          </option>
-          <option value="Baptism">Baptism</option>
-          <option value="Pet Photography">
-            Pet Photography
-          </option>
+                <option value="Weddings">Weddings</option>
+                <option value="Prenup">Prenup</option>
+                <option value="Couple Shoot">Couple Shoot</option>
+                <option value="Life & Family Milestones">
+                  Life & Family Milestones
+                </option>
+                <option value="Portrait & Lifestyle">
+                  Portrait & Lifestyle
+                </option>
+                <option value="Events & Performance">
+                  Events & Performance
+                </option>
+                <option value="Corporate & Commercial">
+                  Corporate & Commercial
+                </option>
+                <option value="Real Estate">Real Estate</option>
+                <option value="Product & Business">
+                  Product & Business
+                </option>
+                <option value="Baptism">Baptism</option>
+                <option value="Pet Photography">
+                  Pet Photography
+                </option>
         </select>
-
       </div>
+    </div>
 
-      {/* ==========================================
-          GRID / BLOCK VIEW
-      ========================================== */}
+      {/* GRID / BLOCK VIEW */}
 
       {viewType === "grid" && (
 

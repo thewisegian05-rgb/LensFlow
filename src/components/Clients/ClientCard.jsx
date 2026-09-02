@@ -77,7 +77,6 @@ function ClientCard({ client, onView, onDelete, onComplete }) {
 
         <div className="client-detail">
           <FiFolder />
-
           <div>
             <small>Active Project</small>
             <p className="project-name">
@@ -93,7 +92,7 @@ function ClientCard({ client, onView, onDelete, onComplete }) {
           <div>
             <small>Talent Fee</small>
             <p className="talent-fee">
-              {client.talentFee}
+              ₱{Number(client.talentFee || 0).toLocaleString()}
             </p>
           </div>
         </div>

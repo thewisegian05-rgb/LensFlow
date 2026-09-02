@@ -259,6 +259,152 @@
 }
 
 /* ==========================================
+   SEARCH + FILTER
+========================================== */
+
+.client-filter-bar {
+  width: 100%;
+
+  display: grid;
+  grid-template-columns: 1fr 280px;
+
+  gap: 15px;
+
+  margin-bottom: 18px;
+}
+
+
+/* Search */
+
+.client-search {
+  height: 50px;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 0 16px;
+
+  box-sizing: border-box;
+
+  background: #10192c;
+
+  border: 1px solid #30425f;
+  border-radius: 10px;
+}
+
+.client-search svg {
+  flex-shrink: 0;
+
+  color: #71849f;
+
+  font-size: 18px;
+}
+
+.client-search input {
+  width: 100%;
+
+  border: none;
+  outline: none;
+
+  background: transparent;
+
+  color: #f4f7fb;
+
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.client-search input::placeholder {
+  color: #71849f;
+}
+
+.clear-search-btn {
+  width: 30px;
+  height: 30px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #71849f;
+
+  font-size: 18px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.clear-search-btn:hover {
+  background: #1c2940;
+  color: #f4f7fb;
+}
+
+.clear-search-btn:active {
+  background: #263650;
+}
+
+
+/* Category filter */
+
+.client-category-filter {
+  width: 100%;
+  height: 50px;
+
+  padding: 0 16px;
+
+  box-sizing: border-box;
+
+  background: #10192c;
+
+  border: 1px solid #30425f;
+  border-radius: 10px;
+
+  color: #f4f7fb;
+
+  font-family: inherit;
+  font-size: 14px;
+
+  outline: none;
+
+  cursor: pointer;
+}
+
+.client-category-filter:focus {
+  border-color: #08a9e8;
+}
+
+
+/* Dropdown options */
+
+.client-category-filter option {
+  background: #10192c;
+  color: #f4f7fb;
+}
+
+
+/* Responsive */
+
+@media (max-width: 750px) {
+
+  .client-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+/* ==========================================
    RESPONSIVE
 ========================================== */
 

@@ -130,7 +130,7 @@ function ClientList({ clients, onView, onDelete, onComplete }) {
 
               <td>
                 <span className="list-talentFee">
-                  {client.talentFee}
+                  ₱{Number(client.talentFee || 0).toLocaleString()}
                 </span>
               </td>
 

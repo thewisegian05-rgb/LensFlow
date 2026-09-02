@@ -146,7 +146,7 @@ function ViewClientModal({ client, onClose, onComplete, onEdit }) {
               </span>
 
               <p>
-                {client.talentFee || "₱0"}
+                ₱{Number(client.talentFee || 0).toLocaleString()}
               </p>
             </div>
           </div>

@@ -157,10 +157,12 @@ function AddClientModal({ onClose, onAddClient }) {
           <div className="form-group">
             <label>Talent Fee</label>
             <input
+              type="number"
               name="talentFee"
-              value={form.spent}
+              value={form.talentFee}
               onChange={handleChange}
               placeholder="₱0"
+              min="0"
             />
           </div>
 

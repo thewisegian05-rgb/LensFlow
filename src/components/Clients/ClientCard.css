@@ -219,7 +219,7 @@
 .client-details {
   display: grid;
 
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 
   gap: 18px 14px;
 
@@ -262,9 +262,10 @@
 
   font-size: 13px;
 
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .client-detail .project-name {

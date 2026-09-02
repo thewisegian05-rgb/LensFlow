@@ -14,13 +14,20 @@ import "../components/Clients/ViewClientModal.css";
 import {
   FiGrid,
   FiList,
+  FiSearch,
+  FiX,
 } from "react-icons/fi";
 
 
 function ClientPage() {
 
+  // Modal States
   const [showAddClient, setShowAddClient] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
+
+  // Search and Filter States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All Categories");
 
   // "grid" = card/block view
   // "list" = table/list view
@@ -34,9 +41,10 @@ function ClientPage() {
       type: "Individual Client",
       contact: "09123456789",
       email: "sarah@gmail.com",
+      category: "Weddings",
       project: "Smith Wedding",
       projectStatus: "Ongoing",
-      talentFee: "₱4,500",
+      talentFee: "4500",
       initials: "JS",
     },
     {
@@ -45,9 +53,10 @@ function ClientPage() {
       type: "Business Client",
       contact: "09676543210",
       email: "contact@techcorp.com",
+      category: "Corporate & Commercial",
       project: "TechCorp Event",
       projectStatus: "Completed",
-      talentFee: "₱6,200",
+      talentFee: "6200",
       initials: "TC",
     },
   ]);
@@ -112,6 +121,20 @@ function ClientPage() {
 
 };
 
+const filteredClients = clients.filter((client) => {
+
+  const matchesSearch =
+    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.project.toLowerCase().includes(searchTerm.toLowerCase());
+
+  const matchesCategory =
+    selectedCategory === "All Categories" ||
+    client.category === selectedCategory;
+
+  return matchesSearch && matchesCategory;
+});
+
 
   return (
 
@@ -160,12 +183,12 @@ function ClientPage() {
         <div className="client-count">
 
           <span>
-            {clients.length}
+            {filteredClients.length}
           </span>
 
           {" "}
 
-          {clients.length === 1
+          {filteredClients.length === 1
             ? "client"
             : "clients"}
 
@@ -202,7 +225,63 @@ function ClientPage() {
 
       </div>
 
+      <div className="client-filter-bar">
 
+        <div className="client-search">
+          <FiSearch />
+
+          <input
+            type="text"
+            placeholder="Search by client..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              className="clear-search-btn"
+              onClick={() => setSearchTerm("")}
+              title="Clear search"
+              aria-label="Clear search"
+            >
+              <FiX />
+            </button>
+          )}
+        </div>
+
+
+        <select
+          className="client-category-filter"
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+        >
+          <option value="All Categories">All Categories</option>
+          <option value="Weddings">Weddings</option>
+          <option value="Prenup">Prenup</option>
+          <option value="Couple Shoot">Couple Shoot</option>
+          <option value="Life & Family Milestones">
+            Life & Family Milestones
+          </option>
+          <option value="Portrait & Lifestyle">
+            Portrait & Lifestyle
+          </option>
+          <option value="Events & Performance">
+            Events & Performance
+          </option>
+          <option value="Corporate & Commercial">
+            Corporate & Commercial
+          </option>
+          <option value="Real Estate">Real Estate</option>
+          <option value="Product & Business">
+            Product & Business
+          </option>
+          <option value="Baptism">Baptism</option>
+          <option value="Pet Photography">
+            Pet Photography
+          </option>
+        </select>
+
+      </div>
 
       {/* ==========================================
           GRID / BLOCK VIEW
@@ -212,7 +291,7 @@ function ClientPage() {
 
         <div className="clients-grid">
 
-          {clients.map((client) => (
+          {filteredClients.map((client) => (
           <ClientCard
             key={client.id}
             client={client}
@@ -235,7 +314,7 @@ function ClientPage() {
       {viewType === "list" && (
 
         <ClientList
-          clients={clients}
+          clients={filteredClients}
             onDelete={handleDeleteClient}
             onView={(client) => setSelectedClient(client)}
             onComplete={handleCompleteClient}

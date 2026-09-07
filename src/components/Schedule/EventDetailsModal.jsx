@@ -8,6 +8,7 @@ import {
   FaStickyNote,
   FaTrash,
   FaEdit,
+  FaCheckCircle,
 } from "react-icons/fa";
 
 function EventDetailsModal({
@@ -16,15 +17,17 @@ function EventDetailsModal({
   onClose,
   onEdit,
   onDelete,
+  onComplete,
 }) {
   if (!open || !event) return null;
+
+  const isLinked = Boolean(event.project_id);
+  const isCompleted = event.status === "completed";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
 
       <div className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-
-        {/* Header */}
 
         <div className="mb-6 flex items-center justify-between">
 
@@ -40,8 +43,6 @@ function EventDetailsModal({
           </button>
 
         </div>
-
-        {/* Details */}
 
         <div className="space-y-5">
 
@@ -109,9 +110,24 @@ function EventDetailsModal({
             </span>
           </div>
 
-        </div>
+          {/* =================================================
+              SHOOT STATUS
+              ================================================= */}
 
-        {/* Buttons */}
+          <div className="flex items-center gap-3">
+            <FaCheckCircle
+              className={isCompleted ? "text-emerald-400" : "text-slate-600"}
+            />
+            <span className="text-slate-200">
+              {isCompleted
+                ? "Shoot marked complete"
+                : isLinked
+                ? "Linked to a project — not completed yet"
+                : "Not linked to a project"}
+            </span>
+          </div>
+
+        </div>
 
         <div className="mt-8 flex justify-end gap-3">
 
@@ -134,6 +150,18 @@ function EventDetailsModal({
               Edit
             </div>
           </button>
+
+          {isLinked && !isCompleted && (
+            <button
+              onClick={() => onComplete(event)}
+              className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-900 transition hover:bg-emerald-600"
+            >
+              <div className="flex items-center gap-2">
+                <FaCheckCircle />
+                Complete
+              </div>
+            </button>
+          )}
 
         </div>
 

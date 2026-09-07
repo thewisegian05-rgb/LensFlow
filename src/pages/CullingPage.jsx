@@ -403,6 +403,8 @@ function CullingPage() {
         </div>
       </div>
 
+      {mode === "cull" && (
+        <div>
       {/* Dropzone */}
       <div
         onDragOver={handleDragOver}
@@ -581,8 +583,6 @@ function CullingPage() {
                 navigate
               </p>
             </div>
-          )}
-        </div>
       )}
 
       {/* ============ DUPLICATE REVIEW TAB (unchanged) ============ */}

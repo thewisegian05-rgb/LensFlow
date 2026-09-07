@@ -208,10 +208,10 @@ function CullingPage() {
             isDragging ? "text-sky-400" : "text-slate-500"
           }`}
         />
-        <p className="text-sm text-slate-300 font-medium">
+        <p className="text-md text-slate-300 font-medium">
           {isDragging ? "Drop to add these files" : "Drag & drop photos here, or click to browse"}
         </p>
-        <p className="text-xs text-slate-500 mt-1">
+        <p className="text-sm text-slate-500 mt-1">
           JPG, PNG, WEBP get thumbnails right away &middot; RAW formats (CR3, NEF, ARW, DNG) are added but can't be previewed in-browser
         </p>
       </div>

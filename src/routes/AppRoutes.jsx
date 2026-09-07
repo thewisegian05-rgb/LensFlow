@@ -9,8 +9,10 @@ import WorkflowPage from "../pages/WorkflowPage";
 import CullingPage from "../pages/CullingPage";
 import ClientPage from "../pages/ClientPage";
 import StoragePage from "../pages/StoragePage";
+import MediaStorage from "../pages/MediaStorage";
 import ProfilePage from "../pages/ProfilePage";
 import SettingsPage from "../pages/SettingsPage";
+
 
 function AppRoutes() {
   return (
@@ -26,7 +28,7 @@ function AppRoutes() {
           <Route path="workflow" element={<WorkflowPage />} />
           <Route path="culling" element={<CullingPage />} />
           <Route path="clients" element={<ClientPage />} />
-          <Route path="storage" element={<StoragePage />} />
+          <Route path="storage" element={<MediaStorage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

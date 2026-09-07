@@ -403,126 +403,41 @@ function CullingPage() {
         </div>
       </div>
 
-      {/* Tab switcher */}
-      <div className="flex items-center gap-2 mb-6 border-b border-slate-800">
-        <button
-          onClick={() => setMode("cull")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            mode === "cull"
-              ? "border-sky-500 text-white"
-              : "border-transparent text-slate-500 hover:text-slate-300"
+      {/* Dropzone */}
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+        className={`mb-6 border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-colors ${
+          isDragging
+            ? "border-sky-500 bg-sky-500/10"
+            : "border-slate-700 bg-slate-800/30 hover:border-slate-600 hover:bg-slate-800/50"
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED_ATTR}
+          className="hidden"
+          onChange={(e) => {
+            handleFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <FaCloudUploadAlt
+          className={`mx-auto text-3xl mb-2 ${
+            isDragging ? "text-sky-400" : "text-slate-500"
           }`}
-        >
-          <FaThLarge className="text-xs" /> Culling Grid
-        </button>
-        <button
-          onClick={() => setMode("duplicates")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            mode === "duplicates"
-              ? "border-sky-500 text-white"
-              : "border-transparent text-slate-500 hover:text-slate-300"
-          }`}
-        >
-          <FaClone className="text-xs" /> Duplicate Review
-          <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full">
-            {resolvedCount}/{duplicateSets.length}
-          </span>
-        </button>
+        />
+        <p className="text-md text-slate-300 font-medium">
+          {isDragging ? "Drop to add these files" : "Drag & drop photos here, or click to browse"}
+        </p>
+        <p className="text-sm text-slate-500 mt-1">
+          JPG, PNG, WEBP get thumbnails right away &middot; RAW formats (CR3, NEF, ARW, DNG) are added but can't be previewed in-browser
+        </p>
       </div>
-
-      {/* ============ CULLING GRID TAB ============ */}
-      {mode === "cull" && (
-        <div>
-          {/* Dropzone — always visible; files land in the open folder, or Unsorted */}
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`mb-6 border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-colors ${
-              isDragging
-                ? "border-sky-500 bg-sky-500/10"
-                : "border-slate-700 bg-slate-800/30 hover:border-slate-600 hover:bg-slate-800/50"
-            }`}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={ACCEPTED_ATTR}
-              className="hidden"
-              onChange={(e) => {
-                handleFiles(e.target.files);
-                e.target.value = "";
-              }}
-            />
-            <FaCloudUploadAlt
-              className={`mx-auto text-3xl mb-2 ${isDragging ? "text-sky-400" : "text-slate-500"}`}
-            />
-            <p className="text-sm text-slate-300 font-medium">
-              {isDragging ? "Drop to add these files" : "Drag & drop photos here, or click to browse"}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              {openFolder
-                ? `Added photos will go into "${openFolder.name}"`
-                : "Added photos will go into an Unsorted folder"}
-            </p>
-          </div>
-
-          {!openFolder ? (
-            /* ---- Folder grid view ---- */
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Folders</h3>
-                <button
-                  onClick={openNewFolderModal}
-                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium px-3 py-2 rounded-lg transition-colors"
-                >
-                  <FaFolderPlus className="text-sky-400" /> New Folder
-                </button>
-              </div>
-              {folders.length === 0 ? (
-                <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-700 rounded-xl">
-                  No folders yet — click "New Folder" above, or drop some photos to start one automatically.
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                  {folders.map((folder) => {
-                    const total = folder.images.length;
-                    const reviewed = folder.images.filter((img) => culls[img.id]).length;
-                    return (
-                      <FolderCard
-                        key={folder.id}
-                        folder={folder}
-                        total={total}
-                        reviewed={reviewed}
-                        onOpen={() => {
-                          setOpenFolderId(folder.id);
-                          setFilter("all");
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ) : (
-            /* ---- Inside a folder ---- */
-            <div>
-              <button
-                onClick={() => {
-                  setOpenFolderId(null);
-                  setFilter("all");
-                }}
-                className="flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-4 transition-colors"
-              >
-                <FaArrowLeft className="text-xs" /> Back to folders
-              </button>
-
-              <div className="flex items-center gap-2 text-white mb-4">
-                <FaFolderOpen className="text-sky-400" />
-                <h3 className="text-lg font-semibold">{openFolder.name}</h3>
-              </div>
 
               {/* Progress + stat pills */}
               <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 sm:p-6 mb-6">

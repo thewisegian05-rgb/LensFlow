@@ -270,7 +270,7 @@ function WorkflowPage() {
       {/* =================================================
           KANBAN BOARD
           ================================================= */}
-
+      <div className="workflow-container custom-scrollbar">
       <div className="flex gap-4 overflow-x-auto pb-4">
         {STAGE_KEYS.map((stage) => {
           const stageProjects = projectsByStage[stage] || [];
@@ -321,6 +321,7 @@ function WorkflowPage() {
             </div>
           );
         })}
+      </div>
       </div>
 
       {/* =================================================

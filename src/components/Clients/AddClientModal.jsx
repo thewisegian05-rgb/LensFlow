@@ -47,6 +47,7 @@ function AddClientModal({ onClose, onAddClient }) {
   };
 
   return (
+    <div className="client-modal custom-scrollbar">
     <div className="modal-overlay">
       <div className="client-modal">
         <div className="modal-header">
@@ -176,6 +177,7 @@ function AddClientModal({ onClose, onAddClient }) {
           </div>
         </form>
       </div>
+    </div>
     </div>
   );
 }

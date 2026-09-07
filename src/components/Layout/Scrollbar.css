@@ -1,0 +1,30 @@
+/* UNIVERSAL CUSTOM SCROLLBAR */
+
+/* Firefox */
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #30425f #111b2e;
+  scrollbar-gutter: stable;
+}
+
+/* Chrome, Edge, Opera */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #111b2e;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #30425f;
+  border-radius: 10px;
+  border: 2px solid #111b2e;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #08a9e8;
+}

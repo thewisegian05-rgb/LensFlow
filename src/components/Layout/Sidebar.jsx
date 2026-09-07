@@ -11,15 +11,27 @@ import {
   FaSignOutAlt,
 } from "react-icons/fa";
 
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { supabase } from "../../lib/supabaseClient";
 
 function Sidebar() {
+  const navigate = useNavigate();
+
   const linkStyle = ({ isActive }) =>
     `flex items-center gap-3 px-6 py-3 transition-all border-l-4 ${
       isActive
         ? "border-sky-500 bg-sky-500/10 text-sky-400"
         : "border-transparent text-slate-400 hover:bg-slate-800 hover:text-white"
     }`;
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Sign out failed:", error.message);
+      return;
+    }
+    navigate("/");
+  };
 
   return (
     <aside className="w-64 bg-slate-900/90 backdrop-blur-lg border-r border-slate-800 flex flex-col h-screen">
@@ -118,6 +130,7 @@ function Sidebar() {
         </NavLink>
 
         <button
+          onClick={handleSignOut}
           className="flex w-full items-center gap-3 px-6 py-3 text-left text-red-400 transition hover:bg-slate-800"
         >
           <FaSignOutAlt />

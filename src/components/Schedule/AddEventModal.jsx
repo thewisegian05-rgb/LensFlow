@@ -4,13 +4,8 @@ import {
   CATEGORY_LABELS,
   CATEGORY_HEX,
 } from "./eventCategory";
+import { supabase } from "../../lib/supabaseClient";
 
-// =========================================================
-// GEAR OPTIONS
-// =========================================================
-// What the assigned shooter(s) need to bring. Kept as a flat multi-select
-// so it works the same whether the booking is photo-only, video-only, or
-// a hybrid shoot.
 const GEAR_OPTIONS = [
   { value: "camera-photo", label: "Camera (Photo)" },
   { value: "camera-video", label: "Camera (Video)" },
@@ -40,9 +35,35 @@ function AddEventModal({
     start: "",
     end: "",
     notes: "",
+    projectId: "",
   };
 
   const [form, setForm] = useState(emptyForm);
+  const [projects, setProjects] = useState([]);
+
+  // =========================================================
+  // LOAD LINKABLE PROJECTS WHEN MODAL OPENS
+  // =========================================================
+
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchProjects = async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id, project_code, client")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error("Failed to load projects for linking:", error.message);
+        return;
+      }
+
+      setProjects(data || []);
+    };
+
+    fetchProjects();
+  }, [open]);
 
   // =========================================================
   // LOAD EVENT WHEN EDITING
@@ -60,40 +81,30 @@ function AddEventModal({
 
       setForm({
         id: editingEvent.id,
-
         title: editingEvent.title || "",
-
         client: editingEvent.client || "",
-
         category:
           editingEvent.category ||
           editingEvent.type ||
           CATEGORY_KEYS[0],
-
-        photographer:
-          editingEvent.photographer || "",
-
+        photographer: editingEvent.photographer || "",
         location: editingEvent.location || "",
-
         gears: Array.isArray(editingEvent.gears)
           ? editingEvent.gears
           : [],
-
         date:
           editingEvent.date ||
           (startDate
             ? startDate.toISOString().split("T")[0]
             : ""),
-
         start: startDate
           ? startDate.toTimeString().slice(0, 5)
           : "",
-
         end: endDate
           ? endDate.toTimeString().slice(0, 5)
           : "",
-
         notes: editingEvent.notes || "",
+        projectId: editingEvent.project_id || "",
       });
 
       return;
@@ -105,17 +116,9 @@ function AddEventModal({
     });
   }, [editingEvent, selectedDate]);
 
-  // =========================================================
-  // CLOSE
-  // =========================================================
-
   if (!open) {
     return null;
   }
-
-  // =========================================================
-  // INPUT CHANGE
-  // =========================================================
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -123,10 +126,6 @@ function AddEventModal({
       [e.target.name]: e.target.value,
     }));
   };
-
-  // =========================================================
-  // GEAR TOGGLE
-  // =========================================================
 
   const toggleGear = (value) => {
     setForm((prev) => {
@@ -141,10 +140,6 @@ function AddEventModal({
     });
   };
 
-  // =========================================================
-  // SUBMIT
-  // =========================================================
-
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -154,10 +149,6 @@ function AddEventModal({
   };
 
   const activeColor = CATEGORY_HEX[form.category] || CATEGORY_HEX.default;
-
-  // =========================================================
-  // MODAL
-  // =========================================================
 
   return (
     <div className="event-modal custom-scrollbar">
@@ -175,10 +166,6 @@ function AddEventModal({
       "
       onClick={onClose}
     >
-      {/* =====================================================
-          MODAL CONTENT
-          ===================================================== */}
-
       <div
         className="
           bg-slate-900
@@ -194,24 +181,14 @@ function AddEventModal({
         "
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ===================================================
-            TITLE
-            =================================================== */}
-
         <h2 className="text-2xl font-bold text-white mb-6">
           {editingEvent ? "Edit Event" : "Add New Event"}
         </h2>
-
-        {/* ===================================================
-            FORM
-            =================================================== */}
 
         <form
           onSubmit={handleSubmit}
           className="space-y-4"
         >
-          {/* EVENT TITLE */}
-
           <input
             type="text"
             name="title"
@@ -232,8 +209,6 @@ function AddEventModal({
             "
             required
           />
-
-          {/* CLIENT */}
 
           <input
             type="text"
@@ -256,8 +231,6 @@ function AddEventModal({
             required
           />
 
-          {/* PHOTOGRAPHER */}
-
           <input
             type="text"
             name="photographer"
@@ -278,8 +251,6 @@ function AddEventModal({
             "
           />
 
-          {/* LOCATION */}
-
           <input
             type="text"
             name="location"
@@ -299,8 +270,6 @@ function AddEventModal({
               focus:border-sky-500
             "
           />
-
-          {/* CATEGORY */}
 
           <div>
             <select
@@ -329,8 +298,43 @@ function AddEventModal({
           </div>
 
           {/* =================================================
-              GEAR / EQUIPMENT
+              LINK TO WORKFLOW PROJECT
               ================================================= */}
+
+          <div>
+            <label className="block text-sm text-slate-400 mb-2">
+              Link to Project (optional)
+            </label>
+
+            <select
+              name="projectId"
+              value={form.projectId}
+              onChange={handleChange}
+              className="
+                w-full
+                bg-slate-800
+                border
+                border-slate-700
+                rounded-lg
+                p-3
+                text-white
+                outline-none
+                focus:border-sky-500
+              "
+            >
+              <option value="">— No linked project —</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.project_code} — {p.client}
+                </option>
+              ))}
+            </select>
+
+            <p className="text-xs text-slate-500 mt-1">
+              Linking lets you mark this shoot "Complete" and auto-move
+              the project to Shoot Completed in Workflow.
+            </p>
+          </div>
 
           <div>
             <label className="block text-sm text-slate-400 mb-2">
@@ -367,13 +371,7 @@ function AddEventModal({
             </div>
           </div>
 
-          {/* =================================================
-              DATE + START + END
-              ================================================= */}
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-            {/* DATE */}
 
             <input
               type="date"
@@ -393,8 +391,6 @@ function AddEventModal({
               required
             />
 
-            {/* START */}
-
             <input
               type="time"
               name="start"
@@ -412,8 +408,6 @@ function AddEventModal({
               "
               required
             />
-
-            {/* END */}
 
             <input
               type="time"
@@ -434,8 +428,6 @@ function AddEventModal({
             />
 
           </div>
-
-          {/* NOTES */}
 
           <textarea
             rows="4"
@@ -458,13 +450,7 @@ function AddEventModal({
             "
           />
 
-          {/* =================================================
-              BUTTONS
-              ================================================= */}
-
           <div className="flex justify-end gap-3 pt-2">
-
-            {/* CANCEL */}
 
             <button
               type="button"
@@ -481,8 +467,6 @@ function AddEventModal({
             >
               Cancel
             </button>
-
-            {/* SAVE / UPDATE */}
 
             <button
               type="submit"

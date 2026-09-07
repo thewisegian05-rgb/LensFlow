@@ -17,58 +17,11 @@ import {
   FaThLarge,
   FaClone,
   FaFolder,
-  FaFolderOpen,
   FaArrowLeft,
   FaFolderPlus,
+  FaSignOutAlt,
 } from "react-icons/fa";
-
-/* ============ Demo data: culling grid, grouped into folders ============
-   Same 8 demo photos as before, just organized into sets by index rather
-   than shown as one flat grid. NOTE: these are random stock placeholders,
-   so the grouping itself is illustrative, not a real same-angle match —
-   that requires real similarity detection down the line. */
-const FOLDER_GROUPS = [
-  {
-    id: "set-1",
-    name: "Set 1",
-    images: [
-      { id: "IMG_0123.CR3", seed: "wedding1" },
-      { id: "IMG_0124.CR3", seed: "wedding2" },
-      { id: "IMG_0125.CR3", seed: "wedding3" },
-    ],
-  },
-  {
-    id: "set-2",
-    name: "Set 2",
-    images: [
-      { id: "IMG_0126.CR3", seed: "wedding4" },
-      { id: "IMG_0127.CR3", seed: "wedding5" },
-    ],
-  },
-  {
-    id: "set-3",
-    name: "Set 3",
-    images: [
-      { id: "IMG_0128.CR3", seed: "wedding6" },
-      { id: "IMG_0129.CR3", seed: "wedding7" },
-    ],
-  },
-  {
-    id: "set-4",
-    name: "Set 4",
-    images: [{ id: "IMG_0130.CR3", seed: "wedding8" }],
-  },
-].map((folder) => ({
-  ...folder,
-  images: folder.images.map((img) => ({
-    id: img.id,
-    fileName: img.id,
-    thumbUrl: `https://picsum.photos/seed/${img.seed}/400/400`,
-    fullUrl: `https://picsum.photos/seed/${img.seed}/1200/1200`,
-    previewable: true,
-    sizeLabel: null,
-  })),
-}));
+import { supabase } from "../lib/supabaseClient";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -79,58 +32,10 @@ const FILTERS = [
 
 const ACCEPTED_ATTR = "image/*,.cr3,.nef,.arw,.dng,.raw,.rw2,.orf";
 
-/* ============ Demo data: duplicate review table (unchanged) ============ */
-const DUPLICATE_SETS = [
-  {
-    id: "set-1",
-    label: "Ceremony kiss — burst",
-    images: [
-      { id: "IMG_0410.CR3", seed: "kiss1" },
-      { id: "IMG_0411.CR3", seed: "kiss2" },
-      { id: "IMG_0412.CR3", seed: "kiss3" },
-    ],
-  },
-  {
-    id: "set-2",
-    label: "Bouquet toss",
-    images: [
-      { id: "IMG_0455.CR3", seed: "toss1" },
-      { id: "IMG_0456.CR3", seed: "toss2" },
-    ],
-  },
-  {
-    id: "set-3",
-    label: "Venue exterior",
-    images: [{ id: "IMG_0501.CR3", seed: "venue1" }],
-  },
-  {
-    id: "set-4",
-    label: "First dance",
-    images: [
-      { id: "IMG_0602.CR3", seed: "dance1" },
-      { id: "IMG_0603.CR3", seed: "dance2" },
-    ],
-  },
-  {
-    id: "set-5",
-    label: "Ring detail",
-    images: [{ id: "IMG_0640.CR3", seed: "ring1" }],
-  },
-].map((set) => ({
-  ...set,
-  images: set.images.map((img) => ({
-    id: img.id,
-    fileName: img.id,
-    thumbUrl: `https://picsum.photos/seed/${img.seed}/300/300`,
-    fullUrl: `https://picsum.photos/seed/${img.seed}/1200/1200`,
-  })),
-}));
+const PHOTOS_BUCKET = "photos";
+const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 
 /* ============ Helpers ============ */
-function slugify(name) {
-  return name.trim().toLowerCase().replace(/\s+/g, "-");
-}
-
 function formatBytes(bytes) {
   if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -141,6 +46,18 @@ function formatBytes(bytes) {
     i++;
   }
   return `${n.toFixed(1)} ${units[i]}`;
+}
+
+async function getSignedUrl(path) {
+  if (!path) return null;
+  const { data, error } = await supabase.storage
+    .from(PHOTOS_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (error) {
+    console.error("Signed URL error:", error);
+    return null;
+  }
+  return data.signedUrl;
 }
 
 /* ============ Folder card ============ */
@@ -166,33 +83,209 @@ function FolderCard({ folder, reviewed, total, onOpen }) {
   );
 }
 
+/* ============ Minimal auth gate ============
+   Stand-in sign in / sign up screen so folders & photos can be scoped
+   per-user. Swap this out if/when the app gets a proper auth flow. */
+function AuthGate() {
+  const [mode, setMode] = useState("signin"); // 'signin' | 'signup'
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setInfo("");
+    setLoading(true);
+
+    const { error } =
+      mode === "signin"
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password });
+
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    if (mode === "signup") {
+      setInfo("Check your email to confirm your account, then sign in.");
+    }
+  }
+
+  return (
+    <div className="max-w-sm mx-auto mt-20 bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+      <h2 className="text-white font-semibold text-lg mb-1">
+        {mode === "signin" ? "Sign in" : "Create an account"}
+      </h2>
+      <p className="text-xs text-slate-500 mb-4">
+        Your folders and photos are private to your account.
+      </p>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
+          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-sky-500"
+        />
+        <input
+          type="password"
+          required
+          minLength={6}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-sky-500"
+        />
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        {info && <p className="text-xs text-sky-400">{info}</p>}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-slate-900 font-semibold py-2 rounded-lg text-sm transition-colors"
+        >
+          {loading ? "Please wait..." : mode === "signin" ? "Sign in" : "Sign up"}
+        </button>
+      </form>
+      <button
+        onClick={() => {
+          setMode(mode === "signin" ? "signup" : "signin");
+          setError("");
+          setInfo("");
+        }}
+        className="text-xs text-slate-400 hover:text-white mt-3 w-full text-center"
+      >
+        {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+      </button>
+    </div>
+  );
+}
+
 function CullingPage() {
+  /* ============ AUTH ============ */
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user ?? null);
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   /* ---- top-level tab: culling grid vs duplicate review ---- */
   const [mode, setMode] = useState("cull"); // 'cull' | 'duplicates'
 
-  /* ============ CULLING GRID STATE (now folder-based) ============ */
-  const [folders, setFolders] = useState(FOLDER_GROUPS);
-  const [culls, setCulls] = useState({}); // { [imageId]: 'star' | 'reject' }, shared across folders
+  /* ============ CULLING GRID STATE (Supabase-backed, folder-based) ============ */
+  const [folders, setFolders] = useState([]);
+  const [culls, setCulls] = useState({}); // { [photoId]: 'star' | 'reject' }
   const [openFolderId, setOpenFolderId] = useState(null); // null = folder grid view
   const [filter, setFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState("");
 
   const fileInputRef = useRef(null);
-  const objectUrlsRef = useRef([]); // track blob: urls so we can revoke them on unmount
 
-  useEffect(() => {
-    return () => {
-      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-    };
+  /* ---- load folders + photos for the signed-in user ---- */
+  const loadData = useCallback(async (userId) => {
+    setDataLoading(true);
+
+    const { data: folderRows, error: folderErr } = await supabase
+      .from("folders")
+      .select("id, name")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true });
+
+    if (folderErr) {
+      console.error(folderErr);
+      setDataLoading(false);
+      return;
+    }
+
+    const { data: photoRows, error: photoErr } = await supabase
+      .from("photos")
+      .select("id, folder_id, file_name, storage_path, previewable, size_bytes, rating")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (photoErr) {
+      console.error(photoErr);
+      setDataLoading(false);
+      return;
+    }
+
+    const signedUrls = await Promise.all(
+      photoRows.map((p) => (p.previewable ? getSignedUrl(p.storage_path) : Promise.resolve(null)))
+    );
+
+    const photos = photoRows.map((p, i) => ({
+      id: p.id,
+      folderId: p.folder_id,
+      fileName: p.file_name,
+      storagePath: p.storage_path,
+      thumbUrl: signedUrls[i],
+      fullUrl: signedUrls[i],
+      previewable: p.previewable,
+      sizeLabel: p.size_bytes ? formatBytes(p.size_bytes) : null,
+    }));
+
+    const builtFolders = folderRows.map((f) => ({
+      id: f.id,
+      name: f.name,
+      images: photos.filter((p) => p.folderId === f.id),
+    }));
+
+    const ratingsMap = {};
+    photoRows.forEach((p) => {
+      if (p.rating) ratingsMap[p.id] = p.rating;
+    });
+
+    setFolders(builtFolders);
+    setCulls(ratingsMap);
+    setDataLoading(false);
   }, []);
 
-  function ensureUnsortedFolder(prevFolders) {
-    if (prevFolders.some((f) => f.id === "unsorted")) return prevFolders;
-    return [...prevFolders, { id: "unsorted", name: "Unsorted", images: [] }];
+  useEffect(() => {
+    if (user) {
+      loadData(user.id);
+    } else {
+      setFolders([]);
+      setCulls({});
+      setOpenFolderId(null);
+    }
+  }, [user, loadData]);
+
+  async function findOrCreateUnsortedFolder() {
+    const existing = folders.find((f) => f.name === "Unsorted");
+    if (existing) return existing.id;
+
+    const { data, error } = await supabase
+      .from("folders")
+      .insert({ name: "Unsorted", user_id: user.id })
+      .select()
+      .single();
+
+    if (error) {
+      console.error(error);
+      return null;
+    }
+
+    setFolders((prev) => [...prev, { id: data.id, name: data.name, images: [] }]);
+    return data.id;
   }
 
   function openNewFolderModal() {
@@ -201,7 +294,7 @@ function CullingPage() {
     setNewFolderModalOpen(true);
   }
 
-  function createFolder(e) {
+  async function createFolder(e) {
     e.preventDefault();
     const name = newFolderName.trim();
     if (!name) {
@@ -209,52 +302,86 @@ function CullingPage() {
       return;
     }
 
-    let id = slugify(name);
-    if (folders.some((f) => f.id === id)) {
-      // Name already taken — make the id unique without silently renaming
-      // the folder the person typed.
-      id = `${id}-${Date.now().toString(36)}`;
+    const { data, error } = await supabase
+      .from("folders")
+      .insert({ name, user_id: user.id })
+      .select()
+      .single();
+
+    if (error) {
+      setNewFolderError(error.message);
+      return;
     }
 
-    setFolders((prev) => [...prev, { id, name, images: [] }]);
-    setOpenFolderId(id);
+    setFolders((prev) => [...prev, { id: data.id, name: data.name, images: [] }]);
+    setOpenFolderId(data.id);
     setFilter("all");
     setNewFolderModalOpen(false);
   }
 
   const handleFiles = useCallback(
-    (fileList) => {
+    async (fileList) => {
       const files = Array.from(fileList || []);
-      if (files.length === 0) return;
+      if (files.length === 0 || !user) return;
 
-      const newImages = files.map((file) => {
+      let targetFolderId = openFolderId;
+      if (!targetFolderId) {
+        targetFolderId = await findOrCreateUnsortedFolder();
+        if (!targetFolderId) return;
+        setOpenFolderId(targetFolderId);
+      }
+
+      for (const file of files) {
         const isPreviewable = file.type.startsWith("image/");
-        const url = isPreviewable ? URL.createObjectURL(file) : null;
-        if (url) objectUrlsRef.current.push(url);
+        const path = `${user.id}/${targetFolderId}/${Date.now()}-${file.name}`;
 
-        return {
-          id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 6)}`,
+        const { error: uploadErr } = await supabase.storage
+          .from(PHOTOS_BUCKET)
+          .upload(path, file);
+        if (uploadErr) {
+          console.error("Upload failed:", uploadErr);
+          continue;
+        }
+
+        const { data: row, error: insertErr } = await supabase
+          .from("photos")
+          .insert({
+            folder_id: targetFolderId,
+            user_id: user.id,
+            file_name: file.name,
+            storage_path: path,
+            size_bytes: file.size,
+            previewable: isPreviewable,
+          })
+          .select()
+          .single();
+
+        if (insertErr) {
+          console.error("Insert failed:", insertErr);
+          continue;
+        }
+
+        const thumbUrl = isPreviewable ? await getSignedUrl(path) : null;
+
+        const newImage = {
+          id: row.id,
+          folderId: targetFolderId,
           fileName: file.name,
-          thumbUrl: url,
-          fullUrl: url,
+          storagePath: path,
+          thumbUrl,
+          fullUrl: thumbUrl,
           previewable: isPreviewable,
           sizeLabel: formatBytes(file.size),
         };
-      });
 
-      setFolders((prev) => {
-        // Dropping while a folder is open files photos into that folder.
-        // Otherwise they land in an auto-created "Unsorted" folder.
-        const targetId = openFolderId || "unsorted";
-        const withUnsorted = openFolderId ? prev : ensureUnsortedFolder(prev);
-        return withUnsorted.map((f) =>
-          f.id === targetId ? { ...f, images: [...newImages, ...f.images] } : f
+        setFolders((prev) =>
+          prev.map((f) =>
+            f.id === targetFolderId ? { ...f, images: [newImage, ...f.images] } : f
+          )
         );
-      });
-
-      if (!openFolderId) setOpenFolderId("unsorted");
+      }
     },
-    [openFolderId]
+    [openFolderId, user, folders]
   );
 
   function handleDrop(e) {
@@ -273,19 +400,28 @@ function CullingPage() {
     setIsDragging(false);
   }
 
-  function setRating(id, action) {
-    setCulls((prev) => ({
-      ...prev,
-      [id]: prev[id] === action ? undefined : action,
-    }));
+  async function setRating(id, action) {
+    const nextRating = culls[id] === action ? null : action;
+
+    setCulls((prev) => {
+      const next = { ...prev };
+      if (nextRating) next[id] = nextRating;
+      else delete next[id];
+      return next;
+    });
+
+    const { error } = await supabase.from("photos").update({ rating: nextRating }).eq("id", id);
+    if (error) console.error("Rating update failed:", error);
   }
 
-  function clearRating(id) {
+  async function clearRating(id) {
     setCulls((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
+    const { error } = await supabase.from("photos").update({ rating: null }).eq("id", id);
+    if (error) console.error("Rating clear failed:", error);
   }
 
   const openFolder = folders.find((f) => f.id === openFolderId);
@@ -331,20 +467,17 @@ function CullingPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxImage, goToOffset, mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightboxImage, goToOffset, mode, culls]);
 
-  /* ============ DUPLICATE REVIEW STATE (unchanged) ============ */
-  const [duplicateSets] = useState(DUPLICATE_SETS);
-
-  const [bestPicks, setBestPicks] = useState(() => {
-    const initial = {};
-    DUPLICATE_SETS.forEach((set) => {
-      if (set.images.length === 1) initial[set.id] = set.images[0].id;
-    });
-    return initial;
-  });
-
-  const [dupLightbox, setDupLightbox] = useState(null); // { setId, imageId } | null
+  /* ============ DUPLICATE REVIEW ============
+     TODO: duplicate detection needs its own similarity-matching pipeline
+     (e.g. a backend job comparing perceptual hashes) — Supabase doesn't
+     generate this for you. Wire `duplicateSets` up to a real table/query
+     once that pipeline exists. Left empty for now. */
+  const [duplicateSets] = useState([]);
+  const [bestPicks, setBestPicks] = useState({});
+  const [dupLightbox, setDupLightbox] = useState(null);
 
   function pickBest(setId, imageId) {
     setBestPicks((prev) => ({ ...prev, [setId]: imageId }));
@@ -384,60 +517,136 @@ function CullingPage() {
   }, [dupLightboxImage, mode]);
 
   /* ============ RENDER ============ */
+  if (authLoading) {
+    return <p className="text-sm text-slate-500 text-center mt-20">Loading...</p>;
+  }
+
+  if (!user) {
+    return <AuthGate />;
+  }
+
   return (
     <div>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-4">
         <h2 className="text-xl sm:text-2xl font-semibold text-white">Culling Station</h2>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <select className="bg-slate-800 text-sm rounded-lg px-3 py-2 text-slate-300 border border-slate-700 focus:outline-none focus:border-sky-500 flex-1 sm:flex-none">
-            <option>Smith Wedding (450 RAWs)</option>
-            <option>Corp Headshots (120 RAWs)</option>
-            <option>Prenup - Jane &amp; John (200 RAWs)</option>
-          </select>
           {mode === "cull" && (
             <button className="bg-sky-500 hover:bg-sky-600 text-slate-900 font-semibold px-4 py-2 rounded-lg text-sm flex items-center gap-2 whitespace-nowrap transition-colors">
               <FaCheck /> Finish
             </button>
           )}
+          <button
+            onClick={() => supabase.auth.signOut()}
+            title="Sign out"
+            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
+          >
+            <FaSignOutAlt />
+          </button>
         </div>
       </div>
 
-      {/* Dropzone */}
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        className={`mb-6 border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-colors ${
-          isDragging
-            ? "border-sky-500 bg-sky-500/10"
-            : "border-slate-700 bg-slate-800/30 hover:border-slate-600 hover:bg-slate-800/50"
-        }`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={ACCEPTED_ATTR}
-          className="hidden"
-          onChange={(e) => {
-            handleFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        <FaCloudUploadAlt
-          className={`mx-auto text-3xl mb-2 ${
-            isDragging ? "text-sky-400" : "text-slate-500"
+      {/* Mode tabs */}
+      <div className="flex items-center gap-2 mb-6 border-b border-slate-800">
+        <button
+          onClick={() => setMode("cull")}
+          className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+            mode === "cull"
+              ? "border-sky-500 text-white"
+              : "border-transparent text-slate-500 hover:text-slate-300"
           }`}
-        />
-        <p className="text-md text-slate-300 font-medium">
-          {isDragging ? "Drop to add these files" : "Drag & drop photos here, or click to browse"}
-        </p>
-        <p className="text-sm text-slate-500 mt-1">
-          JPG, PNG, WEBP get thumbnails right away &middot; RAW formats (CR3, NEF, ARW, DNG) are added but can't be previewed in-browser
-        </p>
+        >
+          <FaThLarge className="text-xs" /> Culling
+        </button>
+        <button
+          onClick={() => setMode("duplicates")}
+          className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+            mode === "duplicates"
+              ? "border-sky-500 text-white"
+              : "border-transparent text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <FaClone className="text-xs" /> Duplicates
+        </button>
       </div>
+
+      {/* Dropzone */}
+      {mode === "cull" && (
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={`mb-6 border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-colors ${
+            isDragging
+              ? "border-sky-500 bg-sky-500/10"
+              : "border-slate-700 bg-slate-800/30 hover:border-slate-600 hover:bg-slate-800/50"
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ACCEPTED_ATTR}
+            className="hidden"
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <FaCloudUploadAlt
+            className={`mx-auto text-3xl mb-2 ${
+              isDragging ? "text-sky-400" : "text-slate-500"
+            }`}
+          />
+          <p className="text-md text-slate-300 font-medium">
+            {isDragging ? "Drop to add these files" : "Drag & drop photos here, or click to browse"}
+          </p>
+          <p className="text-sm text-slate-500 mt-1">
+            JPG, PNG, WEBP get thumbnails right away &middot; RAW formats (CR3, NEF, ARW, DNG) are added but can't be previewed in-browser
+          </p>
+        </div>
+      )}
+
+      {/* ============ CULL MODE ============ */}
+      {mode === "cull" && (
+        <div>
+          {dataLoading ? (
+            <p className="text-sm text-slate-500 text-center py-16">Loading your photos...</p>
+          ) : !openFolder ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {folders.map((folder) => {
+                const total = folder.images.length;
+                const reviewed = folder.images.filter((img) => culls[img.id]).length;
+                return (
+                  <FolderCard
+                    key={folder.id}
+                    folder={folder}
+                    reviewed={reviewed}
+                    total={total}
+                    onOpen={() => {
+                      setOpenFolderId(folder.id);
+                      setFilter("all");
+                    }}
+                  />
+                );
+              })}
+              <button
+                onClick={openNewFolderModal}
+                className="text-left bg-slate-800/30 hover:bg-slate-800/60 border border-dashed border-slate-700 hover:border-sky-500/50 rounded-xl p-4 transition-colors flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-sky-400"
+              >
+                <FaFolderPlus className="text-xl" />
+                <span className="text-xs font-medium">New folder</span>
+              </button>
+            </div>
+          ) : (
+            <div>
+              <button
+                onClick={() => setOpenFolderId(null)}
+                className="flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-4 transition-colors"
+              >
+                <FaArrowLeft className="text-xs" /> Back to folders
+              </button>
 
               {/* Progress + stat pills */}
               <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 sm:p-6 mb-6">
@@ -520,7 +729,7 @@ function CullingPage() {
                         onClick={() => setLightboxId(img.id)}
                         className={`relative aspect-square bg-slate-900 rounded-lg overflow-hidden border group transition-all cursor-pointer ${stateClasses}`}
                       >
-                        {img.previewable ? (
+                        {img.previewable && img.thumbUrl ? (
                           <img
                             src={img.thumbUrl}
                             className="w-full h-full object-cover"
@@ -585,120 +794,126 @@ function CullingPage() {
         </div>
       )}
 
-      {/* ============ DUPLICATE REVIEW TAB (unchanged) ============ */}
+      {/* ============ DUPLICATE REVIEW TAB ============ */}
       {mode === "duplicates" && (
         <div>
           <p className="text-xs text-slate-500 mb-5">
             Each row is a set of similar shots — pick the keeper. Single photos are kept automatically.
           </p>
 
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-slate-700 text-left text-xs text-slate-400 uppercase tracking-wide">
-                  <th className="p-4 font-medium w-48">Set</th>
-                  <th className="p-4 font-medium">Photos — click to mark best</th>
-                  <th className="p-4 font-medium w-52">Best pick</th>
-                  <th className="p-4 font-medium w-40">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {duplicateSets.map((set) => {
-                  const bestId = bestPicks[set.id];
-                  const bestImage = set.images.find((img) => img.id === bestId);
-                  const isSingle = set.images.length === 1;
-                  const resolved = Boolean(bestId);
+          {duplicateSets.length === 0 ? (
+            <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-700 rounded-xl">
+              No duplicate sets yet — this needs a similarity-detection pass over your photos, which isn't wired up yet.
+            </div>
+          ) : (
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-700 text-left text-xs text-slate-400 uppercase tracking-wide">
+                    <th className="p-4 font-medium w-48">Set</th>
+                    <th className="p-4 font-medium">Photos — click to mark best</th>
+                    <th className="p-4 font-medium w-52">Best pick</th>
+                    <th className="p-4 font-medium w-40">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {duplicateSets.map((set) => {
+                    const bestId = bestPicks[set.id];
+                    const bestImage = set.images.find((img) => img.id === bestId);
+                    const isSingle = set.images.length === 1;
+                    const resolved = Boolean(bestId);
 
-                  return (
-                    <tr key={set.id} className="border-b border-slate-800 last:border-b-0 align-top">
-                      <td className="p-4">
-                        <div className="flex items-center gap-2 text-white text-sm font-medium">
-                          <FaLayerGroup className="text-sky-500 text-xs flex-shrink-0" />
-                          {set.label}
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {set.images.length} photo{set.images.length !== 1 ? "s" : ""}
-                        </p>
-                      </td>
-
-                      <td className="p-4">
-                        <div className="flex flex-wrap gap-2">
-                          {set.images.map((img) => {
-                            const isBest = img.id === bestId;
-                            return (
-                              <div
-                                key={img.id}
-                                onClick={() => pickBest(set.id, img.id)}
-                                className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 cursor-pointer group flex-shrink-0 transition-all ${
-                                  isBest
-                                    ? "border-sky-500 ring-2 ring-sky-500/40"
-                                    : "border-slate-700 hover:border-slate-500 opacity-80 hover:opacity-100"
-                                }`}
-                              >
-                                <img
-                                  src={img.thumbUrl}
-                                  alt={img.fileName}
-                                  className="w-full h-full object-cover"
-                                />
-                                {isBest && (
-                                  <span className="absolute top-1 left-1 bg-sky-500 text-slate-900 rounded-full p-1 shadow">
-                                    <FaCrown className="text-[9px]" />
-                                  </span>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDupLightbox({ setId: set.id, imageId: img.id });
-                                  }}
-                                  className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                                  title="Inspect full-size"
-                                >
-                                  <FaSearchPlus className="text-white text-xs" />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </td>
-
-                      <td className="p-4">
-                        {bestImage ? (
-                          <div className="flex items-center gap-2">
-                            <img
-                              src={bestImage.thumbUrl}
-                              alt={bestImage.fileName}
-                              className="w-10 h-10 rounded-md object-cover border border-sky-500/50 flex-shrink-0"
-                            />
-                            <span className="text-xs text-slate-300 font-mono truncate">
-                              {bestImage.fileName}
-                            </span>
+                    return (
+                      <tr key={set.id} className="border-b border-slate-800 last:border-b-0 align-top">
+                        <td className="p-4">
+                          <div className="flex items-center gap-2 text-white text-sm font-medium">
+                            <FaLayerGroup className="text-sky-500 text-xs flex-shrink-0" />
+                            {set.label}
                           </div>
-                        ) : (
-                          <span className="text-xs text-slate-600 italic">Not chosen yet</span>
-                        )}
-                      </td>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {set.images.length} photo{set.images.length !== 1 ? "s" : ""}
+                          </p>
+                        </td>
 
-                      <td className="p-4">
-                        {isSingle ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 bg-slate-700/40 px-2.5 py-1 rounded-full">
-                            <FaCheckCircle className="text-slate-500" /> Auto-kept
-                          </span>
-                        ) : resolved ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
-                            <FaCheckCircle /> Best selected
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
-                            <FaExclamationCircle /> Needs review
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <td className="p-4">
+                          <div className="flex flex-wrap gap-2">
+                            {set.images.map((img) => {
+                              const isBest = img.id === bestId;
+                              return (
+                                <div
+                                  key={img.id}
+                                  onClick={() => pickBest(set.id, img.id)}
+                                  className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 cursor-pointer group flex-shrink-0 transition-all ${
+                                    isBest
+                                      ? "border-sky-500 ring-2 ring-sky-500/40"
+                                      : "border-slate-700 hover:border-slate-500 opacity-80 hover:opacity-100"
+                                  }`}
+                                >
+                                  <img
+                                    src={img.thumbUrl}
+                                    alt={img.fileName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {isBest && (
+                                    <span className="absolute top-1 left-1 bg-sky-500 text-slate-900 rounded-full p-1 shadow">
+                                      <FaCrown className="text-[9px]" />
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDupLightbox({ setId: set.id, imageId: img.id });
+                                    }}
+                                    className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                                    title="Inspect full-size"
+                                  >
+                                    <FaSearchPlus className="text-white text-xs" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+
+                        <td className="p-4">
+                          {bestImage ? (
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={bestImage.thumbUrl}
+                                alt={bestImage.fileName}
+                                className="w-10 h-10 rounded-md object-cover border border-sky-500/50 flex-shrink-0"
+                              />
+                              <span className="text-xs text-slate-300 font-mono truncate">
+                                {bestImage.fileName}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-600 italic">Not chosen yet</span>
+                          )}
+                        </td>
+
+                        <td className="p-4">
+                          {isSingle ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 bg-slate-700/40 px-2.5 py-1 rounded-full">
+                              <FaCheckCircle className="text-slate-500" /> Auto-kept
+                            </span>
+                          ) : resolved ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
+                              <FaCheckCircle /> Best selected
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
+                              <FaExclamationCircle /> Needs review
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -805,7 +1020,7 @@ function CullingPage() {
               <FaChevronLeft />
             </button>
 
-            {lightboxImage.previewable ? (
+            {lightboxImage.previewable && lightboxImage.fullUrl ? (
               <img
                 src={lightboxImage.fullUrl}
                 alt={lightboxImage.fileName}
@@ -864,7 +1079,7 @@ function CullingPage() {
         </div>
       )}
 
-      {/* ============ LIGHTBOX: duplicate review (unchanged) ============ */}
+      {/* ============ LIGHTBOX: duplicate review ============ */}
       {mode === "duplicates" && dupLightboxImage && (
         <div
           className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex flex-col"

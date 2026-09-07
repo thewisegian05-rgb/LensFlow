@@ -195,3 +195,12 @@
     font-size:13px;
 
 }
+.login-error{
+    background:#2a1414;
+    border:1px solid #7f1d1d;
+    color:#fca5a5;
+    border-radius:8px;
+    padding:10px 12px;
+    font-size:13px;
+    margin-bottom:18px;
+}

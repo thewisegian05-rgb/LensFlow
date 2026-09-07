@@ -12,81 +12,10 @@ function MediaStorage() {
         console.error("Failed to parse local storage", e);
       }
     }
-    return [
-      {
-        id: 1,
-        name: "Smith_Wedding_Photos",
-        isFile: false,
-        subItems: [
-          { 
-            id: 101, 
-            name: "Photos", 
-            isFile: false,
-            subItems: [
-              { 
-                id: 1001, 
-                name: "RAW Photos", 
-                isFile: false,
-                subItems: [{ id: 10001, name: "sample_raw_1.raw", isFile: true }] 
-              }, 
-              { 
-                id: 1002, 
-                name: "EDITED Photos", 
-                isFile: false,
-                subItems: [{ id: 10002, name: "sample_edited_1.jpg", isFile: true, url: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80" }] 
-              }
-            ] 
-          },
-          { 
-            id: 102, 
-            name: "Videos", 
-            isFile: false,
-            subItems: [
-              { 
-                id: 1003, 
-                name: "RAW Videos", 
-                isFile: false,
-                subItems: [{ id: 10003, name: "sample_raw_video.mp4", isFile: true }] 
-              }, 
-              { 
-                id: 1004, 
-                name: "EDITED Videos", 
-                isFile: false,
-                subItems: [{ id: 10004, name: "sample_edited_video.mp4", isFile: true }] 
-              }
-            ] 
-          }
-        ]
-      },
-      {
-        id: 2,
-        name: "Arvesu_Wedding_Photos",
-        isFile: false,
-        subItems: [
-          { 
-            id: 201, 
-            name: "Photos", 
-            isFile: false,
-            subItems: [
-              { id: 2001, name: "RAW Photos", isFile: false, subItems: [] }, 
-              { id: 2002, name: "EDITED Photos", isFile: false, subItems: [] }
-            ] 
-          },
-          { 
-            id: 202, 
-            name: "Videos", 
-            isFile: false,
-            subItems: [
-              { id: 2003, name: "RAW Videos", isFile: false, subItems: [] }, 
-              { id: 2004, name: "EDITED Videos", isFile: false, subItems: [] }
-            ] 
-          }
-        ]
-      }
-    ];
+    return [];
   });
 
-  // Sync clients state to localStorage whenever it changes
+  // TODO: Replace localStorage persistence with API/database storage
   useEffect(() => {
     localStorage.setItem("mediaStorageClients", JSON.stringify(clients));
   }, [clients]);

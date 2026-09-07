@@ -160,6 +160,7 @@ function AddEventModal({
   // =========================================================
 
   return (
+    <div className="event-modal custom-scrollbar">
     <div
       className="
         fixed
@@ -504,6 +505,7 @@ function AddEventModal({
           </div>
         </form>
       </div>
+    </div>
     </div>
   );
 }

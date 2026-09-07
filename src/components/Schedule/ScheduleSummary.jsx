@@ -81,6 +81,7 @@ function ScheduleSummary({ events = [] }) {
   }));
 
   return (
+    <div className="projects-container custom-scrollbar">
     <div className="mb-6 space-y-4">
       {/* Overview row: exactly two cards, always full-width and even —
           this row's length never changes, so a plain 2-column grid is
@@ -134,6 +135,7 @@ function ScheduleSummary({ events = [] }) {
         </div>
       )}
     </div>
+    </div>
   );
 }
 
@@ -165,6 +167,7 @@ function CategoryChip({ title, value, icon, iconClass }) {
   const isEmpty = value === 0;
 
   return (
+    
     <div
       className={`
         flex-shrink-0

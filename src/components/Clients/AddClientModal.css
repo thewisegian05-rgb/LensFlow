@@ -300,46 +300,6 @@
   transform: translateY(0);
 }
 
-/* ==========================================
-   MODAL SCROLLBAR
-========================================== */
-
-/* Firefox */
-.client-modal {
-  scrollbar-width: thin;
-  scrollbar-color: #30425f #111b2e;
-  scrollbar-gutter: stable;
-}
-
-
-/* Chrome, Edge, Opera */
-.client-modal::-webkit-scrollbar {
-  width: 8px;
-}
-
-
-/* Scrollbar background / track */
-.client-modal::-webkit-scrollbar-track {
-  background: #111b2e;
-
-  border-radius: 10px;
-}
-
-
-/* The draggable scrollbar */
-.client-modal::-webkit-scrollbar-thumb {
-  background: #30425f;
-
-  border-radius: 10px;
-
-  border: 2px solid #111b2e;
-}
-
-
-/* Hover */
-.client-modal::-webkit-scrollbar-thumb:hover {
-  background: #08a9e8;
-}
 
 /* ==========================================
    RESPONSIVE

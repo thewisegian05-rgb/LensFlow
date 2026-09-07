@@ -418,6 +418,23 @@
   padding: 0 45px 0 44px;
 }
 
+.no-clients {
+  width: 100%;
+  min-height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+
+  color: #71849f;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.no-clients p {
+  margin: 0;
+}
+
 
 /* Responsive */
 

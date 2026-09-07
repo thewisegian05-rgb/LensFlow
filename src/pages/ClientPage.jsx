@@ -38,32 +38,7 @@ function ClientPage() {
   const [viewType, setViewType] = useState("grid");
 
   // Mock client data for demonstration purposes
-  const [clients, setClients] = useState([
-    {
-      id: 1,
-      name: "Jane Smith",
-      type: "Individual Client",
-      contact: "09123456789",
-      email: "sarah@gmail.com",
-      category: "Weddings",
-      project: "Smith Wedding",
-      projectStatus: "Ongoing",
-      talentFee: "4500",
-      initials: "JS",
-    },
-    {
-      id: 2,
-      name: "TechCorp Ltd.",
-      type: "Business Client",
-      contact: "09676543210",
-      email: "contact@techcorp.com",
-      category: "Corporate & Commercial",
-      project: "TechCorp Event",
-      projectStatus: "Completed",
-      talentFee: "6200",
-      initials: "TC",
-    },
-  ]);
+  const [clients, setClients] = useState([]);
 
 
   // Add New Client
@@ -309,41 +284,36 @@ const handleEditClient = (updatedClient) => {
 
       {/* GRID / BLOCK VIEW */}
 
-      {viewType === "grid" && (
-
-        <div className="clients-grid">
-
-          {filteredClients.map((client) => (
-          <ClientCard
-            key={client.id}
-            client={client}
-            onDelete={handleDeleteClient}
-            onView={() => setSelectedClient(client)}
-            onComplete={handleCompleteClient}
-            onEdit={() => setEditingClient(client)}
-          />
-        ))}
-
+      {filteredClients.length === 0 ? (
+        <div className="no-clients">
+          <p>No clients found.</p>
         </div>
+      ) : (
+        <>
+          {viewType === "grid" && (
+            <div className="clients-grid">
+              {filteredClients.map((client) => (
+                <ClientCard
+                  key={client.id}
+                  client={client}
+                  onDelete={handleDeleteClient}
+                  onView={() => setSelectedClient(client)}
+                  onComplete={handleCompleteClient}
+                  onEdit={() => setEditingClient(client)}
+                />
+              ))}
+            </div>
+          )}
 
-      )}
-
-
-
-      {/* ==========================================
-          LIST VIEW
-      ========================================== */}
-
-      {viewType === "list" && (
-
-        <ClientList
-          clients={filteredClients}
-            onDelete={handleDeleteClient}
-            onView={(client) => setSelectedClient(client)}
-            onComplete={handleCompleteClient}
-            onEdit={(client) => setEditingClient(client)}
-        />
-
+          {viewType === "list" && (
+            <ClientList
+              clients={filteredClients}
+              onDelete={handleDeleteClient}
+              onView={(client) => setSelectedClient(client)}
+              onEdit={(client) => setEditingClient(client)}
+            />
+          )}
+        </>
       )}
 
 

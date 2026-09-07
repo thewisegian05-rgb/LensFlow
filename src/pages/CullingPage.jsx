@@ -790,6 +790,8 @@ function CullingPage() {
                 navigate
               </p>
             </div>
+          )}
+        </div>
       )}
 
       {/* ============ DUPLICATE REVIEW TAB ============ */}

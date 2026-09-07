@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FaPlus, FaSearch } from "react-icons/fa";
 
+import { supabase } from "../lib/supabaseClient";
 import {
   STAGE_KEYS,
   STAGE_LABELS,
@@ -67,6 +68,7 @@ let nextId = SAMPLE_PROJECTS.length + 1;
 
 function WorkflowPage() {
   const [projects, setProjects] = useState(SAMPLE_PROJECTS);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState("");

@@ -23,32 +23,30 @@ function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Total Clients"
-          value="3"
+          value="0"
           icon={<FaUsers />}
-          subtitle="↑ 12% this month"
-          subtitleColor="text-green-500"
+          subtitle="No clients yet"
         />
 
         <StatCard
           title="Pending Projects"
-          value="3"
+          value="0"
           icon={<FaHourglassHalf />}
-          subtitle="3 starting this week"
+          subtitle="No pending projects"
         />
 
         <StatCard
           title="Projects Editing"
-          value="1"
+          value="0"
           icon={<FaPhotoVideo />}
-          subtitle="Avg 3 days to complete"
+          subtitle="No projects in editing"
         />
 
         <StatCard
           title="Approx. Income"
-          value="$7,700"
+          value="₱0"
           icon={<FaCoins />}
-          subtitle="↑ 15% vs last month"
-          subtitleColor="text-green-500"
+          subtitle="No recorded income yet"
         />
       </div>
 

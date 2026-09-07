@@ -5,28 +5,29 @@ import {
   FaCheckCircle,
 } from "react-icons/fa";
 
+// TODO: Replace counts with data from API
 const workflow = [
   {
     title: "Editing",
-    count: 3,
+    count: 0,
     color: "bg-yellow-500",
     icon: <FaHourglassHalf />,
   },
   {
     title: "Waiting Approval",
-    count: 2,
+    count: 0,
     color: "bg-sky-500",
     icon: <FaUserClock />,
   },
   {
     title: "Ready for Delivery",
-    count: 4,
+    count: 0,
     color: "bg-purple-500",
     icon: <FaBoxOpen />,
   },
   {
     title: "Completed",
-    count: 15,
+    count: 0,
     color: "bg-green-500",
     icon: <FaCheckCircle />,
   },

@@ -17,56 +17,9 @@ import AddProjectModal from "../components/Workflow/AddProjectModal";
 // out for real data (API call, context, etc.) — the rest of the page
 // only depends on `projects` having this shape:
 // { id, client, category, date, stage, notes, tasks: [{id, text, done}] }
-const SAMPLE_PROJECTS = [
-  {
-    id: "PRJ-001",
-    client: "Chen × Rivera",
-    category: "wedding",
-    date: "2026-08-18",
-    stage: "editing",
-    notes: "",
-    tasks: [
-      { id: "t1", text: "Cull raw files", done: true },
-      { id: "t2", text: "Color grade highlights", done: true },
-      { id: "t3", text: "Export final gallery", done: false },
-    ],
-  },
-  {
-    id: "PRJ-002",
-    client: "Amara Okafor",
-    category: "portrait-lifestyle",
-    date: "2026-08-10",
-    stage: "booked",
-    notes: "",
-    tasks: [{ id: "t1", text: "Confirm location", done: false }],
-  },
-  {
-    id: "PRJ-003",
-    client: "Vertex Brand Co.",
-    category: "product-business",
-    date: "2026-08-05",
-    stage: "review",
-    notes: "",
-    tasks: [
-      { id: "t1", text: "Send proof gallery", done: true },
-      { id: "t2", text: "Collect client picks", done: false },
-    ],
-  },
-  {
-    id: "PRJ-004",
-    client: "The Hendersons",
-    category: "family-milestones",
-    date: "2026-07-28",
-    stage: "delivered",
-    notes: "",
-    tasks: [{ id: "t1", text: "Deliver final files", done: true }],
-  },
-];
-
-let nextId = SAMPLE_PROJECTS.length + 1;
 
 function WorkflowPage() {
-  const [projects, setProjects] = useState(SAMPLE_PROJECTS);
+  const [projects, setProjects] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState("");
@@ -111,17 +64,21 @@ function WorkflowPage() {
   // PROJECT ACTIONS
   // =========================================================
 
+  // TODO: Replace local state handling with API calls
   const handleSaveProject = (form) => {
     if (form.id) {
+      // Temporarily edit project in local state
       setProjects((prev) =>
-        prev.map((p) => (p.id === form.id ? { ...p, ...form } : p))
+        prev.map((p) =>
+          p.id === form.id ? { ...p, ...form } : p
+        )
       );
     } else {
+      // Temporarily add project to local state
       setProjects((prev) => [
         ...prev,
         {
           ...form,
-          id: `PRJ-${String(nextId++).padStart(3, "0")}`,
           tasks: [],
         },
       ]);

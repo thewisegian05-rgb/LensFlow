@@ -1,35 +1,34 @@
 import {
-  FaEnvelope,
   FaCalendarCheck,
   FaCamera,
   FaEdit,
   FaEye,
   FaCheckCircle,
+  FaMoneyBillWave,
 } from "react-icons/fa";
 
 import {
   STAGE_KEYS,
   STAGE_LABELS,
   STAGE_SOFT_CLASSES,
-  getTaskProgress,
 } from "./workflowStages";
 
-// One icon per stage. Kept here (not in workflowStages.js) so that
-// shared logic file doesn't need to depend on an icon library — same
-// pattern as eventCategory.js / ScheduleSummary.jsx.
+// One icon per stage. "completed" and "paid-completed" share the same
+// display label ("Completed") but get different icons/colors here so
+// they're still visually distinguishable in this summary strip.
 const STAGE_ICONS = {
-  inquiry: <FaEnvelope />,
-  booked: <FaCalendarCheck />,
+  "coming-events": <FaCalendarCheck />,
   "shoot-completed": <FaCamera />,
   editing: <FaEdit />,
-  review: <FaEye />,
+  completed: <FaEye />,
   delivered: <FaCheckCircle />,
+  "paid-completed": <FaMoneyBillWave />,
 };
 
 // Takes the same `projects` array WorkflowPage manages, so this widget
 // (dropped into the Dashboard) always matches the real pipeline state.
 function WorkflowSummary({ projects = [] }) {
-  const activeProjects = projects.filter((p) => p.stage !== "delivered");
+  const activeProjects = projects.filter((p) => p.stage !== "paid-completed");
 
   const stageCounts = projects.reduce((counts, project) => {
     counts[project.stage] = (counts[project.stage] || 0) + 1;

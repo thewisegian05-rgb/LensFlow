@@ -1,35 +1,35 @@
 import React from "react";
 
-function StatCard({
-  title,
-  value,
-  icon,
-  subtitle,
-  subtitleColor = "text-slate-500",
-}) {
+const ACCENT_STYLES = {
+  sky: { bar: "bg-sky-500", icon: "text-sky-400 bg-sky-500/10" },
+  amber: { bar: "bg-amber-500", icon: "text-amber-400 bg-amber-500/10" },
+  violet: { bar: "bg-violet-500", icon: "text-violet-400 bg-violet-500/10" },
+  emerald: { bar: "bg-emerald-500", icon: "text-emerald-400 bg-emerald-500/10" },
+  rose: { bar: "bg-rose-500", icon: "text-rose-400 bg-rose-500/10" },
+};
+
+function StatCard({ title, value, icon, subtitle, accent = "sky" }) {
+  const styles = ACCENT_STYLES[accent] || ACCENT_STYLES.sky;
+
   return (
-    <div className="bg-slate-800 rounded-xl p-3 sm:p-4 border border-slate-700 transition hover:-translate-y-1 hover:shadow-xl">
+    <div className="relative bg-slate-900 border border-slate-800 rounded-lg pl-4 pr-3 py-3 overflow-hidden transition hover:border-slate-700">
+      <span
+        className={`absolute left-0 top-0 h-full w-[3px] ${styles.bar}`}
+      />
 
-      <div className="flex justify-between items-center mb-2">
-
-        <span className="text-slate-400 text-xs sm:text-sm">
-          {title}
-        </span>
-
-        <div className="text-sky-500 text-lg">
-          {icon}
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs text-slate-500">{title}</p>
+          <p className="text-2xl font-bold text-white mt-1 leading-none">
+            {value}
+          </p>
+          <p className="text-xs text-slate-500 mt-1.5">{subtitle}</p>
         </div>
 
+        <div className={`w-8 h-8 rounded-md flex items-center justify-center text-sm ${styles.icon}`}>
+          {icon}
+        </div>
       </div>
-
-      <h3 className="text-2xl sm:text-3xl font-bold text-white">
-        {value}
-      </h3>
-
-      <p className={`text-xs mt-1 ${subtitleColor}`}>
-        {subtitle}
-      </p>
-
     </div>
   );
 }

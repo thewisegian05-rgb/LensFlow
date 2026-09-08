@@ -1,68 +1,82 @@
-import {
-  FaHourglassHalf,
-  FaUserClock,
-  FaBoxOpen,
-  FaCheckCircle,
-} from "react-icons/fa";
+import { useEffect, useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
+import { STAGE_KEYS, STAGE_LABELS } from "../Workflow/workflowStages";
 
-// TODO: Replace counts with data from API
-const workflow = [
-  {
-    title: "Editing",
-    count: 0,
-    color: "bg-yellow-500",
-    icon: <FaHourglassHalf />,
-  },
-  {
-    title: "Waiting Approval",
-    count: 0,
-    color: "bg-sky-500",
-    icon: <FaUserClock />,
-  },
-  {
-    title: "Ready for Delivery",
-    count: 0,
-    color: "bg-purple-500",
-    icon: <FaBoxOpen />,
-  },
-  {
-    title: "Completed",
-    count: 0,
-    color: "bg-green-500",
-    icon: <FaCheckCircle />,
-  },
-];
+const STAGE_COLORS = {
+  "shoot-completed": "bg-violet-500",
+  editing: "bg-amber-500",
+  completed: "bg-teal-500",
+  delivered: "bg-emerald-500",
+  "paid-completed": "bg-slate-500",
+};
+
+// "coming-events" is never actually stored in the projects table — it's
+// a virtual stage Workflow builds live from unlinked schedule events —
+// so it's excluded here since there's nothing in `projects` to count.
+const SUMMARY_STAGES = STAGE_KEYS.filter((key) => key !== "coming-events");
 
 function WorkflowSummary() {
+  const [counts, setCounts] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      setLoading(true);
+
+      const { data, error } = await supabase.from("projects").select("stage");
+
+      if (error) {
+        console.error("Failed to load workflow summary:", error.message);
+        setLoading(false);
+        return;
+      }
+
+      const tally = {};
+      SUMMARY_STAGES.forEach((key) => (tally[key] = 0));
+      data.forEach((row) => {
+        if (tally[row.stage] !== undefined) tally[row.stage] += 1;
+      });
+
+      setCounts(tally);
+      setLoading(false);
+    };
+
+    fetchCounts();
+  }, []);
+
+  const total = SUMMARY_STAGES.reduce(
+    (sum, key) => sum + (counts[key] || 0),
+    0
+  );
+
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-5">
-      <h3 className="text-xl font-semibold text-white mb-5">
+    <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+      <h3 className="text-sm font-semibold text-white mb-3">
         Workflow Summary
       </h3>
 
-      <div className="space-y-4">
-        {workflow.map((item) => (
-          <div
-            key={item.title}
-            className="flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-lg ${item.color} flex items-center justify-center text-white`}
-              >
-                {item.icon}
+      <div className="space-y-2.5">
+        {SUMMARY_STAGES.map((key) => {
+          const count = counts[key] || 0;
+          const pct = total === 0 ? 0 : Math.round((count / total) * 100);
+
+          return (
+            <div key={key}>
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="text-slate-400">{STAGE_LABELS[key]}</span>
+                <span className="text-white font-medium">
+                  {loading ? "…" : count}
+                </span>
               </div>
-
-              <span className="text-slate-300">
-                {item.title}
-              </span>
+              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${STAGE_COLORS[key]} transition-all`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
             </div>
-
-            <span className="text-white font-bold text-lg">
-              {item.count}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

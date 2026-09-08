@@ -11,63 +11,8 @@ import { CATEGORY_KEYS, CATEGORY_LABELS } from "../components/Schedule/eventCate
 import ProjectCard from "../components/Workflow/ProjectCard";
 import AddProjectModal from "../components/Workflow/AddProjectModal";
 
-// =========================================================
-// SAMPLE DATA
-// =========================================================
-// Placeholder seed so the board isn't empty on first load. Swap this
-// out for real data (API call, context, etc.) — the rest of the page
-// only depends on `projects` having this shape:
-// { id, client, category, date, stage, notes, tasks: [{id, text, done}] }
-const SAMPLE_PROJECTS = [
-  {
-    id: "PRJ-001",
-    client: "Chen × Rivera",
-    category: "wedding",
-    date: "2026-08-18",
-    stage: "editing",
-    notes: "",
-    tasks: [
-      { id: "t1", text: "Cull raw files", done: true },
-      { id: "t2", text: "Color grade highlights", done: true },
-      { id: "t3", text: "Export final gallery", done: false },
-    ],
-  },
-  {
-    id: "PRJ-002",
-    client: "Amara Okafor",
-    category: "portrait-lifestyle",
-    date: "2026-08-10",
-    stage: "booked",
-    notes: "",
-    tasks: [{ id: "t1", text: "Confirm location", done: false }],
-  },
-  {
-    id: "PRJ-003",
-    client: "Vertex Brand Co.",
-    category: "product-business",
-    date: "2026-08-05",
-    stage: "review",
-    notes: "",
-    tasks: [
-      { id: "t1", text: "Send proof gallery", done: true },
-      { id: "t2", text: "Collect client picks", done: false },
-    ],
-  },
-  {
-    id: "PRJ-004",
-    client: "The Hendersons",
-    category: "family-milestones",
-    date: "2026-07-28",
-    stage: "delivered",
-    notes: "",
-    tasks: [{ id: "t1", text: "Deliver final files", done: true }],
-  },
-];
-
-let nextId = SAMPLE_PROJECTS.length + 1;
-
 function WorkflowPage() {
-  const [projects, setProjects] = useState(SAMPLE_PROJECTS);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
@@ -75,8 +20,50 @@ function WorkflowPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
 
   // =========================================================
-  // LOAD PROJECTS (+ NESTED TASKS) FROM SUPABASE
+  // LOAD PROJECTS (+ NESTED TASKS) FROM SUPABASE, AND MERGE IN
+  // UPCOMING SCHEDULE EVENTS THAT HAVEN'T BEEN PROMOTED YET
   // =========================================================
+  //
+  // The Schedule tab writes to `schedule_events`, with `project_id` null
+  // until an event is linked to (or promoted into) a real project. Any
+  // event dated today or later with no project yet shows up here as a
+  // Coming Events card tagged "From Schedule."
+
+  const fetchUpcomingEvents = async () => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const { data, error } = await supabase
+      .from("schedule_events")
+      .select("*")
+      .gte("start_time", startOfToday.toISOString())
+      .is("project_id", null)
+      .order("start_time", { ascending: true });
+
+    if (error) {
+      // Don't hard-fail the whole page if this query fails — just skip
+      // the merge and show whatever real projects loaded fine.
+      console.error("Failed to load schedule events:", error.message);
+      return [];
+    }
+
+    return data.map((ev) => ({
+      id: `event-${ev.id}`,
+      eventId: ev.id,
+      client: ev.client || ev.title,
+      category: ev.category,
+      date: new Date(ev.start_time).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      dateRaw: ev.start_time,
+      notes: ev.notes,
+      stage: "coming-events",
+      tasks: [],
+      isScheduleEvent: true,
+    }));
+  };
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -105,7 +92,9 @@ function WorkflowPage() {
         .map((t) => ({ id: t.id, text: t.text, done: t.done })),
     }));
 
-    setProjects(mapped);
+    const upcomingEvents = await fetchUpcomingEvents();
+
+    setProjects([...mapped, ...upcomingEvents]);
     setLoading(false);
   };
 
@@ -150,24 +139,53 @@ function WorkflowPage() {
   // PROJECT ACTIONS
   // =========================================================
 
-  const handleSaveProject = (form) => {
+  const handleSaveProject = async (form) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.error("No authenticated user found.");
+      return;
+    }
+
     if (form.id) {
-      setProjects((prev) =>
-        prev.map((p) => (p.id === form.id ? { ...p, ...form } : p))
-      );
+      const { error } = await supabase
+        .from("projects")
+        .update({
+          client: form.client,
+          category: form.category,
+          event_date: form.date,
+          stage: form.stage,
+          notes: form.notes,
+        })
+        .eq("id", form.id);
+
+      if (error) {
+        console.error("Failed to update project:", error.message);
+        return;
+      }
     } else {
-      setProjects((prev) => [
-        ...prev,
+      const { error } = await supabase.from("projects").insert([
         {
-          ...form,
-          id: `PRJ-${String(nextId++).padStart(3, "0")}`,
-          tasks: [],
+          user_id: user.id,
+          client: form.client,
+          category: form.category,
+          event_date: form.date,
+          stage: form.stage || STAGE_KEYS[0],
+          notes: form.notes || "",
         },
       ]);
+
+      if (error) {
+        console.error("Failed to create project:", error.message);
+        return;
+      }
     }
 
     setModalOpen(false);
     setEditingProject(null);
+    await fetchProjects();
   };
 
   const handleEditProject = (project) => {
@@ -186,17 +204,87 @@ function WorkflowPage() {
     await fetchProjects();
   };
 
+  // Moves a card to targetStage. For a real project row this just updates
+  // `stage`. For a card pulled in from Schedule (isScheduleEvent), clicking
+  // "Event Finished" promotes it into an actual project row and links the
+  // event back to it so it won't show up as "upcoming" again.
+  //
+  // Guard: a schedule-derived card can only be promoted once its shoot
+  // date has arrived (today or earlier) — it can't be pushed forward
+  // while the shoot is still in the future, even if the button in the
+  // UI is somehow bypassed.
   const handleMoveStage = async (id, targetStage) => {
     if (!targetStage) return;
 
-    const { error } = await supabase
-      .from("projects")
-      .update({ stage: targetStage })
-      .eq("id", id);
+    const project = projects.find((p) => p.id === id);
+    if (!project) return;
 
-    if (error) {
-      console.error("Failed to move project stage:", error.message);
-      return;
+    if (project.isScheduleEvent) {
+      const eventDate = new Date(project.dateRaw);
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const startOfEventDay = new Date(
+        eventDate.getFullYear(),
+        eventDate.getMonth(),
+        eventDate.getDate()
+      );
+
+      if (startOfEventDay > startOfToday) {
+        console.error(
+          "Cannot promote a shoot that hasn't happened yet:",
+          project.client
+        );
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.error("No authenticated user found.");
+        return;
+      }
+
+      const { data: newProject, error: insertErr } = await supabase
+        .from("projects")
+        .insert([
+          {
+            user_id: user.id,
+            client: project.client,
+            category: project.category,
+            event_date: project.dateRaw,
+            stage: targetStage,
+            notes: project.notes || "",
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertErr) {
+        console.error("Failed to promote event to project:", insertErr.message);
+        return;
+      }
+
+      const { error: linkErr } = await supabase
+        .from("schedule_events")
+        .update({ project_id: newProject.id })
+        .eq("id", project.eventId);
+
+      if (linkErr) {
+        console.error("Failed to link event to new project:", linkErr.message);
+      }
+    } else {
+      const { error } = await supabase
+        .from("projects")
+        .update({ stage: targetStage })
+        .eq("id", id);
+
+      if (error) {
+        console.error("Failed to move project stage:", error.message);
+        return;
+      }
     }
 
     await fetchProjects();
@@ -333,29 +421,29 @@ function WorkflowPage() {
         </select>
       </div>
 
-      <div className="workflow-container custom-scrollbar">
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {loading ? (
-            <p className="text-slate-400 px-2">Loading projects...</p>
-          ) : (
-            STAGE_KEYS.map((stage) => {
+      <div className="workflow-container">
+        {loading ? (
+          <p className="text-slate-400 px-2">Loading projects...</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-start">
+            {STAGE_KEYS.map((stage) => {
               const stageProjects = projectsByStage[stage] || [];
 
               return (
                 <div
                   key={stage}
                   className={`
-                    flex-shrink-0 w-[280px]
+                    min-w-0
                     bg-slate-900/60 border border-slate-800
                     border-t-2 ${STAGE_COLUMN_BORDER[stage]}
                     rounded-xl p-3
                   `}
                 >
                   <div className="flex items-center justify-between mb-3 px-1">
-                    <h3 className="text-sm font-semibold text-white">
+                    <h3 className="text-sm font-semibold text-white truncate">
                       {STAGE_LABELS[stage]}
                     </h3>
-                    <span className="text-xs text-slate-500 font-mono">
+                    <span className="text-xs text-slate-500 font-mono flex-shrink-0 ml-1">
                       {stageProjects.length}
                     </span>
                   </div>
@@ -382,9 +470,9 @@ function WorkflowPage() {
                   </div>
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </div>
 
       <AddProjectModal

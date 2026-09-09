@@ -99,10 +99,10 @@ function Dashboard() {
 
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-5">
+      <div className="mb-5 flex items-baseline justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-white">Dashboard</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Dashboard</h2>
+          <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-500">
             {new Date().toLocaleDateString("en-US", {
               weekday: "long",
               month: "long",

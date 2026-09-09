@@ -4,7 +4,7 @@ import Header from "./Header";
 
 function Layout() {
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950">
+    <div className="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
 
       {/* Sidebar */}
 
@@ -15,7 +15,7 @@ function Layout() {
 
         <Header />
 
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 bg-slate-950">
+        <main className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 bg-slate-100 dark:bg-slate-950">
 
           <Outlet />
 

@@ -7,7 +7,7 @@ import {
 
 function Header() {
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-800 bg-slate-900/80 backdrop-blur-md p-3 sm:p-4">
+    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/90 backdrop-blur-md p-3 sm:p-4 dark:border-slate-800 dark:bg-slate-900/80">
 
       {/* Left */}
 
@@ -15,7 +15,7 @@ function Header() {
 
         {/* Mobile Menu */}
 
-        <button className="text-slate-400 hover:text-white text-xl md:hidden">
+        <button className="text-slate-600 hover:text-slate-900 text-xl md:hidden dark:text-slate-400 dark:hover:text-white">
           <FaBars />
         </button>
 
@@ -28,7 +28,7 @@ function Header() {
           <input
             type="text"
             placeholder="Search clients, projects..."
-            className="w-64 rounded-full bg-slate-800 py-2 pl-10 pr-4 text-sm text-slate-300 outline-none transition focus:ring-2 focus:ring-sky-500"
+            className="w-64 rounded-full border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:ring-2 focus:ring-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           />
 
         </div>
@@ -41,7 +41,7 @@ function Header() {
 
         {/* Notification */}
 
-        <button className="relative p-2 text-slate-400 transition hover:text-white">
+        <button className="relative p-2 text-slate-600 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
 
           <FaBell className="text-lg" />
 

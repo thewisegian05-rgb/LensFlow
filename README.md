@@ -1,6 +1,6 @@
 # LensFlow — Studio Management & AI Culling Platform
 
-> **Thesis Title:** *LensFlow: An AI-Assisted Studio Management and Automated Computer Vision Culling Platform for Digital Media Professionals*
+> **Thesis Title:** *LensFlow: An HCI-Driven Photography Workflow Management System with Hybrid Photo Quality Assessment for Automated Photo Culling*
 
 ---
 

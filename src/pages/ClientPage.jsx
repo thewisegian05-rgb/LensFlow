@@ -5,6 +5,7 @@ import ClientList from "../components/Clients/ClientList.jsx";
 import AddClientModal from "../components/Clients/AddClientModal.jsx";
 import ViewClientModal from "../components/Clients/ViewClientModal.jsx";
 import EditClientModal from "../components/Clients/EditClientModal.jsx";
+import ConfirmModal from "../components/Common/ConfirmModal.jsx";
 
 import "../components/Clients/Clients.css";
 import "../components/Clients/ClientCard.css";
@@ -28,6 +29,7 @@ function ClientPage() {
   const [showAddClient, setShowAddClient] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [editingClient, setEditingClient] = useState(null);
+  const [clientToDelete, setClientToDelete] = useState(null);
 
   // Search and Filter States
   const [searchTerm, setSearchTerm] = useState("");
@@ -37,7 +39,6 @@ function ClientPage() {
   // "list" = table/list view
   const [viewType, setViewType] = useState("grid");
 
-  // Mock client data for demonstration purposes
   const [clients, setClients] = useState([]);
 
 
@@ -54,20 +55,17 @@ function ClientPage() {
 
   // Delete Client
   const handleDeleteClient = (id) => {
+    setClientToDelete(id);
+  };
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this client?"
+  const confirmDeleteClient = () => {
+    if (!clientToDelete) return;
+
+    setClients((previousClients) =>
+      previousClients.filter((client) => client.id !== clientToDelete)
     );
 
-    if (confirmed) {
-
-      setClients((previousClients) =>
-        previousClients.filter(
-          (client) => client.id !== id
-        )
-      );
-
-    }
+    setClientToDelete(null);
   };
 
   // Mark Client as Completed
@@ -311,6 +309,7 @@ const handleEditClient = (updatedClient) => {
               onDelete={handleDeleteClient}
               onView={(client) => setSelectedClient(client)}
               onEdit={(client) => setEditingClient(client)}
+              onComplete={handleCompleteClient}
             />
           )}
         </>
@@ -351,6 +350,14 @@ const handleEditClient = (updatedClient) => {
           onSave={handleEditClient}
         />
       )}
+
+      <ConfirmModal
+        open={Boolean(clientToDelete)}
+        title="Delete Client"
+        message="Are you sure you want to delete this client? This action cannot be undone."
+        onCancel={() => setClientToDelete(null)}
+        onConfirm={confirmDeleteClient}
+      />
 
     </div>
   );

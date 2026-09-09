@@ -13,6 +13,11 @@
   border-radius: 12px;
 }
 
+.dark .client-list-container {
+  background: #111b2e;
+  border-color: #30425f;
+}
+
 
 /* ==========================================
    TABLE
@@ -37,6 +42,10 @@
   background: #f8fafc;
 }
 
+.dark .client-list-table thead {
+  background: #0d1727;
+}
+
 .client-list-table th {
   padding: 14px 18px;
 
@@ -51,6 +60,11 @@
 
   text-align: left;
   text-transform: uppercase;
+}
+
+.dark .client-list-table th {
+  color: #b9c7dc;
+  border-bottom-color: #24364e;
 }
 
 .client-list-table th:first-child {
@@ -71,6 +85,10 @@
 }
 
 .client-list-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.dark .client-list-table tbody tr:hover {
   background: #142136;
 }
 
@@ -84,6 +102,11 @@
   font-size: 13px;
 
   vertical-align: middle;
+}
+
+.dark .client-list-table td {
+  color: #edf3ff;
+  border-bottom-color: #24364e;
 }
 
 .client-list-table tbody tr:last-child td {
@@ -139,9 +162,13 @@
 }
 
 .list-status-label {
-  color: #9fb0c8;
+  color: #475569;
   font-size: 12px;
   font-weight: 600;
+}
+
+.dark .list-status-label {
+  color: #9fb0c8;
 }
 
 .list-status-dot.completed { background: #2db66e; box-shadow: 0 0 8px rgba(45,182,110,0.28); }
@@ -165,12 +192,20 @@
   white-space: nowrap;
 }
 
+.dark .list-client-name {
+  color: #f4f8ff;
+}
+
 .list-client-type {
   color: #475569;
 
   font-size: 11px;
 
   white-space: nowrap;
+}
+
+.dark .list-client-type {
+  color: #b0bfd9;
 }
 
 
@@ -188,6 +223,10 @@
   white-space: nowrap;
 }
 
+.dark .list-contact p {
+  color: #edf3ff;
+}
+
 .list-contact span {
   display: block;
 
@@ -201,6 +240,10 @@
 
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dark .list-contact span {
+  color: #9fb2cc;
 }
 
 
@@ -217,6 +260,10 @@
   white-space: nowrap;
 }
 
+.dark .list-project {
+  color: #6ecdf8;
+}
+
 
 /* ==========================================
    TOTAL SPENT
@@ -229,6 +276,10 @@
   font-weight: 700;
 
   white-space: nowrap;
+}
+
+.dark .list-spent {
+  color: #edf3ff;
 }
 
 
@@ -272,16 +323,27 @@
 /* View */
 
 .list-view-btn {
-  border: 1px solid #31435e;
+  border: 1px solid #dfe7f1;
 
-  color: #8da7c5;
+  color: #475569;
 }
 
 .list-view-btn:hover {
+  background: #f1f5f9;
+
+  border-color: #cbd5e1;
+
+  color: #0f172a;
+}
+
+.dark .list-view-btn {
+  border-color: #31435e;
+  color: #8da7c5;
+}
+
+.dark .list-view-btn:hover {
   background: #1b2b42;
-
   border-color: #486487;
-
   color: #ffffff;
 }
 
@@ -289,16 +351,27 @@
 /* Edit */
 
 .list-edit-btn {
-  border: 1px solid #245676;
+  border: 1px solid #cfe5f5;
 
-  color: #4ab7e9;
+  color: #0369a1;
 }
 
 .list-edit-btn:hover {
+  background: #e0f2fe;
+
+  border-color: #7dd3fc;
+
+  color: #0f172a;
+}
+
+.dark .list-edit-btn {
+  border-color: #245676;
+  color: #4ab7e9;
+}
+
+.dark .list-edit-btn:hover {
   background: #12354c;
-
   border-color: #2b82ae;
-
   color: #ffffff;
 }
 
@@ -306,44 +379,78 @@
 /* Delete */
 
 .list-delete-btn {
-  border: 1px solid #62383d;
+  border: 1px solid #fecaca;
 
-  color: #f17878;
+  color: #b91c1c;
 }
 
 .list-delete-btn:hover {
+  background: #fef2f2;
+
+  border-color: #fca5a5;
+
+  color: #7f1d1d;
+}
+
+.dark .list-delete-btn {
+  border-color: #62383d;
+  color: #f17878;
+}
+
+.dark .list-delete-btn:hover {
   background: #44252a;
-
   border-color: #915158;
-
   color: #ffffff;
 }
 
 /* Complete button */
 .list-complete-btn {
-  border: 1px solid rgba(53, 199, 111, 0.35);
-  color: #35c76f;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #15803d;
   background: transparent;
 }
 
 .list-complete-btn:hover {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: #22c55e;
+  color: #166534;
+}
+
+.dark .list-complete-btn {
+  border-color: rgba(53, 199, 111, 0.35);
+  color: #35c76f;
+}
+
+.dark .list-complete-btn:hover {
   background: rgba(53, 199, 111, 0.08);
   border-color: #35c76f;
   color: #ffffff;
 }
 
 .list-message-btn {
-  border: 1px solid #245676;
+  border: 1px solid #cfe5f5;
 
-  background: #08a9e8;
-  color: #000000
+  background: #e0f2fe;
+  color: #075985;
 }
 
 .list-message-btn:hover {
+  background: #bae6fd;
+
+  border-color: #7dd3fc;
+
+  color: #0f172a;
+}
+
+.dark .list-message-btn {
+  border-color: #245676;
+  background: #08a9e8;
+  color: #000000;
+}
+
+.dark .list-message-btn:hover {
   background: #2b7ea7;
-
   border-color: #2b82ae;
-
   color: #000000;
 }
 
@@ -366,12 +473,20 @@
   font-size: 16px;
 }
 
+.dark .list-empty-state h3 {
+  color: #dde5ef;
+}
+
 .list-empty-state p {
   margin: 0;
 
   color: #718198;
 
   font-size: 13px;
+}
+
+.dark .list-empty-state p {
+  color: #718198;
 }
 
 /* ==========================================

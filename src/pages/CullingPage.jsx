@@ -577,10 +577,10 @@ function CullingPage() {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`mb-6 border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-colors ${
+          className={`mb-6 border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all duration-200 ease-out hover:scale-[1.01] hover:shadow-lg hover:shadow-sky-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
             isDragging
-              ? "border-sky-500 bg-sky-500/10"
-              : "border-slate-700 bg-slate-800/30 hover:border-slate-600 hover:bg-slate-800/50"
+              ? "border-sky-500 bg-sky-500/10 shadow-lg shadow-sky-500/10"
+              : "border-slate-300 bg-slate-50/80 hover:border-sky-400 hover:bg-slate-100/90 dark:border-slate-700 dark:bg-slate-800/30 dark:hover:bg-slate-800/60"
           }`}
         >
           <input
@@ -599,10 +599,10 @@ function CullingPage() {
               isDragging ? "text-sky-400" : "text-slate-500"
             }`}
           />
-          <p className="text-md text-slate-300 font-medium">
+          <p className="text-md text-slate-700 font-medium dark:text-slate-300">
             {isDragging ? "Drop to add these files" : "Drag & drop photos here, or click to browse"}
           </p>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 mt-1 dark:text-slate-500">
             JPG, PNG, WEBP get thumbnails right away &middot; RAW formats (CR3, NEF, ARW, DNG) are added but can't be previewed in-browser
           </p>
         </div>
@@ -633,9 +633,9 @@ function CullingPage() {
               })}
               <button
                 onClick={openNewFolderModal}
-                className="text-left bg-slate-800/30 hover:bg-slate-800/60 border border-dashed border-slate-700 hover:border-sky-500/50 rounded-xl p-4 transition-colors flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-sky-400"
+                className="text-left bg-slate-50/80 hover:bg-slate-100 border border-dashed border-slate-300 hover:border-sky-400 hover:shadow-lg hover:shadow-sky-500/10 rounded-xl p-4 transition-all duration-200 ease-out flex flex-col items-center justify-center gap-2 text-slate-600 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 dark:bg-slate-800/30 dark:hover:bg-slate-800/70 dark:border-slate-700 dark:text-slate-500 dark:hover:text-sky-300"
               >
-                <FaFolderPlus className="text-xl" />
+                <FaFolderPlus className="text-xl transition-transform duration-200 group-hover:scale-110" />
                 <span className="text-xs font-medium">New folder</span>
               </button>
             </div>

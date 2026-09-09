@@ -18,6 +18,12 @@
     box-shadow 0.2s ease;
 }
 
+.dark .client-card {
+  background: #111b2e;
+  border-color: #30425f;
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.28);
+}
+
 .client-card:hover {
   transform: translateY(-3px);
 
@@ -25,6 +31,11 @@
 
   box-shadow:
     0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.dark .client-card:hover {
+  border-color: #486487;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.24);
 }
 
 
@@ -41,6 +52,10 @@
   padding-bottom: 18px;
 
   border-bottom: 1px solid #e2e8f0;
+}
+
+.dark .client-card-top {
+  border-color: #24364e;
 }
 
 .client-status {
@@ -66,6 +81,10 @@
   font-weight: 600;
 }
 
+.dark .status-label {
+  color: #c7d3eb;
+}
+
 /* Status-specific highlight styles */
 .client-card.completed {
   border-color: rgba(45, 182, 110, 0.32);
@@ -75,6 +94,10 @@
     0 0 60px rgba(45, 182, 110, 0.06) inset;
 }
 
+.dark .client-card.completed {
+  border-color: rgba(110, 231, 183, 0.42);
+}
+
 .client-card.ongoing,
 .client-card.pending {
   border-color: rgba(228, 178, 28, 0.34);
@@ -82,6 +105,11 @@
     0 6px 20px rgba(228, 178, 28, 0.05),
     0 0 28px rgba(228, 178, 28, 0.08),
     0 0 60px rgba(228, 178, 28, 0.04) inset;
+}
+
+.dark .client-card.ongoing,
+.dark .client-card.pending {
+  border-color: rgba(253, 224, 71, 0.42);
 }
 
 .status-dot.completed {
@@ -201,6 +229,10 @@
   text-overflow: ellipsis;
 }
 
+.dark .client-heading h2 {
+  color: #f5f7fb;
+}
+
 .client-heading span {
   display: block;
 
@@ -209,6 +241,10 @@
   color: #475569;
 
   font-size: 12px;
+}
+
+.dark .client-heading span {
+  color: #b7c5d9;
 }
 
 
@@ -237,6 +273,10 @@
   color: #5fa7cb;
 }
 
+.dark .client-detail {
+  color: #7ecaf3;
+}
+
 .client-detail svg {
   margin-top: 2px;
 
@@ -255,10 +295,14 @@
   font-size: 11px;
 }
 
+.dark .client-detail small {
+  color: #9aaec6;
+}
+
 .client-detail p {
   margin: 0;
 
-  color: #d9e2ee;
+  color: #000000;
 
   font-size: 13px;
 
@@ -275,9 +319,13 @@
 }
 
 .client-detail .talent-fee {
-  color: #f2f5f9;
+  color: #000000;
 
   font-weight: 700;
+}
+
+.dark .client-detail .talent-fee {
+  color: #f8fbff;
 }
 
 
@@ -294,7 +342,11 @@
 
   padding-top: 15px;
 
-  border-top: 1px solid #25344c;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dark .client-actions {
+  border-top-color: #25344c;
 }
 
 
@@ -333,16 +385,27 @@
 ========================================== */
 
 .view-btn {
-  border: 1px solid #31435e;
+  border: 1px solid #dfe7f1;
 
-  color: #8da7c5;
+  color: #475569;
 }
 
 .view-btn:hover {
+  background: #f1f5f9;
+
+  border-color: #cbd5e1;
+
+  color: #0f172a;
+}
+
+.dark .view-btn {
+  border-color: #31435e;
+  color: #8da7c5;
+}
+
+.dark .view-btn:hover {
   background: #1b2b42;
-
   border-color: #486487;
-
   color: #ffffff;
 }
 
@@ -352,16 +415,27 @@
 ========================================== */
 
 .edit-btn {
-  border: 1px solid #245676;
+  border: 1px solid #cfe5f5;
 
-  color: #4ab7e9;
+  color: #0369a1;
 }
 
 .edit-btn:hover {
+  background: #e0f2fe;
+
+  border-color: #7dd3fc;
+
+  color: #0f172a;
+}
+
+.dark .edit-btn {
+  border-color: #245676;
+  color: #4ab7e9;
+}
+
+.dark .edit-btn:hover {
   background: #12354c;
-
   border-color: #2b82ae;
-
   color: #ffffff;
 }
 
@@ -371,16 +445,27 @@
 ========================================== */
 
 .delete-btn {
-  border: 1px solid #62383d;
+  border: 1px solid #fecaca;
 
-  color: #f17878;
+  color: #b91c1c;
 }
 
 .delete-btn:hover {
+  background: #fef2f2;
+
+  border-color: #fca5a5;
+
+  color: #7f1d1d;
+}
+
+.dark .delete-btn {
+  border-color: #62383d;
+  color: #f17878;
+}
+
+.dark .delete-btn:hover {
   background: #44252a;
-
   border-color: #915158;
-
   color: #ffffff;
 }
 

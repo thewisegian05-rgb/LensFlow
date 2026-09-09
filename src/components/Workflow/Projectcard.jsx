@@ -49,13 +49,17 @@ function ProjectCard({
   return (
     <div
       className="
-        bg-slate-800
+        bg-white
         border
-        border-slate-700
+        border-slate-200
         rounded-lg
         p-3
-        hover:border-slate-600
+        shadow-sm
+        hover:border-sky-300
         transition
+        dark:bg-slate-800
+        dark:border-slate-700
+        dark:hover:border-slate-600
       "
     >
       {/* =================================================
@@ -63,7 +67,7 @@ function ProjectCard({
           ================================================= */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-white truncate">
+          <p className="text-sm font-semibold text-slate-900 truncate dark:text-white">
             {project.client}
           </p>
           {project.date && (
@@ -81,7 +85,7 @@ function ProjectCard({
           <button
             type="button"
             onClick={() => onEdit(project)}
-            className="w-6 h-6 rounded-md flex items-center justify-center text-slate-500 hover:text-sky-400 hover:bg-slate-700 transition"
+            className="workflow-card-action w-6 h-6 rounded-md flex items-center justify-center bg-transparent text-slate-700 transition hover:bg-slate-100 hover:text-sky-600"
             title="Edit project"
           >
             <FaPen className="text-[11px]" />
@@ -89,7 +93,7 @@ function ProjectCard({
           <button
             type="button"
             onClick={() => onDelete(project.id)}
-            className="w-6 h-6 rounded-md flex items-center justify-center text-slate-500 hover:text-rose-400 hover:bg-slate-700 transition"
+            className="workflow-card-action w-6 h-6 rounded-md flex items-center justify-center bg-transparent text-slate-700 transition hover:bg-slate-100 hover:text-rose-500"
             title="Delete project"
           >
             <FaTrash className="text-[11px]" />
@@ -138,7 +142,7 @@ function ProjectCard({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-slate-200 transition py-1"
+        className="w-full flex items-center justify-between text-xs text-slate-600 hover:text-slate-900 transition py-1 dark:text-slate-400 dark:hover:text-slate-200"
       >
         <span>Checklist</span>
         {expanded ? (
@@ -163,7 +167,7 @@ function ProjectCard({
                   ${
                     task.done
                       ? "bg-sky-500 border-sky-500"
-                      : "border-slate-600 hover:border-sky-500"
+                      : "border-slate-300 hover:border-sky-500 dark:border-slate-600"
                   }
                 `}
               >
@@ -172,7 +176,7 @@ function ProjectCard({
 
               <span
                 className={`text-xs flex-1 truncate ${
-                  task.done ? "text-slate-500 line-through" : "text-slate-300"
+                  task.done ? "text-slate-500 line-through" : "text-slate-700 dark:text-slate-300"
                 }`}
               >
                 {task.text}
@@ -181,7 +185,7 @@ function ProjectCard({
               <button
                 type="button"
                 onClick={() => onDeleteTask(project.id, task.id)}
-                className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-rose-400 transition flex-shrink-0"
+                className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-500 transition flex-shrink-0 dark:text-slate-600 dark:hover:text-rose-400"
               >
                 <FaTrash className="text-[9px]" />
               </button>
@@ -198,22 +202,26 @@ function ProjectCard({
               placeholder="Add a task..."
               className="
                 flex-1
-                bg-slate-900
+                bg-white
                 border
-                border-slate-700
+                border-slate-200
                 rounded-md
                 px-2
                 py-1
                 text-xs
-                text-white
-                placeholder-slate-600
+                text-slate-900
+                placeholder-slate-500
                 outline-none
                 focus:border-sky-500
+                dark:bg-slate-900
+                dark:border-slate-700
+                dark:text-white
+                dark:placeholder-slate-600
               "
             />
             <button
               type="submit"
-              className="w-6 h-6 rounded-md bg-slate-700 hover:bg-sky-500 hover:text-slate-900 text-slate-300 flex items-center justify-center transition flex-shrink-0"
+              className="w-6 h-6 rounded-md bg-slate-100 hover:bg-sky-500 hover:text-slate-900 text-slate-700 flex items-center justify-center transition flex-shrink-0 dark:bg-slate-700 dark:text-slate-300"
             >
               <FaPlus className="text-[9px]" />
             </button>
@@ -225,17 +233,19 @@ function ProjectCard({
           MOVE STAGE CHEVRONS
           ================================================= */}
 
-      <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-700/60">
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-200 dark:border-slate-700/60">
         <button
           type="button"
           disabled={!prevStage}
           onClick={() => onMoveStage(project.id, prevStage)}
           className="
+            workflow-stage-action
             w-7 h-7 rounded-md
             flex items-center justify-center
-            text-slate-400
-            hover:bg-slate-700
-            hover:text-white
+            bg-transparent
+            text-slate-700
+            hover:bg-slate-100
+            hover:text-slate-900
             disabled:opacity-20
             disabled:hover:bg-transparent
             transition
@@ -245,7 +255,7 @@ function ProjectCard({
           <FaChevronLeft className="text-xs" />
         </button>
 
-        <span className="text-[10px] text-slate-600 font-mono">
+        <span className="text-[10px] text-slate-500 font-mono dark:text-slate-600">
           {project.project_code}
         </span>
 
@@ -254,11 +264,13 @@ function ProjectCard({
           disabled={!nextStage}
           onClick={() => onMoveStage(project.id, nextStage)}
           className="
+            workflow-stage-action
             w-7 h-7 rounded-md
             flex items-center justify-center
-            text-slate-400
-            hover:bg-slate-700
-            hover:text-white
+            bg-transparent
+            text-slate-700
+            hover:bg-slate-100
+            hover:text-slate-900
             disabled:opacity-20
             disabled:hover:bg-transparent
             transition

@@ -46,20 +46,34 @@ function SchedulePage() {
       return;
     }
 
-    const mapped = data.map((row) => ({
-      id: row.id,
-      title: row.title,
-      client: row.client,
-      category: row.category,
-      photographer: row.photographer,
-      location: row.location,
-      gears: row.gears || [],
-      notes: row.notes,
-      start: new Date(row.start_time),
-      end: new Date(row.end_time),
-      project_id: row.project_id,
-      status: row.status,
-    }));
+    const mapped = data.map((row) => {
+      const start = new Date(row.start_time);
+      const end = new Date(row.end_time);
+
+      return {
+        id: row.id,
+        title: row.title,
+        client: row.client,
+        category: row.category,
+        photographer: row.photographer,
+        location: row.location,
+        gears: row.gears || [],
+        notes: row.notes,
+        start,
+        end,
+        date: start.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        time: start.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        project_id: row.project_id,
+        status: row.status,
+      };
+    });
 
     setEvents(mapped);
     setLoading(false);

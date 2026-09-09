@@ -434,9 +434,10 @@ function WorkflowPage() {
                   key={stage}
                   className={`
                     min-w-0
-                    bg-slate-900/60 border border-slate-800
+                    bg-slate-50 border border-slate-200
                     border-t-2 ${STAGE_COLUMN_BORDER[stage]}
                     rounded-xl p-3
+                    dark:bg-slate-900/60 dark:border-slate-800
                   `}
                 >
                   <div className="flex items-center justify-between mb-3 px-1">

@@ -95,6 +95,21 @@ html:not(.dark) button:not(.bg-sky-500):not(.bg-sky-600) {
   color: var(--text-main);
 }
 
+html:not(.dark) .workflow-card-action:hover,
+html:not(.dark) .workflow-stage-action:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+html:not(.dark) .workflow-card-action:hover {
+  color: #0284c7 !important;
+}
+
+html:not(.dark) .workflow-card-action[title="Delete project"]:hover,
+html:not(.dark) .workflow-card-action[title="Delete Client"]:hover {
+  color: #dc2626 !important;
+}
+
 @layer base {
   * {
     @apply transition-colors duration-200;

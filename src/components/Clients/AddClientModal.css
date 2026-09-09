@@ -39,13 +39,19 @@
 
   box-sizing: border-box;
 
-  background: #111b2e;
+  background: #ffffff;
 
-  border: 1px solid #30425f;
+  border: 1px solid #dfe7f1;
   border-radius: 14px;
 
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.45);
+    0 20px 60px rgba(15, 23, 42, 0.12);
+}
+
+.dark .client-modal {
+  background: #111b2e;
+  border-color: #30425f;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
 }
 
 
@@ -66,18 +72,26 @@
 .modal-header h2 {
   margin: 0;
 
-  color: #f5f7fb;
+  color: #0f172a;
 
   font-size: 20px;
   font-weight: 700;
 }
 
+.dark .modal-header h2 {
+  color: #f5f7fb;
+}
+
 .modal-header p {
   margin: 5px 0 0;
 
-  color: #77869e;
+  color: #475569;
 
   font-size: 13px;
+}
+
+.dark .modal-header p {
+  color: #77869e;
 }
 
 
@@ -100,7 +114,7 @@
 
   background: transparent;
 
-  color: #8796ad;
+  color: #475569;
 
   font-size: 20px;
 
@@ -112,8 +126,17 @@
 }
 
 .close-modal:hover {
-  background: #1d2a40;
+  background: #f1f5f9;
 
+  color: #0f172a;
+}
+
+.dark .close-modal {
+  color: #8796ad;
+}
+
+.dark .close-modal:hover {
+  background: #1d2a40;
   color: #ffffff;
 }
 
@@ -131,10 +154,14 @@
 
   margin-bottom: 7px;
 
-  color: #aab7c9;
+  color: #334155;
 
   font-size: 12px;
   font-weight: 600;
+}
+
+.dark .form-group label {
+  color: #aab7c9;
 }
 
 
@@ -152,12 +179,12 @@
 
   outline: none;
 
-  background: #0b1425;
+  background: #ffffff;
 
-  border: 1px solid #2b3c58;
+  border: 1px solid #dfe7f1;
   border-radius: 7px;
 
-  color: #f5f7fb;
+  color: #0f172a;
 
   font-family: inherit;
   font-size: 13px;
@@ -165,6 +192,13 @@
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
+}
+
+.dark .form-group input,
+.dark .form-group select {
+  background: #0b1425;
+  border-color: #2b3c58;
+  color: #f5f7fb;
 }
 
 .form-group input:focus,
@@ -176,6 +210,10 @@
 }
 
 .form-group input::placeholder {
+  color: #64748b;
+}
+
+.dark .form-group input::placeholder {
   color: #53627a;
 }
 
@@ -189,8 +227,13 @@
 }
 
 .form-group select option {
-  background: #0b1425;
+  background: #ffffff;
 
+  color: #0f172a;
+}
+
+.dark .form-group select option {
+  background: #0b1425;
   color: #f5f7fb;
 }
 
@@ -234,12 +277,12 @@
 
   padding: 10px 16px;
 
-  border: 1px solid #30415c;
+  border: 1px solid #dfe7f1;
   border-radius: 7px;
 
   background: transparent;
 
-  color: #9ba9bd;
+  color: #475569;
 
   font-family: inherit;
   font-size: 13px;
@@ -253,8 +296,18 @@
 }
 
 .cancel-btn:hover {
-  background: #1b293e;
+  background: #f1f5f9;
 
+  color: #0f172a;
+}
+
+.dark .cancel-btn {
+  border-color: #30415c;
+  color: #9ba9bd;
+}
+
+.dark .cancel-btn:hover {
+  background: #1b293e;
   color: #ffffff;
 }
 

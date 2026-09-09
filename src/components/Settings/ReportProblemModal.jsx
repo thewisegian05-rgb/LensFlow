@@ -88,7 +88,7 @@ function ReportProblemModal({ onClose }) {
 
             <button
               type="submit"
-              className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-600"
+              className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-600"
             >
               Submit Report
             </button>

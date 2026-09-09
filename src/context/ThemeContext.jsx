@@ -4,10 +4,11 @@ const ThemeContext = createContext(null);
 
 const getInitialTheme = () => {
   if (typeof window === "undefined") {
-    return "dark";
+    return "light";
   }
 
-  return localStorage.getItem("theme") || "dark";
+  const savedTheme = localStorage.getItem("theme");
+  return savedTheme || "light";
 };
 
 export function ThemeProvider({ children }) {

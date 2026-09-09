@@ -40,7 +40,7 @@ function ClientList({ clients, onView, onDelete, onComplete, onEdit }) {
             </th>
 
             <th>
-              Total Spent
+              Talent Fee
             </th>
 
             <th className="actions-heading">

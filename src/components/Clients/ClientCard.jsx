@@ -70,7 +70,14 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
 
           <div>
             <small>Email</small>
-            <p>{client.email}</p>
+            <p
+            style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "150px",
+            }} title={client.email}
+            >{client.email}</p>
           </div>
         </div>
 

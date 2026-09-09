@@ -250,7 +250,7 @@
 
 /* ==========================================
    CLIENT DETAILS
-========================================== */
+=================================== Who's a gap all together======= */
 
 .client-details {
   display: grid;
@@ -322,6 +322,10 @@
   color: #000000;
 
   font-weight: 700;
+}
+
+.dark .client-detail p {
+  color: #f8fbff;
 }
 
 .dark .client-detail .talent-fee {

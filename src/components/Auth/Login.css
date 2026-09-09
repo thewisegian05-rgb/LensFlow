@@ -25,16 +25,21 @@
 .login-header{
 
     text-align:center;
-    margin-bottom:40px;
+    margin-bottom:0;
 
 }
 
-.login-icon{
+.login-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+}
 
-    color:#3b82f6;
-    font-size:60px;
-    margin-bottom:15px;
-
+.login-icon {
+  color: #3b82f6;
+  font-size: 50px;
+  margin-bottom: 0;
 }
 
 .login-header h1{
@@ -42,6 +47,11 @@
     color:#0f172a;
     font-size:38px;
 
+}
+
+.login-header p {
+
+    margin-bottom:15px;
 }
 
 .dark .login-header h1{
@@ -184,14 +194,16 @@
 
 .forgot-btn{
 
-    background:none;
-
     border:none;
 
     color:#2563eb;
 
     cursor:pointer;
 
+    outline:none;
+    
+    background:transparent;
+    
 }
 
 .login-btn{

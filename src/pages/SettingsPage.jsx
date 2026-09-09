@@ -274,8 +274,20 @@ function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setShowReportModal(true)}
-                className="shrink-0 rounded-lg border border-sky-500 px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-500/10"
-              >
+                className="
+                  shrink-0 rounded-lg
+                  border border-sky-500
+                  bg-transparent
+                  px-5 py-2
+                  text-sm font-semibold text-sky-500
+                  transition
+                  hover:bg-sky-500/10
+                  hover:text-sky-600
+                  dark:border-sky-500
+                  dark:text-sky-400
+                  dark:hover:bg-sky-500/10
+                  dark:hover:text-sky-300
+                ">
                 Report
               </button>
             </div>

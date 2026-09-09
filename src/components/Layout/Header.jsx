@@ -41,7 +41,15 @@ function Header() {
 
         {/* Notification */}
 
-        <button className="relative p-2 text-slate-600 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
+        <button className="relative p-2 text-slate-600 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          style={{
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            boxShadow: "none",
+            appearance: "none",
+            WebkitAppearance: "none",
+          }}>
 
           <FaBell className="text-lg" />
 

@@ -46,8 +46,11 @@ function Login() {
       <div className="login-container">
 
         <div className="login-header">
-          <FaCameraRetro className="login-icon" />
-          <h1>LensFlow Studio</h1>
+          <div className="login-brand">
+            <FaCameraRetro className="login-icon" />
+            <h1>LensFlow Studio</h1>
+          </div>
+          
           <p>Sign in to manage your studio</p>
         </div>
 
@@ -94,7 +97,7 @@ function Login() {
                 Remember Me
               </label>
 
-              <button type="button" className="forgot-btn">
+              <button type="button" className="forgot-btn bg-transparent hover:!bg-transparent focus:!bg-transparent active:!bg-transparent">
                 Forgot Password?
               </button>
             </div>

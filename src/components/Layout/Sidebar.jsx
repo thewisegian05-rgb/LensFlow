@@ -131,7 +131,8 @@ function Sidebar() {
 
         <button
           onClick={handleSignOut}
-          className="flex w-full items-center gap-3 px-6 py-3 text-left text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-slate-800"
+          className="flex w-full items-center gap-3 px-6 py-3 text-left rounded-none border-transparent text-red-500 transition hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-slate-800"
+          style={{ color: '#ef4444' }}
         >
           <FaSignOutAlt />
           Sign Out

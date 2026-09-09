@@ -91,8 +91,16 @@ html:not(.dark) select {
   box-shadow: none !important;
 }
 
-html:not(.dark) button:not(.bg-sky-500):not(.bg-sky-600) {
+html:not(.dark) button:not(.bg-sky-500):not(.bg-sky-600):not(.bg-red-500):not(.bg-red-600):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-slate-900):not(.bg-slate-800):not(.bg-transparent) {
+  background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+  border: 1px solid #dbeafe;
   color: var(--text-main);
+}
+
+html:not(.dark) button:not(.bg-sky-500):not(.bg-sky-600):not(.bg-red-500):not(.bg-red-600):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-slate-900):not(.bg-slate-800):not(.bg-transparent):hover {
+  background: linear-gradient(180deg, #e0f2fe 0%, #dbeafe 100%);
+  border-color: #bae6fd;
+  color: #075985;
 }
 
 html:not(.dark) .workflow-card-action:hover,

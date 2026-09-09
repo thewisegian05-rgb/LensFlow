@@ -108,7 +108,7 @@ function Login() {
         </div>
 
         <div className="login-footer">
-          © 2026 LensEase Studio Management
+          © 2026 LensFlow Studio Management
         </div>
 
       </div>

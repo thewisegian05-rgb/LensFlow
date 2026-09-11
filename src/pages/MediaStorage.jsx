@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FaFolder, FaPlus, FaEdit, FaTrash, FaFile, FaTimes } from "react-icons/fa";
+import { useTheme } from "../context/ThemeContext";
 
 function MediaStorage() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   // Main unified tree state supporting infinite nesting initialized from localStorage
   const [clients, setClients] = useState(() => {
     const saved = localStorage.getItem("mediaStorageClients");
@@ -36,6 +40,25 @@ function MediaStorage() {
 
   // Hidden file input reference for file explorer
   const fileInputRef = useRef(null);
+
+  const shellClasses = isDark ? "text-white" : "text-slate-900";
+  const topButtonClasses = isDark ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-200 hover:bg-slate-300 text-slate-900";
+  const menuClasses = isDark
+    ? "border-slate-800 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
+    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900";
+  const formClasses = isDark
+    ? "border-slate-800 bg-slate-900"
+    : "border-slate-200 bg-white";
+  const inputClasses = isDark
+    ? "bg-slate-800 text-white placeholder-slate-400 focus:ring-sky-500"
+    : "bg-white text-slate-900 placeholder-slate-400 border border-slate-300 focus:ring-sky-500";
+  const itemClasses = isDark
+    ? "border-slate-800 bg-slate-900/60 hover:bg-slate-800/80"
+    : "border-slate-200 bg-white hover:bg-slate-100";
+  const emptyTextClasses = isDark ? "text-slate-500" : "text-slate-500";
+  const modalContentClasses = isDark ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900";
+  const modalHeaderClasses = isDark ? "border-slate-800" : "border-slate-200";
+  const modalButtonClasses = isDark ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-900";
 
   // Recursive helper to update nested items in the tree
   const updateItemInTree = (list, pathIds, updater, depth = 0) => {
@@ -72,6 +95,41 @@ function MediaStorage() {
   };
 
   const { items: currentItems, title: currentTitle } = getCurrentContainer();
+  const sortedCurrentItems = [...currentItems].sort((a, b) => {
+    if (a.isFile === b.isFile) {
+      return a.name.localeCompare(b.name);
+    }
+    return a.isFile ? 1 : -1;
+  });
+
+  const breadcrumbPath = (() => {
+    if (path.length === 0) {
+      return "Client Media Storage";
+    }
+
+    let items = clients;
+    const visited = [];
+
+    for (const id of path) {
+      const found = items.find(item => item.id === id);
+      if (!found) break;
+      visited.push(found.name);
+      items = found.subItems || [];
+    }
+
+    if (visited.length === 0) {
+      return currentTitle;
+    }
+
+    const rootName = visited[0];
+    const currentFolderName = visited[visited.length - 1];
+
+    if (visited.length === 1) {
+      return rootName;
+    }
+
+    return `${rootName} > ${currentFolderName}`;
+  })();
 
   // Handle adding a new folder at the current location
   const handleAddFolderSubmit = (e) => {
@@ -165,7 +223,7 @@ function MediaStorage() {
   };
 
   return (
-    <div className="p-4 text-white relative">
+    <div className={`p-4 relative ${shellClasses}`}>
       {/* Hidden file input supporting images and videos */}
       <input
         type="file"
@@ -180,7 +238,7 @@ function MediaStorage() {
         {path.length > 0 ? (
           <button
             onClick={handleBack}
-            className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm transition hover:bg-slate-700"
+            className={`rounded-lg px-3 py-1.5 text-sm transition ${topButtonClasses}`}
           >
             ← Back
           </button>
@@ -189,20 +247,20 @@ function MediaStorage() {
         <div className="relative">
           <button
             onClick={() => setShowAddMenu(!showAddMenu)}
-            className="flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold transition hover:bg-sky-500"
+            className="flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-sky-500"
           >
             <FaPlus /> Add
           </button>
 
           {/* Add Dropdown Menu */}
           {showAddMenu && (
-            <div className="absolute right-0 mt-2 w-36 rounded-lg border border-slate-800 bg-slate-900 shadow-xl z-20 py-1">
+            <div className={`absolute right-0 mt-2 w-36 rounded-lg border shadow-xl z-20 py-1 ${menuClasses}`}>
               <button
                 onClick={() => {
                   setShowAddMenu(false);
                   setIsAddingFolder(true);
                 }}
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 hover:text-white"
+                className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${menuClasses}`}
               >
                 <FaFolder className="text-yellow-400" /> Folder
               </button>
@@ -211,7 +269,7 @@ function MediaStorage() {
                   setShowAddMenu(false);
                   fileInputRef.current.click();
                 }}
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 hover:text-white"
+                className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${menuClasses}`}
               >
                 <FaFile className="text-sky-400" /> File
               </button>
@@ -220,27 +278,37 @@ function MediaStorage() {
         </div>
       </div>
 
-      <h1 className="mb-4 text-2xl font-bold">{currentTitle}</h1>
+      <h1 className="mb-4 text-2xl font-bold">{breadcrumbPath}</h1>
 
       {/* Input Form Popup for New Folder */}
       {isAddingFolder && (
-        <form onSubmit={handleAddFolderSubmit} className="mb-4 flex gap-2 rounded-lg border border-slate-800 bg-slate-900 p-3">
+        <form onSubmit={handleAddFolderSubmit} className={`mb-4 flex gap-2 rounded-lg border p-3 ${formClasses}`}>
           <input
             type="text"
             placeholder="Folder name..."
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            className="flex-1 rounded bg-slate-800 px-3 py-1.5 text-sm text-white outline-none focus:ring-1 focus:ring-sky-500"
+            className={`flex-1 rounded px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-sky-500 ${inputClasses}`}
             autoFocus
           />
-          <button type="submit" className="rounded bg-sky-600 px-4 py-1.5 text-sm font-semibold hover:bg-sky-500">Save</button>
-          <button type="button" onClick={() => setIsAddingFolder(false)} className="rounded bg-slate-700 px-3 py-1.5 text-sm hover:bg-slate-600">Cancel</button>
+          <button type="submit" className="rounded bg-sky-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-sky-500">Save</button>
+          <button type="button" onClick={() => setIsAddingFolder(false)} className={`rounded px-3 py-1.5 text-sm ${modalButtonClasses}`}>Cancel</button>
         </form>
       )}
 
       {/* Item List Display */}
       <div className="space-y-3">
-        {currentItems.map((item) => (
+        {currentItems.length === 0 ? (
+          <p className={`text-sm italic ${emptyTextClasses}`}>
+            The storage is empty. Use the "+ Add" button to create folders or upload files.
+          </p>
+        ) : (
+          <p className={`text-sm font-medium ${emptyTextClasses}`}>
+            {currentItems.filter(item => !item.isFile).length} folders · {currentItems.filter(item => item.isFile).length} files
+          </p>
+        )}
+
+        {sortedCurrentItems.map((item) => (
           <div
             key={item.id}
             onClick={() => {
@@ -254,7 +322,7 @@ function MediaStorage() {
                 setPath([...path, item.id]);
               }
             }}
-            className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 p-4 transition cursor-pointer hover:bg-slate-800/80"
+            className={`flex items-center justify-between rounded-lg border p-4 transition cursor-pointer ${itemClasses}`}
           >
             <div className="flex items-center gap-3 flex-1">
               {item.isFile ? (
@@ -269,11 +337,11 @@ function MediaStorage() {
                       type="text"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className="rounded bg-slate-800 px-2 py-1 text-sm text-white outline-none focus:ring-1 focus:ring-sky-500"
+                      className={`rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500 ${inputClasses}`}
                       autoFocus
                     />
-                    <button onClick={() => handleSaveEdit(item.id)} className="rounded bg-green-600 px-2.5 py-1 text-xs hover:bg-green-500">Save</button>
-                    <button onClick={() => setEditId(null)} className="rounded bg-slate-700 px-2.5 py-1 text-xs hover:bg-slate-600">Cancel</button>
+                    <button onClick={() => handleSaveEdit(item.id)} className="rounded bg-green-600 px-2.5 py-1 text-xs text-white hover:bg-green-500">Save</button>
+                    <button onClick={() => setEditId(null)} className={`rounded px-2.5 py-1 text-xs ${modalButtonClasses}`}>Cancel</button>
                   </div>
                 ) : (
                   <div>
@@ -288,7 +356,24 @@ function MediaStorage() {
               {editId !== item.id && (
                 <button
                   onClick={() => { setEditId(item.id); setEditName(item.name); }}
-                  className="rounded p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+                  className={`
+                    rounded-lg p-2
+                    text-slate-500
+                    transition
+                    hover:!bg-sky-100
+                    hover:!text-sky-600
+                    dark:text-slate-400
+                    dark:hover:!bg-sky-500/10
+                    dark:hover:!text-sky-400
+                  `}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    boxShadow: "none",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                  }}
                   title="Rename"
                 >
                   <FaEdit />
@@ -299,7 +384,24 @@ function MediaStorage() {
                   e.stopPropagation();
                   setDeleteTarget(item);
                 }}
-                className="rounded p-2 text-slate-400 hover:bg-slate-800 hover:text-red-400"
+                className="
+                  rounded-lg p-2
+                  text-slate-500
+                  transition
+                  hover:!bg-red-100
+                  hover:!text-red-500
+                  dark:text-slate-400
+                  dark:hover:!bg-red-500/10
+                  dark:hover:!text-red-500
+                "
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  boxShadow: "none",
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                }}
                 title="Delete"
               >
                 <FaTrash />
@@ -307,20 +409,17 @@ function MediaStorage() {
             </div>
           </div>
         ))}
-        {currentItems.length === 0 && (
-          <p className="text-sm text-slate-500 italic">This folder is empty. Use the "+ Add" button to create subfolders or upload files.</p>
-        )}
       </div>
 
       {/* File Preview Modal */}
       {viewingFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative max-w-4xl w-full max-h-[90vh] bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+          <div className={`relative max-w-4xl w-full max-h-[90vh] border rounded-xl p-4 flex flex-col shadow-2xl ${modalContentClasses}`}>
+            <div className={`flex items-center justify-between pb-3 border-b mb-4 ${modalHeaderClasses}`}>
               <h3 className="font-semibold text-lg truncate">{viewingFile.name}</h3>
               <button
                 onClick={() => setViewingFile(null)}
-                className="rounded-lg bg-slate-800 p-2 text-slate-400 hover:bg-slate-700 hover:text-white transition"
+                className={`rounded-lg p-2 transition ${modalButtonClasses}`}
               >
                 <FaTimes />
               </button>
@@ -339,15 +438,15 @@ function MediaStorage() {
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-6 text-center shadow-xl">
-            <h3 className="mb-2 text-lg font-bold text-white">Delete Item?</h3>
-            <p className="mb-6 text-sm text-slate-400">
-              Are you sure you want to delete <span className="font-semibold text-white">"{deleteTarget.name}"</span>? This action cannot be undone.
+          <div className={`w-full max-w-sm rounded-xl border p-6 text-center shadow-xl ${modalContentClasses}`}>
+            <h3 className="mb-2 text-lg font-bold">Delete Item?</h3>
+            <p className={`mb-6 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Are you sure you want to delete <span className="font-semibold">"{deleteTarget.name}"</span>? This action cannot be undone.
             </p>
             <div className="flex justify-center gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${modalButtonClasses}`}
               >
                 Cancel
               </button>

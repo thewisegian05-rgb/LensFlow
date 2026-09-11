@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 import {
   FaEye,
   FaEyeSlash,
@@ -39,6 +41,8 @@ function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const navigate = useNavigate();
 
   const passwordRequirements = {
     length: newPassword.length >= 8,
@@ -87,7 +91,17 @@ function ResetPasswordPage() {
       return;
     }
 
-    setSuccess("Password updated successfully. You can now sign in.");
+    setSuccess(
+    "Password updated successfully! Redirecting you to login..."
+    );
+
+    // Sign out the temporary recovery session
+    await supabase.auth.signOut();
+
+    // Redirect after a short delay
+    setTimeout(() => {
+      navigate("/", { replace: true });
+    }, 1500);
   };
 
   return (

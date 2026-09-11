@@ -1,3 +1,5 @@
+import { supabase } from "../lib/supabaseClient";
+
 import { 
   FaSun,
   FaMoon,
@@ -13,13 +15,48 @@ import { useState } from "react";
 
 import ReportProblemModal from "../components/Settings/ReportProblemModal";
 import ActiveSessionsModal from "../components/Settings/ActiveSessionsModal";
+import SignOutOthersModal from "../components/Settings/SignOutOthersModal";
 
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
+
+  // State for modals and settings
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showSignOutOthersModal, setShowSignOutOthersModal] = useState(false);
+  const [showSessionsModal, setShowSessionsModal] = useState(false);
+
+  // State for sign out other devices action
+  const [signingOutOthers, setSigningOutOthers] = useState(false);
   const [showExperimental, setShowExperimental] = useState(false);
   const [authenticatorEnabled, setAuthenticatorEnabled] = useState(false);
-  const [showSessionsModal, setShowSessionsModal] = useState(false);
+
+  const handleSignOutOtherDevices = async () => {
+  setSigningOutOthers(true);
+
+  const { error } = await supabase.auth.signOut({
+    scope: "others",
+  });
+
+  if (error) {
+    console.error(
+      "Failed to sign out other devices:",
+      error
+    );
+
+    setSigningOutOthers(false);
+
+    // TODO: Replace with LensFlow error toast
+    alert("Unable to sign out other devices.");
+
+    return;
+  }
+
+  setSigningOutOthers(false);
+  setShowSignOutOthersModal(false);
+
+  // TODO: Replace with LensFlow success toast
+  alert("All other devices have been signed out.");
+};
 
   return (
     <div>
@@ -171,6 +208,7 @@ function SettingsPage() {
 
             <button
               type="button"
+              onClick={() => setShowSignOutOthersModal(true)}
               className="shrink-0 rounded-lg border !border-red-500 px-4 py-2 text-sm font-semibold !text-red-600 transition hover:!bg-red-50 hover:!text-red-700 dark:!border-red-500/70 dark:!text-red-400 dark:hover:!bg-red-500/10"
             >
               Sign Out Others
@@ -302,6 +340,18 @@ function SettingsPage() {
       {showSessionsModal && (
         <ActiveSessionsModal
           onClose={() => setShowSessionsModal(false)}
+        />
+      )}
+
+      {showSignOutOthersModal && (
+        <SignOutOthersModal
+          onClose={() => {
+            if (!signingOutOthers) {
+              setShowSignOutOthersModal(false);
+            }
+          }}
+          onConfirm={handleSignOutOtherDevices}
+          loading={signingOutOthers}
         />
       )}
     </div>

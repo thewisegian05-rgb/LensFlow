@@ -13,6 +13,7 @@ import StoragePage from "../pages/StoragePage";
 import MediaStorage from "../pages/MediaStorage";
 import ProfilePage from "../pages/ProfilePage";
 import SettingsPage from "../pages/SettingsPage";
+import ResetPasswordPage from "../pages/ResetPasswordPage";
 
 function AppRoutes() {
   return (
@@ -20,7 +21,8 @@ function AppRoutes() {
       <Routes>
         {/* Login */}
         <Route path="/" element={<Login />} />
-
+        <Route path="reset-password" element={<ResetPasswordPage />}/>
+        
         {/* Protected dashboard */}
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Layout />}>
@@ -32,6 +34,7 @@ function AppRoutes() {
             <Route path="storage" element={<MediaStorage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="settings" element={<SettingsPage />} />
+            
           </Route>
         </Route>
 

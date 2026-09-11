@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import "./Login.css";
 
+import ForgotPasswordModal from "./ForgotPasswordModal";
+
 import {
   FaCameraRetro,
   FaEnvelope,
@@ -18,6 +20,10 @@ function Login() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // State for Forgot Password Modal
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,6 +45,29 @@ function Login() {
     if (data?.session) {
       navigate("/dashboard");
     }
+  };
+
+  const handleForgotPassword = async (email) => {
+    setSendingReset(true);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    setSendingReset(false);
+
+    if (error) {
+      console.error("Password reset failed:", error);
+
+      return {
+        success: false,
+        error: "Unable to send password reset email. Please try again.",
+      };
+    }
+
+    return {
+      success: true,
+    };
   };
 
   return (
@@ -97,7 +126,9 @@ function Login() {
                 Remember Me
               </label>
 
-              <button type="button" className="forgot-btn bg-transparent hover:!bg-transparent focus:!bg-transparent active:!bg-transparent">
+              <button type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="forgot-btn bg-transparent hover:!bg-transparent focus:!bg-transparent active:!bg-transparent">
                 Forgot Password?
               </button>
             </div>
@@ -115,6 +146,18 @@ function Login() {
         </div>
 
       </div>
+
+      {showForgotPassword && (
+        <ForgotPasswordModal
+          onClose={() => {
+            if (!sendingReset) {
+              setShowForgotPassword(false);
+            }
+          }}
+          onSubmit={handleForgotPassword}
+          loading={sendingReset}
+        />
+      )}
     </div>
   );
 }

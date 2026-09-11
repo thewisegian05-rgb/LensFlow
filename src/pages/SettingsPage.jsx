@@ -17,6 +17,8 @@ import ReportProblemModal from "../components/Settings/ReportProblemModal";
 import ActiveSessionsModal from "../components/Settings/ActiveSessionsModal";
 import SignOutOthersModal from "../components/Settings/SignOutOthersModal";
 
+import ChangePasswordModal from "../components/Settings/ChangePasswordModal";
+
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
 
@@ -29,6 +31,55 @@ function SettingsPage() {
   const [signingOutOthers, setSigningOutOthers] = useState(false);
   const [showExperimental, setShowExperimental] = useState(false);
   const [authenticatorEnabled, setAuthenticatorEnabled] = useState(false);
+
+  // State for change password modal
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
+
+  const handleChangePassword = async ({
+    currentPassword,
+    newPassword,
+  }) => {
+
+    setChangingPassword(true);
+
+    try {
+
+      const { error } =
+        await supabase.auth.updateUser({
+          password: newPassword,
+          current_password: currentPassword,
+        });
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      setShowChangePasswordModal(false);
+
+      alert("Password changed successfully.");
+
+    } catch (error) {
+
+      console.error(
+        "Password change failed:",
+        error
+      );
+
+      alert(
+        error.message ||
+        "Unable to change password."
+      );
+
+    } finally {
+
+      setChangingPassword(false);
+
+    }
+  };
 
   const handleSignOutOtherDevices = async () => {
   setSigningOutOthers(true);
@@ -155,6 +206,7 @@ function SettingsPage() {
 
             <button
               type="button"
+              onClick={() => setShowChangePasswordModal(true)}
               className="shrink-0 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               Change Password
@@ -340,6 +392,18 @@ function SettingsPage() {
       {showSessionsModal && (
         <ActiveSessionsModal
           onClose={() => setShowSessionsModal(false)}
+        />
+      )}
+
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          onClose={() => {
+            if (!changingPassword) {
+              setShowChangePasswordModal(false);
+            }
+          }}
+          onSubmit={handleChangePassword}
+          loading={changingPassword}
         />
       )}
 

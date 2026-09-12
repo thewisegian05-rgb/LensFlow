@@ -102,33 +102,22 @@ function MediaStorage() {
     return a.isFile ? 1 : -1;
   });
 
-  const breadcrumbPath = (() => {
+  const breadcrumbItems = (() => {
+    const items = [{ label: "Client Media Storage", id: null }];
+
     if (path.length === 0) {
-      return "Client Media Storage";
+      return items;
     }
 
-    let items = clients;
-    const visited = [];
-
+    let currentItems = clients;
     for (const id of path) {
-      const found = items.find(item => item.id === id);
+      const found = currentItems.find(item => item.id === id);
       if (!found) break;
-      visited.push(found.name);
-      items = found.subItems || [];
+      items.push({ label: found.name, id: found.id });
+      currentItems = found.subItems || [];
     }
 
-    if (visited.length === 0) {
-      return currentTitle;
-    }
-
-    const rootName = visited[0];
-    const currentFolderName = visited[visited.length - 1];
-
-    if (visited.length === 1) {
-      return rootName;
-    }
-
-    return `${rootName} > ${currentFolderName}`;
+    return items;
   })();
 
   // Handle adding a new folder at the current location
@@ -278,7 +267,54 @@ function MediaStorage() {
         </div>
       </div>
 
-      <h1 className="mb-4 text-2xl font-bold">{breadcrumbPath}</h1>
+      {/* Breadcrumb Navigation */}
+      <div className="mb-1 flex flex-wrap items-center gap-2 text-2xl font-semibold">
+        {breadcrumbItems.map((item, index) => {
+          const isLast = index === breadcrumbItems.length - 1;
+          const isRoot = index === 0;
+
+          return (
+            <div key={`${item.label}-${index}`} className="flex items-center gap-2">
+              {index > 0 && <span className={isDark ? "text-slate-500" : "text-slate-400"}>›</span>}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isLast) {
+                    setPath(path.slice(0, index));
+                  }
+                }}
+                disabled={isLast}
+                className={`transition ${
+                  isLast
+                    ? isDark
+                      ? "cursor-pointer text-white"
+                      : "cursor-pointer text-slate-900"
+                    : isDark
+                      ? "cursor-pointer text-slate-300 hover:text-white"
+                      : "cursor-pointer text-slate-700 hover:text-slate-900"
+                }`}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  boxShadow: "none",
+                  padding: 0,
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                }}
+              >
+                {item.label}
+              </button>
+              {isRoot && path.length > 0 && (
+                <span className={isDark ? "text-slate-500" : "text-slate-400"}>›</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className={`mb-4 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+        Manage and organize media files for each client and project.
+      </p>
 
       {/* Input Form Popup for New Folder */}
       {isAddingFolder && (

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   FaTimes,
   FaDesktop,
+  FaMobileAlt,
   FaMapMarkerAlt,
 } from "react-icons/fa";
 
@@ -152,7 +153,7 @@ function ActiveSessionsModal({ onClose }) {
               <div className="flex min-w-0 items-start gap-4">
 
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-lg text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
-                  <FaDesktop />
+                  {device === "Android" || device === "iOS" ? <FaMobileAlt /> : <FaDesktop />}
                 </div>
 
                 <div className="min-w-0">

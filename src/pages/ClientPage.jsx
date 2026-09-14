@@ -47,9 +47,7 @@ function ClientPage() {
   const fetchClients = async () => {
     setLoadingClients(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user }, } = await supabase.auth.getUser();
 
     if (!user) {
       setClients([]);
@@ -57,31 +55,119 @@ function ClientPage() {
       return;
     }
 
-    const { data, error } = await supabase
+    // Load clients
+    const { data: clientRows, error: clientsError } = await supabase
       .from("clients")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Failed to load clients:", error.message);
+    if (clientsError) {
+      console.error(
+        "Failed to load clients:",
+        clientsError.message
+      );
+
       setLoadingClients(false);
       return;
     }
 
-    const mappedClients = data.map((row) => ({
-      id: row.id,
-      name: row.name,
-      type: row.type,
-      contact: row.contact,
-      email: row.email,
-      project: row.project,
-      venue: row.venue,
-      category: row.category,
-      projectStatus: row.project_status,
-      talentFee: row.talent_fee,
-      initials: row.initials,
-    }));
+    // Load schedule events
+    const { data: eventRows, error: eventsError } = await supabase
+      .from("schedule_events")
+      .select(`
+        id,
+        client_id,
+        title,
+        location,
+        category,
+        start_time,
+        end_time,
+        status,
+        project_id
+      `)
+      .eq("user_id", user.id)
+      .order("start_time", { ascending: true });
+
+    if (eventsError) {
+      console.error(
+        "Failed to load client events:",
+        eventsError.message
+      );
+
+      setLoadingClients(false);
+      return;
+    }
+
+    const now = new Date();
+
+    const mappedClients = clientRows.map((row) => {
+
+      // All events belonging to this client
+      const projects = eventRows
+        .filter((event) => event.client_id === row.id)
+        .map((event) => ({
+          id: event.id,
+          projectId: event.project_id,
+
+          title: event.title,
+          venue: event.location,
+          category: event.category,
+
+          start: event.start_time,
+          end: event.end_time,
+
+          status: event.status,
+        }));
+
+
+      // Upcoming events only
+      const upcomingProjects = projects.filter(
+        (project) =>
+          new Date(project.start) >= now
+      );
+
+
+      // Because our Supabase query is already ascending,
+      // index 0 is the nearest upcoming event.
+      const activeProject =
+        upcomingProjects[0] ||
+        projects[projects.length - 1] ||
+        null;
+
+
+      return {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        contact: row.contact,
+        email: row.email,
+
+        projectStatus: row.project_status,
+        talentFee: row.talent_fee,
+        initials: row.initials,
+
+        // All scheduled projects/events
+        projects,
+
+        // What Card/List should display
+        activeProject,
+
+        // Keep these for compatibility with your
+        // existing components for now
+        project:
+          activeProject?.title ||
+          row.project,
+
+        venue:
+          activeProject?.venue ||
+          row.venue,
+
+        category:
+          activeProject?.category ||
+          row.category,
+      };
+    });
 
     setClients(mappedClients);
     setLoadingClients(false);

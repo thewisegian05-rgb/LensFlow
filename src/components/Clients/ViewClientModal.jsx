@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 import {
   FiX,
@@ -10,6 +10,8 @@ import {
   FiUser,
   FiEdit2,
   FiCheckCircle,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 
 import { FaPesoSign } from "react-icons/fa6";
@@ -18,6 +20,40 @@ import "./ViewClientModal.css";
 
 function ViewClientModal({ client, onClose, onComplete, onEdit }) {
   if (!client) return null;
+
+  const [projectIndex, setProjectIndex] = useState(0);
+  const projects = client?.projects || [];
+
+  useEffect(() => {
+    if (!client) return;
+
+    const activeIndex = projects.findIndex(
+      (project) =>
+        project.id === client.activeProject?.id
+    );
+
+    setProjectIndex(
+      activeIndex >= 0 ? activeIndex : 0
+    );
+  }, [client]);
+
+  const selectedProject = projects[projectIndex] || null;
+
+  const handlePreviousProject = () => {
+    setProjectIndex((prev) =>
+      prev === 0
+        ? projects.length - 1
+        : prev - 1
+    );
+  };
+
+  const handleNextProject = () => {
+    setProjectIndex((prev) =>
+      prev === projects.length - 1
+        ? 0
+        : prev + 1
+    );
+  };
 
   return (
     <div
@@ -95,14 +131,66 @@ function ViewClientModal({ client, onClose, onComplete, onEdit }) {
           <div className="view-detail-item">
             <FiFolder />
 
-            <div>
+            <div className="view-project-info">
+
               <span className="view-detail-label">
                 Project
               </span>
 
-              <p>
-                {client.project || "No active project"}
-              </p>
+              {selectedProject ? (
+                <>
+                  <div className="view-project-navigation">
+
+                    {projects.length > 1 && (
+                      <button
+                        type="button"
+                        className="project-nav-btn"
+                        onClick={handlePreviousProject}
+                        title="Previous project"
+                      >
+                        <FiChevronLeft />
+                      </button>
+                    )}
+
+                    <div className="view-project-content">
+                      <p>
+                        {selectedProject.title}
+                      </p>
+
+                      <span className="view-project-date">
+                        {new Date(
+                          selectedProject.start
+                        ).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+
+                    {projects.length > 1 && (
+                      <button
+                        type="button"
+                        className="project-nav-btn"
+                        onClick={handleNextProject}
+                        title="Next project"
+                      >
+                        <FiChevronRight />
+                      </button>
+                    )}
+
+                  </div>
+
+                  {projects.length > 1 && (
+                    <span className="project-counter">
+                      {projectIndex + 1} of {projects.length}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <p>No projects found</p>
+              )}
+
             </div>
           </div>
 
@@ -116,7 +204,9 @@ function ViewClientModal({ client, onClose, onComplete, onEdit }) {
               </span>
 
               <p>
-                {client.venue || "Not provided"}
+                {selectedProject?.venue ||
+                  client.venue ||
+                  "Not provided"}
               </p>
             </div>
           </div>
@@ -131,7 +221,9 @@ function ViewClientModal({ client, onClose, onComplete, onEdit }) {
               </span>
 
               <p>
-                {client.category || "Not specified"}
+                {selectedProject?.category ||
+                  client.category ||
+                  "Not specified"}
               </p>
             </div>
           </div>
@@ -197,9 +289,7 @@ function ViewClientModal({ client, onClose, onComplete, onEdit }) {
           >
             Close
           </button>
-
         </div>
-
       </div>
     </div>
   );

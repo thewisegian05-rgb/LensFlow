@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 import ClientCard from "../components/Clients/ClientCard.jsx";
 import ClientList from "../components/Clients/ClientList.jsx";
@@ -41,6 +42,54 @@ function ClientPage() {
 
   const [clients, setClients] = useState([]);
 
+  const [loadingClients, setLoadingClients] = useState(true);
+
+  const fetchClients = async () => {
+    setLoadingClients(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setClients([]);
+      setLoadingClients(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Failed to load clients:", error.message);
+      setLoadingClients(false);
+      return;
+    }
+
+    const mappedClients = data.map((row) => ({
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      contact: row.contact,
+      email: row.email,
+      project: row.project,
+      venue: row.venue,
+      category: row.category,
+      projectStatus: row.project_status,
+      talentFee: row.talent_fee,
+      initials: row.initials,
+    }));
+
+    setClients(mappedClients);
+    setLoadingClients(false);
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
 
   // Add New Client
   const handleAddClient = (newClient) => {
@@ -58,14 +107,47 @@ function ClientPage() {
     setClientToDelete(id);
   };
 
-  const confirmDeleteClient = () => {
+  const confirmDeleteClient = async () => {
     if (!clientToDelete) return;
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.error("No authenticated user found.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("clients")
+      .delete()
+      .eq("id", clientToDelete)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error(
+        "Failed to delete client:",
+        error.message
+      );
+      return;
+    }
+
     setClients((previousClients) =>
-      previousClients.filter((client) => client.id !== clientToDelete)
+      previousClients.filter(
+        (client) => client.id !== clientToDelete
+      )
     );
 
     setClientToDelete(null);
+
+    if (selectedClient?.id === clientToDelete) {
+      setSelectedClient(null);
+    }
+
+    if (editingClient?.id === clientToDelete) {
+      setEditingClient(null);
+    }
   };
 
   // Mark Client as Completed
@@ -92,11 +174,11 @@ function ClientPage() {
 
 // Filter clients based on search term or selected category
 const filteredClients = clients.filter((client) => {
-
+  const searchText = searchTerm.toLowerCase();
   const matchesSearch =
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.project.toLowerCase().includes(searchTerm.toLowerCase());
+    client.name?.toLowerCase().includes(searchText) ||
+    client.email?.toLowerCase().includes(searchText) ||
+    client.project?.toLowerCase().includes(searchText);
 
   const matchesCategory =
     selectedCategory === "All Categories" ||
@@ -106,19 +188,65 @@ const filteredClients = clients.filter((client) => {
 });
 
 // Edit Client
-const handleEditClient = (updatedClient) => {
+const handleEditClient = async (updatedClient) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    console.error("No authenticated user found.");
+    return;
+  }
+
+  const payload = {
+    name: updatedClient.name,
+    type: updatedClient.type,
+    contact: updatedClient.contact,
+    email: updatedClient.email,
+    project: updatedClient.project,
+    venue: updatedClient.venue,
+    category: updatedClient.category,
+    project_status: updatedClient.projectStatus,
+    talent_fee: updatedClient.talentFee,
+    initials: updatedClient.initials,
+  };
+
+  const { data, error } = await supabase
+    .from("clients")
+    .update(payload)
+    .eq("id", updatedClient.id)
+    .eq("user_id", user.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Failed to update client:", error.message);
+    return;
+  }
+
+  const mappedClient = {
+    id: data.id,
+    name: data.name,
+    type: data.type,
+    contact: data.contact,
+    email: data.email,
+    project: data.project,
+    venue: data.venue,
+    category: data.category,
+    projectStatus: data.project_status,
+    talentFee: data.talent_fee,
+    initials: data.initials,
+  };
+
   setClients((previousClients) =>
     previousClients.map((client) =>
-      client.id === updatedClient.id
-        ? updatedClient
-        : client
+      client.id === mappedClient.id ? mappedClient : client
     )
   );
 
-  // Keep the View modal updated too if the same client is open
   setSelectedClient((previousClient) =>
-    previousClient?.id === updatedClient.id
-      ? updatedClient
+    previousClient?.id === mappedClient.id
+      ? mappedClient
       : previousClient
   );
 

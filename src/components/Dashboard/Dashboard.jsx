@@ -28,18 +28,44 @@ function Dashboard() {
     const fetchStats = async () => {
       setLoadingStats(true);
 
-      const { data: projects, error: projectsError } = await supabase
-        .from("projects")
-        .select("client, stage");
+      // Total Clients
+      const {
+        count: totalClients,
+        error: clientsError,
+      } = await supabase
+        .from("clients")
+        .select("*", {
+          count: "exact",
+          head: true,
+        });
 
-      if (projectsError) {
-        console.error("Failed to load project stats:", projectsError.message);
+      if (clientsError) {
+        console.error(
+          "Failed to load client count:",
+          clientsError.message
+        );
         setLoadingStats(false);
         return;
       }
 
-      const uniqueClients = new Set(projects.map((p) => p.client)).size;
-      const editing = projects.filter((p) => p.stage === "editing").length;
+
+      // Projects Editing
+      const { data: projects, error: projectsError } = await supabase
+        .from("projects")
+        .select("stage");
+
+      if (projectsError) {
+        console.error(
+          "Failed to load project stats:",
+          projectsError.message
+        );
+        setLoadingStats(false);
+        return;
+      }
+
+      const editing = projects.filter(
+        (p) => p.stage === "editing"
+      ).length;
 
       // Day boundaries, in local time
       const startOfToday = new Date();
@@ -86,7 +112,7 @@ function Dashboard() {
       ).size;
 
       setStats({
-        totalClients: uniqueClients,
+        totalClients: totalClients ?? 0,
         clientsToday,
         pendingClients,
         editing,

@@ -105,11 +105,11 @@ function ClientList({ clients, onView, onDelete, onComplete, onEdit }) {
                 <div className="list-contact">
 
                   <p>
-                    {client.contact}
+                    {client.contact ? client.contact : "No contact provided"}
                   </p>
 
                   <span>
-                    {client.email}
+                    {client.email ? client.email : "No email provided"}
                   </span>
 
                 </div>

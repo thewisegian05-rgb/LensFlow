@@ -60,7 +60,7 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
 
           <div>
             <small>Contact</small>
-            <p>{client.contact}</p>
+            <p>{client.contact || "No contact provided"}</p>
           </div>
         </div>
 
@@ -77,7 +77,7 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
               textOverflow: "ellipsis",
               maxWidth: "150px",
             }} title={client.email}
-            >{client.email}</p>
+            >{client.email || "No email provided"}</p>
           </div>
         </div>
 

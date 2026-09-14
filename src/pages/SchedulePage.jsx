@@ -36,6 +36,101 @@ function SchedulePage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
 
+  // =========================================================
+  // SYNC SCHEDULE CLIENT -> CLIENTS TABLE
+  // =========================================================
+
+  const syncClientFromSchedule = async (form, userId) => {
+    console.log("SYNC CLIENT STARTED");
+    console.log("Form:", form);
+    console.log("User ID:", userId);
+
+    const clientName = form.client?.trim();
+
+    if (!clientName) {
+      console.log("No client name found.");
+      return;
+    }
+
+    const { data: existingClients, error: findError } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("user_id", userId)
+      .ilike("name", clientName)
+      .limit(1);
+
+    console.log("Existing client result:", existingClients);
+
+    if (findError) {
+      console.error("CLIENT LOOKUP MESSAGE:", findError?.message);
+      console.error("CLIENT LOOKUP CODE:", findError?.code);
+      console.error("CLIENT LOOKUP DETAILS:", findError?.details);
+      console.error("CLIENT LOOKUP HINT:", findError?.hint);
+      return;
+    }
+
+    const existingClient = existingClients?.[0];
+
+    const scheduleData = {
+      project: form.title,
+      venue: form.location,
+      category: form.category,
+      project_status: "Ongoing",
+    };
+
+    if (existingClient) {
+      console.log("Updating existing client:", existingClient);
+
+      const { data, error } = await supabase
+        .from("clients")
+        .update(scheduleData)
+        .eq("id", existingClient.id)
+        .select();
+
+      console.log("Update result:", data);
+
+      if (error) {
+        console.error("CLIENT UPDATE ERROR:", error);
+      }
+
+      return;
+    }
+
+    const initials = clientName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase();
+
+    console.log("Creating new client:", clientName);
+
+    const { data, error } = await supabase
+      .from("clients")
+      .insert([
+        {
+          user_id: userId,
+          name: clientName,
+          project: form.title,
+          venue: form.location,
+          category: form.category,
+          project_status: "Ongoing",
+          initials,
+          talent_fee: 0,
+          type: null,
+          contact: null,
+          email: null,
+        },
+      ])
+      .select();
+
+    console.log("Insert result:", data);
+
+    if (error) {
+      console.error("CLIENT INSERT ERROR:", error);
+    }
+  };
 
   // =========================================================
   // LOAD EVENTS FROM SUPABASE
@@ -131,6 +226,9 @@ function SchedulePage() {
         console.error("Failed to update event:", error.message);
         return;
       }
+
+      await syncClientFromSchedule(form, user.id);
+
     } else {
       const { error } = await supabase
         .from("schedule_events")
@@ -143,6 +241,7 @@ function SchedulePage() {
     }
 
     await fetchEvents();
+    await syncClientFromSchedule(form, user.id);
 
     setModalOpen(false);
     setSelectedEvent(null);

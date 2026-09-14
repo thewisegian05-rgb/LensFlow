@@ -20,8 +20,10 @@ import {
   FaArrowLeft,
   FaFolderPlus,
   FaSignOutAlt,
+  FaTrash,
 } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
+import ConfirmModal from "../components/Common/ConfirmModal";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -61,10 +63,12 @@ async function getSignedUrl(path) {
 }
 
 /* ============ Folder card ============ */
-function FolderCard({ folder, reviewed, total, onOpen }) {
+function FolderCard({ folder, reviewed, total, onOpen, onContextMenu }) {
   return (
     <button
+      type="button"
       onClick={onOpen}
+      onContextMenu={onContextMenu}
       className="text-left bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-sky-500/50 rounded-xl p-4 transition-colors group"
     >
       <div className="flex items-start justify-between mb-3">
@@ -197,6 +201,8 @@ function CullingPage() {
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState("");
+  const [folderContextMenu, setFolderContextMenu] = useState(null);
+  const [folderToDelete, setFolderToDelete] = useState(null);
 
   const fileInputRef = useRef(null);
 
@@ -292,6 +298,82 @@ function CullingPage() {
     setNewFolderName("");
     setNewFolderError("");
     setNewFolderModalOpen(true);
+  }
+
+  useEffect(() => {
+    function closeFolderMenu() {
+      setFolderContextMenu(null);
+    }
+
+    window.addEventListener("click", closeFolderMenu);
+    window.addEventListener("contextmenu", closeFolderMenu);
+
+    return () => {
+      window.removeEventListener("click", closeFolderMenu);
+      window.removeEventListener("contextmenu", closeFolderMenu);
+    };
+  }, []);
+
+  function handleFolderContextMenu(e, folderId) {
+    e.preventDefault();
+    e.stopPropagation();
+    setFolderContextMenu({ folderId, x: e.clientX, y: e.clientY });
+  }
+
+  async function deleteFolder(folderId) {
+    const folder = folders.find((item) => item.id === folderId);
+    if (!folder || !user) return;
+
+    const { data: photoRows, error: photoListErr } = await supabase
+      .from("photos")
+      .select("id, storage_path")
+      .eq("folder_id", folderId)
+      .eq("user_id", user.id);
+
+    if (photoListErr) {
+      console.error("Folder photo lookup failed:", photoListErr);
+      return;
+    }
+
+    const storagePaths = photoRows.map((photo) => photo.storage_path).filter(Boolean);
+    if (storagePaths.length > 0) {
+      const { error: storageErr } = await supabase.storage
+        .from(PHOTOS_BUCKET)
+        .remove(storagePaths);
+
+      if (storageErr) {
+        console.error("Folder storage cleanup failed:", storageErr);
+      }
+    }
+
+    const { error: photoDeleteErr } = await supabase
+      .from("photos")
+      .delete()
+      .eq("folder_id", folderId)
+      .eq("user_id", user.id);
+
+    if (photoDeleteErr) {
+      console.error("Folder photo delete failed:", photoDeleteErr);
+      return;
+    }
+
+    const { error: folderDeleteErr } = await supabase
+      .from("folders")
+      .delete()
+      .eq("id", folderId)
+      .eq("user_id", user.id);
+
+    if (folderDeleteErr) {
+      console.error("Folder delete failed:", folderDeleteErr);
+      return;
+    }
+
+    setFolders((prev) => prev.filter((item) => item.id !== folderId));
+    setFolderContextMenu(null);
+    setFolderToDelete(null);
+    if (openFolderId === folderId) {
+      setOpenFolderId(null);
+    }
   }
 
   async function createFolder(e) {
@@ -628,6 +710,7 @@ function CullingPage() {
                       setOpenFolderId(folder.id);
                       setFilter("all");
                     }}
+                    onContextMenu={(e) => handleFolderContextMenu(e, folder.id)}
                   />
                 );
               })}
@@ -915,6 +998,38 @@ function CullingPage() {
             </div>
           )}
         </div>
+      )}
+
+      {folderContextMenu && (
+        <div
+          className="fixed z-50 min-w-[160px] rounded-lg border border-slate-700 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-sm"
+          style={{ left: folderContextMenu.x, top: folderContextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setFolderToDelete(folderContextMenu.folderId);
+              setFolderContextMenu(null);
+            }}
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-red-300 hover:bg-red-500/10 hover:text-red-200 transition-colors"
+          >
+            <FaTrash className="text-xs" />
+            Delete
+          </button>
+        </div>
+      )}
+
+      {folderToDelete && (
+        <ConfirmModal
+          open={Boolean(folderToDelete)}
+          title="Delete folder"
+          message={
+            `This will permanently delete the folder and all photos inside it. This action cannot be undone.`
+          }
+          onCancel={() => setFolderToDelete(null)}
+          onConfirm={() => deleteFolder(folderToDelete)}
+        />
       )}
 
       {/* ============ NEW FOLDER MODAL ============ */}

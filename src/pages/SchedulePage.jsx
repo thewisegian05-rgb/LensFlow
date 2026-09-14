@@ -32,9 +32,34 @@ function SchedulePage() {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventToDelete, setEventToDelete] = useState(null);
+  const [clients, setClients] = useState([]);
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
+
+  // =========================================================
+  // FETCH CLIENTS FOR SCHEDULE
+  // =========================================================
+  const fetchClients = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("user_id", user.id)
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Failed to load clients:", error.message);
+      return;
+    }
+
+    setClients(data || []);
+  };
 
   // =========================================================
   // SYNC SCHEDULE CLIENT -> CLIENTS TABLE
@@ -185,6 +210,7 @@ function SchedulePage() {
 
   useEffect(() => {
     fetchEvents();
+    fetchClients();
   }, []);
 
 
@@ -203,9 +229,64 @@ function SchedulePage() {
       return;
     }
 
+    let clientId = form.clientId;
+
+    if (!clientId) {
+      const clientName = form.client?.trim();
+
+      if (!clientName) {
+        console.error("Client name is required.");
+        return;
+      }
+
+      const initials = clientName
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((word) => word[0])
+        .join("")
+        .toUpperCase();
+
+      const { data: newClient, error: clientError } = await supabase
+        .from("clients")
+        .insert([
+          {
+            user_id: user.id,
+            name: clientName,
+            project: form.title,
+            venue: form.location,
+            category: form.category,
+            project_status: "Ongoing",
+            initials,
+            talent_fee: 0,
+          },
+        ])
+        .select()
+        .single();
+
+      if (clientError) {
+        console.error(
+          "Failed to create new client:",
+          clientError.message
+        );
+        return;
+      }
+
+      clientId = newClient.id;
+
+      setClients((prev) => [
+        ...prev,
+        {
+          id: newClient.id,
+          name: newClient.name,
+        },
+      ]);
+    }
+
     const payload = {
       title: form.title,
       client: form.client,
+      client_id: clientId,
       category: form.category,
       photographer: form.photographer,
       location: form.location,
@@ -227,8 +308,6 @@ function SchedulePage() {
         return;
       }
 
-      await syncClientFromSchedule(form, user.id);
-
     } else {
       const { error } = await supabase
         .from("schedule_events")
@@ -241,7 +320,6 @@ function SchedulePage() {
     }
 
     await fetchEvents();
-    await syncClientFromSchedule(form, user.id);
 
     setModalOpen(false);
     setSelectedEvent(null);
@@ -441,6 +519,7 @@ function SchedulePage() {
         onSave={addOrUpdateEvent}
         selectedDate={selectedDate}
         editingEvent={selectedEvent}
+        clients={clients}
       />
 
       <EventDetailsModal

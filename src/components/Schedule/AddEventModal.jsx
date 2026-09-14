@@ -23,10 +23,12 @@ function AddEventModal({
   onSave,
   selectedDate,
   editingEvent,
+  clients = [],
 }) {
   const emptyForm = {
     title: "",
     client: "",
+    clientId: null,
     category: CATEGORY_KEYS[0],
     photographer: "",
     location: "",
@@ -40,6 +42,13 @@ function AddEventModal({
 
   const [form, setForm] = useState(emptyForm);
   const [projects, setProjects] = useState([]);
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+
+  const filteredClients = clients.filter((client) =>
+    client.name
+      .toLowerCase()
+      .includes(form.client.toLowerCase())
+  );
 
   // =========================================================
   // LOAD LINKABLE PROJECTS WHEN MODAL OPENS
@@ -175,15 +184,110 @@ function AddEventModal({
               required
             />
 
-            <input
-              type="text"
-              name="client"
-              placeholder="Client Name"
-              value={form.client}
-              onChange={handleChange}
-              className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
-              required
-            />
+            <div className="relative">
+              <label className="mb-1 block text-sm font-medium text-slate-300">
+                Client Name
+              </label>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  value={form.client}
+                  onFocus={() => setClientDropdownOpen(true)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+
+                    const matchedClient = clients.find(
+                      (client) =>
+                        client.name.toLowerCase() === value.toLowerCase()
+                    );
+
+                    setForm((prev) => ({
+                      ...prev,
+                      client: value,
+                      clientId: matchedClient?.id || null,
+                    }));
+
+                    setClientDropdownOpen(true);
+                  }}
+                  placeholder="Select or enter a client"
+                  required
+                  className="
+                    w-full rounded-lg border border-slate-700
+                    bg-slate-800 px-4 py-3 pr-10
+                    text-white outline-none
+                    transition
+                    focus:border-sky-500
+                  "
+                />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setClientDropdownOpen((prev) => !prev)
+                  }
+                  className="
+                    absolute right-0 top-0 flex h-full w-10
+                    items-center justify-center
+                    !border-none !bg-transparent
+                    text-slate-300
+                    hover:!bg-transparent
+                    focus:!bg-transparent
+                  "
+                >
+                  {clientDropdownOpen ? "▲" : "▼"}
+                </button>
+              </div>
+
+              {clientDropdownOpen && (
+                <div
+                  className="
+                    absolute left-0 right-0 z-50 mt-1
+                    max-h-60 overflow-y-auto
+                    rounded-lg border border-slate-700
+                    bg-slate-800 shadow-xl
+                  "
+                >
+                  {filteredClients.length > 0 ? (
+                    filteredClients.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => {
+                          setForm((prev) => ({
+                            ...prev,
+                            client: client.name,
+                            clientId: client.id,
+                          }));
+
+                          setClientDropdownOpen(false);
+                        }}
+                        className="
+                          block w-full
+                          !border-none !bg-transparent
+                          px-4 py-3 text-left
+                          text-white
+                          hover:!bg-slate-700
+                          focus:!bg-slate-700
+                        "
+                      >
+                        {client.name}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-slate-400">
+                      No existing client found
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {form.client && !form.clientId && (
+                <p className="mt-1 text-xs text-sky-400">
+                  New client — this client will be created when you save the event.
+                </p>
+              )}
+            </div>
 
             <input
               type="text"

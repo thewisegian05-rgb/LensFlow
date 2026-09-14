@@ -72,7 +72,17 @@ function ClientList({ clients, onView, onDelete, onComplete, onEdit }) {
 
                   <span className={`list-status-dot ${(client.projectStatus || "").toLowerCase()}`} aria-hidden />
 
-                  <div className="list-client-avatar">
+                  <div
+                    className="
+                      client-avatar
+                      !border !border-sky-200
+                      !bg-sky-100
+                      !text-sky-700
+                      dark:!border-sky-700
+                      dark:!bg-sky-950
+                      dark:!text-sky-400
+                    "
+                  >
                     {client.initials}
                   </div>
 
@@ -138,53 +148,57 @@ function ClientList({ clients, onView, onDelete, onComplete, onEdit }) {
 
               <td>
                 <div className="list-actions">
+
                   {/* VIEW */}
                   <button
-                    className="list-action-btn list-view-btn"
+                    className="list-action-btn shrink-0 rounded-lg border !border-slate-400 !bg-transparent !text-slate-600 transition hover:!border-slate-500 hover:!bg-slate-100 hover:!text-slate-900 dark:!border-slate-600 dark:!text-slate-400 dark:hover:!bg-slate-800 dark:hover:!text-white"
                     title="View Client"
                     onClick={() => onView(client)}
                   >
                     <FiEye />
                   </button>
 
-                  {/* EDIT */}
 
+                  {/* EDIT */}
                   <button
-                    className="list-action-btn list-edit-btn"
+                    className="list-action-btn shrink-0 rounded-lg border !border-sky-500 !bg-transparent !text-sky-600 transition hover:!border-sky-600 hover:!bg-sky-50 hover:!text-sky-700 dark:!border-sky-500/70 dark:!text-sky-400 dark:hover:!bg-sky-500/10"
                     title="Edit Client"
                     onClick={() => onEdit(client)}
                   >
                     <FiEdit2 />
                   </button>
 
-                  {/* DELETE */}
 
+                  {/* DELETE */}
                   <button
-                    className="list-action-btn list-delete-btn"
+                    className="list-action-btn shrink-0 rounded-lg border !border-red-500 !bg-transparent !text-red-600 transition hover:!bg-red-50 hover:!text-red-700 dark:!border-red-500/70 dark:!text-red-400 dark:hover:!bg-red-500/10"
                     title="Delete Client"
-                    onClick={() =>
-                      onDelete(client.id)
-                    }
+                    onClick={() => onDelete(client.id)}
                   >
                     <FiTrash2 />
                   </button>
 
-                  {/* COMPLETE (hidden when already completed) */}
-                  {(client.projectStatus || "").toLowerCase() !== "completed" && (
-                    <button
-                      className="list-action-btn list-complete-btn"
-                      title="Mark Complete"
-                      onClick={() => onComplete && onComplete(client.id)}
-                    >
-                      <FiCheckCircle />
-                    </button>
+
+                  {/* COMPLETE */}
+                  {client.projectStatus !== "Completed" && (
+                     <button
+                        className="list-action-btn shrink-0 rounded-lg border !border-emerald-500 !bg-transparent !text-emerald-600 transition hover:!bg-emerald-50 hover:!text-emerald-700 dark:!border-emerald-500/70 dark:!text-emerald-400 dark:hover:!bg-emerald-500/10"
+                        title="Mark as Complete"
+                        onClick={() => onComplete(client.id)}
+                      >
+                        <FiCheckCircle />
+                      </button>
                   )}
 
-                  <button 
-                    className="list-action-btn list-message-btn"
-                    title="Message">
-                    <FiMessageSquare/>
-                    </button>
+
+                  {/* MESSAGE */}
+                  <button
+                    className="list-action-btn shrink-0 rounded-lg border !border-sky-500 !bg-sky-500 !text-slate-950 transition hover:!border-sky-400 hover:!bg-sky-400 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950 dark:hover:!bg-sky-400"
+                    title="Message"
+                  >
+                    <FiMessageSquare />
+                  </button>
+
                 </div>
               </td>
             </tr>

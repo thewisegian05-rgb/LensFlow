@@ -401,12 +401,14 @@ const handleEditClient = async (updatedClient) => {
 
 
         {/* VIEW SWITCHER */}
-
         <div className="view-switcher">
 
+          {/* GRID */}
           <button
             className={`view-toggle-btn ${
-              viewType === "grid" ? "active" : ""
+              viewType === "grid"
+                ? "!border-sky-500 !bg-sky-500 !text-slate-950 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950"
+                : "!border-transparent !bg-transparent !text-slate-500 hover:!bg-slate-100 hover:!text-slate-800 dark:!text-slate-500 dark:hover:!bg-slate-800 dark:hover:!text-slate-300"
             }`}
             onClick={() => setViewType("grid")}
             title="Block View"
@@ -415,9 +417,12 @@ const handleEditClient = async (updatedClient) => {
           </button>
 
 
+          {/* LIST */}
           <button
             className={`view-toggle-btn ${
-              viewType === "list" ? "active" : ""
+              viewType === "list"
+                ? "!border-sky-500 !bg-sky-500 !text-slate-950 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950"
+                : "!border-transparent !bg-transparent !text-slate-500 hover:!bg-slate-100 hover:!text-slate-800 dark:!text-slate-500 dark:hover:!bg-slate-800 dark:hover:!text-slate-300"
             }`}
             onClick={() => setViewType("list")}
             title="List View"

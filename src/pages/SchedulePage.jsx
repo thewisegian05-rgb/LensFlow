@@ -11,6 +11,15 @@ import ConfirmModal from "../components/Common/ConfirmModal";
 
 import { supabase } from "../lib/supabaseClient";
 
+const formatDateForInput = (date) => {
+  const value = new Date(date);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
 function SchedulePage() {
 
   const [events, setEvents] = useState([]);
@@ -287,9 +296,7 @@ function SchedulePage() {
       <Calendar
         events={filteredEvents}
         onSelectSlot={({ start }) => {
-          setSelectedDate(
-            new Date(start).toISOString().split("T")[0]
-          );
+          setSelectedDate(formatDateForInput(start));
           setSelectedEvent(null);
           setModalOpen(true);
         }}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   FaTimes,
   FaStar,
@@ -62,6 +62,24 @@ async function getSignedUrl(path) {
   return data.signedUrl;
 }
 
+// Walk the flat folder list and collect this folder's id plus every
+// descendant's id, so a delete can clean up the whole subtree.
+function collectDescendantIds(folders, rootId) {
+  const ids = [rootId];
+  let frontier = [rootId];
+
+  while (frontier.length > 0) {
+    const children = folders
+      .filter((f) => frontier.includes(f.parentId))
+      .map((f) => f.id);
+
+    ids.push(...children);
+    frontier = children;
+  }
+
+  return ids;
+}
+
 /* ============ Folder card ============ */
 function FolderCard({ folder, reviewed, total, onOpen, onContextMenu }) {
   return (
@@ -87,11 +105,9 @@ function FolderCard({ folder, reviewed, total, onOpen, onContextMenu }) {
   );
 }
 
-/* ============ Minimal auth gate ============
-   Stand-in sign in / sign up screen so folders & photos can be scoped
-   per-user. Swap this out if/when the app gets a proper auth flow. */
+/* ============ Minimal auth gate ============ */
 function AuthGate() {
-  const [mode, setMode] = useState("signin"); // 'signin' | 'signup'
+  const [mode, setMode] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -187,13 +203,15 @@ function CullingPage() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  /* ---- top-level tab: culling grid vs duplicate review ---- */
   const [mode, setMode] = useState("cull"); // 'cull' | 'duplicates'
 
-  /* ============ CULLING GRID STATE (Supabase-backed, folder-based) ============ */
-  const [folders, setFolders] = useState([]);
-  const [culls, setCulls] = useState({}); // { [photoId]: 'star' | 'reject' }
-  const [openFolderId, setOpenFolderId] = useState(null); // null = folder grid view
+  /* ============ CULLING GRID STATE (Supabase-backed, nested folders) ============ */
+  // Folders are stored flat with a parentId; `path` is the stack of
+  // folder ids you've navigated into (mirrors Media Storage's model).
+  const [folders, setFolders] = useState([]); // [{ id, name, parentId }]
+  const [photos, setPhotos] = useState([]); // [{ id, folderId, fileName, ... }]
+  const [culls, setCulls] = useState({});
+  const [path, setPath] = useState([]);
   const [filter, setFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -206,13 +224,15 @@ function CullingPage() {
 
   const fileInputRef = useRef(null);
 
+  const currentFolderId = path.length ? path[path.length - 1] : null;
+
   /* ---- load folders + photos for the signed-in user ---- */
   const loadData = useCallback(async (userId) => {
     setDataLoading(true);
 
     const { data: folderRows, error: folderErr } = await supabase
       .from("folders")
-      .select("id, name")
+      .select("id, name, parent_id")
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
 
@@ -238,7 +258,7 @@ function CullingPage() {
       photoRows.map((p) => (p.previewable ? getSignedUrl(p.storage_path) : Promise.resolve(null)))
     );
 
-    const photos = photoRows.map((p, i) => ({
+    const photoState = photoRows.map((p, i) => ({
       id: p.id,
       folderId: p.folder_id,
       fileName: p.file_name,
@@ -249,10 +269,10 @@ function CullingPage() {
       sizeLabel: p.size_bytes ? formatBytes(p.size_bytes) : null,
     }));
 
-    const builtFolders = folderRows.map((f) => ({
+    const folderState = folderRows.map((f) => ({
       id: f.id,
       name: f.name,
-      images: photos.filter((p) => p.folderId === f.id),
+      parentId: f.parent_id,
     }));
 
     const ratingsMap = {};
@@ -260,7 +280,8 @@ function CullingPage() {
       if (p.rating) ratingsMap[p.id] = p.rating;
     });
 
-    setFolders(builtFolders);
+    setFolders(folderState);
+    setPhotos(photoState);
     setCulls(ratingsMap);
     setDataLoading(false);
   }, []);
@@ -270,18 +291,20 @@ function CullingPage() {
       loadData(user.id);
     } else {
       setFolders([]);
+      setPhotos([]);
       setCulls({});
-      setOpenFolderId(null);
+      setPath([]);
     }
   }, [user, loadData]);
 
+  // Root-level "Unsorted" — used when dropping files with no folder open.
   async function findOrCreateUnsortedFolder() {
-    const existing = folders.find((f) => f.name === "Unsorted");
+    const existing = folders.find((f) => f.name === "Unsorted" && f.parentId === null);
     if (existing) return existing.id;
 
     const { data, error } = await supabase
       .from("folders")
-      .insert({ name: "Unsorted", user_id: user.id })
+      .insert({ name: "Unsorted", user_id: user.id, parent_id: null })
       .select()
       .single();
 
@@ -290,7 +313,7 @@ function CullingPage() {
       return null;
     }
 
-    setFolders((prev) => [...prev, { id: data.id, name: data.name, images: [] }]);
+    setFolders((prev) => [...prev, { id: data.id, name: data.name, parentId: null }]);
     return data.id;
   }
 
@@ -320,14 +343,18 @@ function CullingPage() {
     setFolderContextMenu({ folderId, x: e.clientX, y: e.clientY });
   }
 
+  // Recursively deletes a folder: every subfolder, every photo inside
+  // any of them (storage files + DB rows), then the folder rows
+  // themselves (subfolder rows cascade automatically via parent_id).
   async function deleteFolder(folderId) {
-    const folder = folders.find((item) => item.id === folderId);
-    if (!folder || !user) return;
+    if (!user) return;
+
+    const idsToDelete = collectDescendantIds(folders, folderId);
 
     const { data: photoRows, error: photoListErr } = await supabase
       .from("photos")
       .select("id, storage_path")
-      .eq("folder_id", folderId)
+      .in("folder_id", idsToDelete)
       .eq("user_id", user.id);
 
     if (photoListErr) {
@@ -349,7 +376,7 @@ function CullingPage() {
     const { error: photoDeleteErr } = await supabase
       .from("photos")
       .delete()
-      .eq("folder_id", folderId)
+      .in("folder_id", idsToDelete)
       .eq("user_id", user.id);
 
     if (photoDeleteErr) {
@@ -368,11 +395,16 @@ function CullingPage() {
       return;
     }
 
-    setFolders((prev) => prev.filter((item) => item.id !== folderId));
+    setFolders((prev) => prev.filter((f) => !idsToDelete.includes(f.id)));
+    setPhotos((prev) => prev.filter((p) => !idsToDelete.includes(p.folderId)));
     setFolderContextMenu(null);
     setFolderToDelete(null);
-    if (openFolderId === folderId) {
-      setOpenFolderId(null);
+
+    // If you were inside the deleted subtree, back out to the nearest
+    // surviving ancestor (or the root grid).
+    if (path.some((id) => idsToDelete.includes(id))) {
+      const keepIndex = path.findIndex((id) => idsToDelete.includes(id));
+      setPath(path.slice(0, keepIndex));
     }
   }
 
@@ -386,7 +418,7 @@ function CullingPage() {
 
     const { data, error } = await supabase
       .from("folders")
-      .insert({ name, user_id: user.id })
+      .insert({ name, user_id: user.id, parent_id: currentFolderId })
       .select()
       .single();
 
@@ -395,8 +427,8 @@ function CullingPage() {
       return;
     }
 
-    setFolders((prev) => [...prev, { id: data.id, name: data.name, images: [] }]);
-    setOpenFolderId(data.id);
+    setFolders((prev) => [...prev, { id: data.id, name: data.name, parentId: currentFolderId }]);
+    setPath((prev) => [...prev, data.id]);
     setFilter("all");
     setNewFolderModalOpen(false);
   }
@@ -406,11 +438,11 @@ function CullingPage() {
       const files = Array.from(fileList || []);
       if (files.length === 0 || !user) return;
 
-      let targetFolderId = openFolderId;
+      let targetFolderId = currentFolderId;
       if (!targetFolderId) {
         targetFolderId = await findOrCreateUnsortedFolder();
         if (!targetFolderId) return;
-        setOpenFolderId(targetFolderId);
+        setPath([targetFolderId]);
       }
 
       for (const file of files) {
@@ -456,14 +488,10 @@ function CullingPage() {
           sizeLabel: formatBytes(file.size),
         };
 
-        setFolders((prev) =>
-          prev.map((f) =>
-            f.id === targetFolderId ? { ...f, images: [newImage, ...f.images] } : f
-          )
-        );
+        setPhotos((prev) => [newImage, ...prev]);
       }
     },
-    [openFolderId, user, folders]
+    [currentFolderId, user]
   );
 
   function handleDrop(e) {
@@ -506,8 +534,23 @@ function CullingPage() {
     if (error) console.error("Rating clear failed:", error);
   }
 
-  const openFolder = folders.find((f) => f.id === openFolderId);
-  const folderImages = openFolder ? openFolder.images : [];
+  /* ---- current level: subfolders + photos in the open folder ---- */
+  const currentSubfolders = useMemo(
+    () => folders.filter((f) => f.parentId === currentFolderId),
+    [folders, currentFolderId]
+  );
+
+  const rootFolders = useMemo(
+    () => folders.filter((f) => f.parentId === null),
+    [folders]
+  );
+
+  const folderImages = useMemo(
+    () => photos.filter((p) => p.folderId === currentFolderId),
+    [photos, currentFolderId]
+  );
+
+  const openFolder = folders.find((f) => f.id === currentFolderId) || null;
 
   const visibleImages = folderImages.filter((img) => {
     if (filter === "all") return true;
@@ -552,11 +595,20 @@ function CullingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lightboxImage, goToOffset, mode, culls]);
 
-  /* ============ DUPLICATE REVIEW ============
-     TODO: duplicate detection needs its own similarity-matching pipeline
-     (e.g. a backend job comparing perceptual hashes) — Supabase doesn't
-     generate this for you. Wire `duplicateSets` up to a real table/query
-     once that pipeline exists. Left empty for now. */
+  /* ---- breadcrumb ---- */
+  const breadcrumb = useMemo(() => {
+    const items = [{ id: null, name: "Folders" }];
+    let lookup = folders;
+
+    path.forEach((id) => {
+      const found = lookup.find((f) => f.id === id);
+      if (found) items.push({ id: found.id, name: found.name });
+    });
+
+    return items;
+  }, [path, folders]);
+
+  /* ============ DUPLICATE REVIEW ============ */
   const [duplicateSets] = useState([]);
   const [bestPicks, setBestPicks] = useState({});
   const [dupLightbox, setDupLightbox] = useState(null);
@@ -686,6 +738,9 @@ function CullingPage() {
           </p>
           <p className="text-sm text-slate-500 mt-1 dark:text-slate-500">
             JPG, PNG, WEBP get thumbnails right away &middot; RAW formats (CR3, NEF, ARW, DNG) are added but can't be previewed in-browser
+            {currentFolderId
+              ? " · Uploads go into the folder you have open."
+              : " · Uploading here drops files into \"Unsorted\"."}
           </p>
         </div>
       )}
@@ -695,183 +750,236 @@ function CullingPage() {
         <div>
           {dataLoading ? (
             <p className="text-sm text-slate-500 text-center py-16">Loading your photos...</p>
-          ) : !openFolder ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-              {folders.map((folder) => {
-                const total = folder.images.length;
-                const reviewed = folder.images.filter((img) => culls[img.id]).length;
-                return (
-                  <FolderCard
-                    key={folder.id}
-                    folder={folder}
-                    reviewed={reviewed}
-                    total={total}
-                    onOpen={() => {
-                      setOpenFolderId(folder.id);
-                      setFilter("all");
-                    }}
-                    onContextMenu={(e) => handleFolderContextMenu(e, folder.id)}
-                  />
-                );
-              })}
-              <button
-                onClick={openNewFolderModal}
-                className="text-left bg-slate-50/80 hover:bg-slate-100 border border-dashed border-slate-300 hover:border-sky-400 hover:shadow-lg hover:shadow-sky-500/10 rounded-xl p-4 transition-all duration-200 ease-out flex flex-col items-center justify-center gap-2 text-slate-600 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 dark:bg-slate-800/30 dark:hover:bg-slate-800/70 dark:border-slate-700 dark:text-slate-500 dark:hover:text-sky-300"
-              >
-                <FaFolderPlus className="text-xl transition-transform duration-200 group-hover:scale-110" />
-                <span className="text-xs font-medium">New folder</span>
-              </button>
-            </div>
           ) : (
             <div>
-              <button
-                onClick={() => setOpenFolderId(null)}
-                className="flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-4 transition-colors"
-              >
-                <FaArrowLeft className="text-xs" /> Back to folders
-              </button>
-
-              {/* Progress + stat pills */}
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 sm:p-6 mb-6">
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="flex items-center gap-1.5 bg-sky-500/10 text-sky-400 px-2.5 py-1 rounded-full font-medium">
-                      <FaStar className="text-[10px]" /> {folderStarred} Starred
-                    </span>
-                    <span className="flex items-center gap-1.5 bg-red-500/10 text-red-400 px-2.5 py-1 rounded-full font-medium">
-                      <FaBan className="text-[10px]" /> {folderRejected} Rejected
-                    </span>
-                    <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-full font-medium">
-                      {folderUnrated} Remaining
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    {folderReviewed} / {folderTotal} reviewed
-                  </span>
-                </div>
-
-                <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden flex">
-                  <div
-                    className="bg-sky-500 h-full transition-all duration-300"
-                    style={{ width: folderTotal ? `${(folderStarred / folderTotal) * 100}%` : "0%" }}
-                  />
-                  <div
-                    className="bg-red-500 h-full transition-all duration-300"
-                    style={{ width: folderTotal ? `${(folderRejected / folderTotal) * 100}%` : "0%" }}
-                  />
-                </div>
-              </div>
-
-              {/* Filter chips */}
-              <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
-                {FILTERS.map((f) => {
-                  const count =
-                    f.key === "all"
-                      ? folderTotal
-                      : f.key === "unrated"
-                      ? folderUnrated
-                      : f.key === "star"
-                      ? folderStarred
-                      : folderRejected;
-                  const active = filter === f.key;
-                  return (
+              {/* Breadcrumb + back */}
+              {path.length > 0 && (
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
                     <button
-                      key={f.key}
-                      onClick={() => setFilter(f.key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                        active
-                          ? "bg-sky-500 text-slate-900"
-                          : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
-                      }`}
+                      onClick={() => setPath(path.slice(0, -1))}
+                      className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors mr-2"
                     >
-                      {f.label} <span className="opacity-70">({count})</span>
+                      <FaArrowLeft className="text-xs" /> Back
                     </button>
-                  );
-                })}
-              </div>
 
-              {/* Grid */}
-              {visibleImages.length === 0 ? (
-                <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-700 rounded-xl">
-                  {folderTotal === 0 ? "This folder is empty — drop some photos above." : "Nothing here yet."}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                  {visibleImages.map((img) => {
-                    const state = culls[img.id];
-                    const stateClasses =
-                      state === "star"
-                        ? "outline outline-[3px] outline-sky-500 -outline-offset-[3px] border-transparent"
-                        : state === "reject"
-                        ? "outline outline-[3px] outline-red-500 -outline-offset-[3px] border-transparent opacity-50"
-                        : "border-slate-700 hover:border-slate-500";
-
-                    return (
-                      <div
-                        key={img.id}
-                        onClick={() => setLightboxId(img.id)}
-                        className={`relative aspect-square bg-slate-900 rounded-lg overflow-hidden border group transition-all cursor-pointer ${stateClasses}`}
-                      >
-                        {img.previewable && img.thumbUrl ? (
-                          <img
-                            src={img.thumbUrl}
-                            className="w-full h-full object-cover"
-                            alt={img.fileName}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-2 text-center bg-slate-800">
-                            <FaFileImage className="text-2xl text-slate-600" />
-                            <span className="text-[10px] text-slate-500 truncate w-full">No preview</span>
-                          </div>
-                        )}
-
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {breadcrumb.map((crumb, index) => {
+                      const isLast = index === breadcrumb.length - 1;
+                      return (
+                        <span key={`${crumb.id}-${index}`} className="flex items-center gap-2">
+                          {index > 0 && <span className="text-slate-600">/</span>}
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRating(img.id, "reject");
-                            }}
-                            className="bg-red-500/80 hover:bg-red-500 text-white w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-                            title="Reject (X)"
+                            onClick={() => setPath(path.slice(0, index))}
+                            disabled={isLast}
+                            className={
+                              isLast
+                                ? "text-white font-medium cursor-default"
+                                : "text-slate-400 hover:text-white transition-colors"
+                            }
                           >
-                            <FaTimes className="text-sm" />
+                            {crumb.name}
                           </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRating(img.id, "star");
-                            }}
-                            className="bg-sky-500/80 hover:bg-sky-500 text-white w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-                            title="Star (S)"
-                          >
-                            <FaStar className="text-sm" />
-                          </button>
-                        </div>
-
-                        <span className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded font-mono max-w-[85%] truncate">
-                          {img.fileName}
                         </span>
+                      );
+                    })}
+                  </div>
 
-                        {state === "star" && (
-                          <span className="absolute top-2 right-2 text-sky-400 drop-shadow">
-                            <FaStar />
-                          </span>
-                        )}
-                        {state === "reject" && (
-                          <span className="absolute top-2 right-2 text-red-400 drop-shadow">
-                            <FaBan />
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
+                  <button
+                    onClick={openNewFolderModal}
+                    className="flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 transition-colors"
+                  >
+                    <FaFolderPlus className="text-xs" /> New subfolder
+                  </button>
                 </div>
               )}
 
-              <p className="text-xs text-slate-600 mt-4 text-center">
-                Click a photo to inspect it full-screen &middot; S star &middot; X reject &middot; ← →
-                navigate
-              </p>
+              {/* Subfolders (root or nested) */}
+              {(path.length === 0 ? rootFolders : currentSubfolders).length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                  {(path.length === 0 ? rootFolders : currentSubfolders).map((folder) => {
+                    const folderPhotos = photos.filter((p) => p.folderId === folder.id);
+                    const total = folderPhotos.length;
+                    const reviewed = folderPhotos.filter((img) => culls[img.id]).length;
+                    return (
+                      <FolderCard
+                        key={folder.id}
+                        folder={folder}
+                        reviewed={reviewed}
+                        total={total}
+                        onOpen={() => {
+                          setPath([...path, folder.id]);
+                          setFilter("all");
+                        }}
+                        onContextMenu={(e) => handleFolderContextMenu(e, folder.id)}
+                      />
+                    );
+                  })}
+
+                  {path.length === 0 && (
+                    <button
+                      onClick={openNewFolderModal}
+                      className="text-left bg-slate-50/80 hover:bg-slate-100 border border-dashed border-slate-300 hover:border-sky-400 hover:shadow-lg hover:shadow-sky-500/10 rounded-xl p-4 transition-all duration-200 ease-out flex flex-col items-center justify-center gap-2 text-slate-600 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 dark:bg-slate-800/30 dark:hover:bg-slate-800/70 dark:border-slate-700 dark:text-slate-500 dark:hover:text-sky-300"
+                    >
+                      <FaFolderPlus className="text-xl" />
+                      <span className="text-xs font-medium">New folder</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {path.length === 0 && rootFolders.length === 0 && (
+                <button
+                  onClick={openNewFolderModal}
+                  className="w-full text-left bg-slate-50/80 hover:bg-slate-100 border border-dashed border-slate-300 hover:border-sky-400 rounded-xl p-6 transition-all flex flex-col items-center justify-center gap-2 text-slate-600 hover:text-sky-600 dark:bg-slate-800/30 dark:hover:bg-slate-800/70 dark:border-slate-700 dark:text-slate-500 dark:hover:text-sky-300 mb-6"
+                >
+                  <FaFolderPlus className="text-2xl" />
+                  <span className="text-sm font-medium">Create your first folder</span>
+                </button>
+              )}
+
+              {/* Photos in the currently open folder */}
+              {path.length > 0 && (
+                <div>
+                  <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 sm:p-6 mb-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="flex items-center gap-1.5 bg-sky-500/10 text-sky-400 px-2.5 py-1 rounded-full font-medium">
+                          <FaStar className="text-[10px]" /> {folderStarred} Starred
+                        </span>
+                        <span className="flex items-center gap-1.5 bg-red-500/10 text-red-400 px-2.5 py-1 rounded-full font-medium">
+                          <FaBan className="text-[10px]" /> {folderRejected} Rejected
+                        </span>
+                        <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-full font-medium">
+                          {folderUnrated} Remaining
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-500">
+                        {folderReviewed} / {folderTotal} reviewed
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden flex">
+                      <div
+                        className="bg-sky-500 h-full transition-all duration-300"
+                        style={{ width: folderTotal ? `${(folderStarred / folderTotal) * 100}%` : "0%" }}
+                      />
+                      <div
+                        className="bg-red-500 h-full transition-all duration-300"
+                        style={{ width: folderTotal ? `${(folderRejected / folderTotal) * 100}%` : "0%" }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+                    {FILTERS.map((f) => {
+                      const count =
+                        f.key === "all"
+                          ? folderTotal
+                          : f.key === "unrated"
+                          ? folderUnrated
+                          : f.key === "star"
+                          ? folderStarred
+                          : folderRejected;
+                      const active = filter === f.key;
+                      return (
+                        <button
+                          key={f.key}
+                          onClick={() => setFilter(f.key)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                            active
+                              ? "bg-sky-500 text-slate-900"
+                              : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+                          }`}
+                        >
+                          {f.label} <span className="opacity-70">({count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {visibleImages.length === 0 ? (
+                    <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-700 rounded-xl">
+                      {folderTotal === 0 ? "This folder is empty — drop some photos above." : "Nothing here yet."}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                      {visibleImages.map((img) => {
+                        const state = culls[img.id];
+                        const stateClasses =
+                          state === "star"
+                            ? "outline outline-[3px] outline-sky-500 -outline-offset-[3px] border-transparent"
+                            : state === "reject"
+                            ? "outline outline-[3px] outline-red-500 -outline-offset-[3px] border-transparent opacity-50"
+                            : "border-slate-700 hover:border-slate-500";
+
+                        return (
+                          <div
+                            key={img.id}
+                            onClick={() => setLightboxId(img.id)}
+                            className={`relative aspect-square bg-slate-900 rounded-lg overflow-hidden border group transition-all cursor-pointer ${stateClasses}`}
+                          >
+                            {img.previewable && img.thumbUrl ? (
+                              <img
+                                src={img.thumbUrl}
+                                className="w-full h-full object-cover"
+                                alt={img.fileName}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-2 text-center bg-slate-800">
+                                <FaFileImage className="text-2xl text-slate-600" />
+                                <span className="text-[10px] text-slate-500 truncate w-full">No preview</span>
+                              </div>
+                            )}
+
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRating(img.id, "reject");
+                                }}
+                                className="bg-red-500/80 hover:bg-red-500 text-white w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                                title="Reject (X)"
+                              >
+                                <FaTimes className="text-sm" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRating(img.id, "star");
+                                }}
+                                className="bg-sky-500/80 hover:bg-sky-500 text-white w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                                title="Star (S)"
+                              >
+                                <FaStar className="text-sm" />
+                              </button>
+                            </div>
+
+                            <span className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded font-mono max-w-[85%] truncate">
+                              {img.fileName}
+                            </span>
+
+                            {state === "star" && (
+                              <span className="absolute top-2 right-2 text-sky-400 drop-shadow">
+                                <FaStar />
+                              </span>
+                            )}
+                            {state === "reject" && (
+                              <span className="absolute top-2 right-2 text-red-400 drop-shadow">
+                                <FaBan />
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <p className="text-xs text-slate-600 mt-4 text-center">
+                    Click a photo to inspect it full-screen &middot; S star &middot; X reject &middot; ← →
+                    navigate
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1024,9 +1132,7 @@ function CullingPage() {
         <ConfirmModal
           open={Boolean(folderToDelete)}
           title="Delete folder"
-          message={
-            `This will permanently delete the folder and all photos inside it. This action cannot be undone.`
-          }
+          message="This will permanently delete the folder, every subfolder inside it, and all photos inside those. This action cannot be undone."
           onCancel={() => setFolderToDelete(null)}
           onConfirm={() => deleteFolder(folderToDelete)}
         />
@@ -1045,7 +1151,9 @@ function CullingPage() {
           >
             <div className="flex items-center gap-2 mb-1">
               <FaFolderPlus className="text-sky-400" />
-              <h3 className="text-white font-semibold">Name this folder</h3>
+              <h3 className="text-white font-semibold">
+                {currentFolderId ? "Name this subfolder" : "Name this folder"}
+              </h3>
             </div>
             <p className="text-xs text-slate-500 mb-4">
               You'll drop straight into it once it's created — empty and ready to fill.

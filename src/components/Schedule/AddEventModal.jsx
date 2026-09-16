@@ -38,6 +38,7 @@ function AddEventModal({
     end: "",
     notes: "",
     projectId: "",
+    talentFee: "",
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -114,6 +115,10 @@ function AddEventModal({
           : "",
         notes: editingEvent.notes || "",
         projectId: editingEvent.project_id || "",
+        talentFee:
+          editingEvent.talentFee ??
+          editingEvent.talent_fee ??
+          "",
       });
 
       return;
@@ -152,7 +157,12 @@ function AddEventModal({
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    onSave(form);
+    onSave({
+      ...form,
+      // Keep this numeric so downstream income totals don't have to
+      // guess whether it's a string. Empty input -> 0, not NaN.
+      talentFee: form.talentFee === "" ? 0 : parseFloat(form.talentFee),
+    });
 
     setForm(emptyForm);
   };
@@ -306,6 +316,35 @@ function AddEventModal({
               onChange={handleChange}
               className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
             />
+
+            <div>
+              <label className="mb-2 block text-sm text-slate-600 dark:text-slate-400">
+                Talent Fee (₱)
+              </label>
+
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                  ₱
+                </span>
+
+                <input
+                  type="number"
+                  name="talentFee"
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={form.talentFee}
+                  onChange={handleChange}
+                  className="w-full rounded-lg border border-slate-200 bg-white p-3 pl-7 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                />
+              </div>
+
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
+                Used to estimate approximate income on the dashboard.
+                Leave blank if not yet agreed.
+              </p>
+            </div>
 
             <div>
               <select

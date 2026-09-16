@@ -8,6 +8,12 @@
 //
 // Events don't reliably have a clean `type` field — categorize by
 // scanning the free-text `category`/`title` fields instead.
+//
+// Color palette: each category sits on an evenly-spaced hue around
+// the color wheel (~25-30° apart) so no two ever read as "basically
+// the same color" at badge size. `default` is a neutral slate gray
+// on purpose — it's the uncategorized bucket, so it shouldn't compete
+// visually with real categories.
 // =========================================================
 
 // Canonical category keys, in the order they should appear in dropdowns.
@@ -42,89 +48,89 @@ export const CATEGORY_LABELS = {
 };
 
 // Solid-fill Tailwind class for small badges/pills (EventCard).
-// Each category gets its own hue so they stay visually distinguishable
-// at a glance on the calendar.
+// Each category gets its own hue, spaced around the wheel so they
+// stay visually distinguishable at a glance on the calendar.
 export const CATEGORY_BADGE_CLASSES = {
-  wedding: "bg-violet-500",
-  prenup: "bg-amber-500",
+  wedding: "bg-purple-500",
+  prenup: "bg-orange-500",
   "couple-shoot": "bg-pink-500",
-  "family-milestones": "bg-emerald-500",
-  "portrait-lifestyle": "bg-sky-500",
-  "events-performance": "bg-orange-500",
-  "corporate-commercial": "bg-teal-500",
-  "real-estate": "bg-indigo-500",
+  "family-milestones": "bg-green-500",
+  "portrait-lifestyle": "bg-blue-500",
+  "events-performance": "bg-red-500",
+  "corporate-commercial": "bg-indigo-500",
+  "real-estate": "bg-cyan-500",
   "product-business": "bg-lime-500",
-  baptism: "bg-cyan-500",
-  "pet-photography": "bg-rose-500",
-  default: "bg-fuchsia-500",
+  baptism: "bg-yellow-500",
+  "pet-photography": "bg-fuchsia-500",
+  default: "bg-slate-500",
 };
 
 // Translucent background + tinted text, for softer badges (TodaySchedule,
 // and anywhere else that wants the low-contrast pill style rather than
 // a solid fill).
 export const CATEGORY_SOFT_BADGE_CLASSES = {
-  wedding: "bg-violet-500/20 text-violet-400",
-  prenup: "bg-amber-500/20 text-amber-400",
+  wedding: "bg-purple-500/20 text-purple-400",
+  prenup: "bg-orange-500/20 text-orange-400",
   "couple-shoot": "bg-pink-500/20 text-pink-400",
-  "family-milestones": "bg-emerald-500/20 text-emerald-400",
-  "portrait-lifestyle": "bg-sky-500/20 text-sky-400",
-  "events-performance": "bg-orange-500/20 text-orange-400",
-  "corporate-commercial": "bg-teal-500/20 text-teal-400",
-  "real-estate": "bg-indigo-500/20 text-indigo-400",
+  "family-milestones": "bg-green-500/20 text-green-400",
+  "portrait-lifestyle": "bg-blue-500/20 text-blue-400",
+  "events-performance": "bg-red-500/20 text-red-400",
+  "corporate-commercial": "bg-indigo-500/20 text-indigo-400",
+  "real-estate": "bg-cyan-500/20 text-cyan-400",
   "product-business": "bg-lime-500/20 text-lime-400",
-  baptism: "bg-cyan-500/20 text-cyan-400",
-  "pet-photography": "bg-rose-500/20 text-rose-400",
-  default: "bg-fuchsia-500/20 text-fuchsia-400",
+  baptism: "bg-yellow-500/20 text-yellow-400",
+  "pet-photography": "bg-fuchsia-500/20 text-fuchsia-400",
+  default: "bg-slate-500/20 text-slate-400",
 };
 
 // Border color to glow in on hover — same hue family as the badge, so a
 // card's hover state always matches its own category.
 export const CATEGORY_HOVER_BORDER_CLASSES = {
-  wedding: "hover:border-violet-500/60",
-  prenup: "hover:border-amber-500/60",
+  wedding: "hover:border-purple-500/60",
+  prenup: "hover:border-orange-500/60",
   "couple-shoot": "hover:border-pink-500/60",
-  "family-milestones": "hover:border-emerald-500/60",
-  "portrait-lifestyle": "hover:border-sky-500/60",
-  "events-performance": "hover:border-orange-500/60",
-  "corporate-commercial": "hover:border-teal-500/60",
-  "real-estate": "hover:border-indigo-500/60",
+  "family-milestones": "hover:border-green-500/60",
+  "portrait-lifestyle": "hover:border-blue-500/60",
+  "events-performance": "hover:border-red-500/60",
+  "corporate-commercial": "hover:border-indigo-500/60",
+  "real-estate": "hover:border-cyan-500/60",
   "product-business": "hover:border-lime-500/60",
-  baptism: "hover:border-cyan-500/60",
-  "pet-photography": "hover:border-rose-500/60",
-  default: "hover:border-fuchsia-500/60",
+  baptism: "hover:border-yellow-500/60",
+  "pet-photography": "hover:border-fuchsia-500/60",
+  default: "hover:border-slate-500/60",
 };
 
 // Low-opacity fill for icon containers on stat cards (ScheduleSummary).
 export const CATEGORY_ICON_CLASSES = {
-  wedding: "bg-violet-500/10 text-violet-400",
-  prenup: "bg-amber-500/10 text-amber-400",
+  wedding: "bg-purple-500/10 text-purple-400",
+  prenup: "bg-orange-500/10 text-orange-400",
   "couple-shoot": "bg-pink-500/10 text-pink-400",
-  "family-milestones": "bg-emerald-500/10 text-emerald-400",
-  "portrait-lifestyle": "bg-sky-500/10 text-sky-400",
-  "events-performance": "bg-orange-500/10 text-orange-400",
-  "corporate-commercial": "bg-teal-500/10 text-teal-400",
-  "real-estate": "bg-indigo-500/10 text-indigo-400",
+  "family-milestones": "bg-green-500/10 text-green-400",
+  "portrait-lifestyle": "bg-blue-500/10 text-blue-400",
+  "events-performance": "bg-red-500/10 text-red-400",
+  "corporate-commercial": "bg-indigo-500/10 text-indigo-400",
+  "real-estate": "bg-cyan-500/10 text-cyan-400",
   "product-business": "bg-lime-500/10 text-lime-400",
-  baptism: "bg-cyan-500/10 text-cyan-400",
-  "pet-photography": "bg-rose-500/10 text-rose-400",
-  default: "bg-fuchsia-500/10 text-fuchsia-400",
+  baptism: "bg-yellow-500/10 text-yellow-400",
+  "pet-photography": "bg-fuchsia-500/10 text-fuchsia-400",
+  default: "bg-slate-500/10 text-slate-400",
 };
 
 // Raw hex values, for anywhere that needs an actual color instead of a
 // Tailwind class (e.g. inline SVG fills, chart legends).
 export const CATEGORY_HEX = {
-  wedding: "#8b5cf6",
-  prenup: "#f59e0b",
+  wedding: "#a855f7",
+  prenup: "#f97316",
   "couple-shoot": "#ec4899",
-  "family-milestones": "#10b981",
-  "portrait-lifestyle": "#0ea5e9",
-  "events-performance": "#f97316",
-  "corporate-commercial": "#14b8a6",
-  "real-estate": "#6366f1",
+  "family-milestones": "#22c55e",
+  "portrait-lifestyle": "#3b82f6",
+  "events-performance": "#ef4444",
+  "corporate-commercial": "#6366f1",
+  "real-estate": "#06b6d4",
   "product-business": "#84cc16",
-  baptism: "#06b6d4",
-  "pet-photography": "#f43f5e",
-  default: "#d946ef",
+  baptism: "#eab308",
+  "pet-photography": "#d946ef",
+  default: "#64748b",
 };
 
 // Detects the category from an event's `category` and/or `title` text.

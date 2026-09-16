@@ -3,17 +3,13 @@ import { supabase } from "../../lib/supabaseClient";
 import { STAGE_KEYS, STAGE_LABELS } from "../Workflow/workflowStages";
 
 const STAGE_COLORS = {
+  "coming-events": "bg-sky-500",
   "shoot-completed": "bg-violet-500",
   editing: "bg-amber-500",
   completed: "bg-teal-500",
   delivered: "bg-emerald-500",
   "paid-completed": "bg-slate-500",
 };
-
-// "coming-events" is never actually stored in the projects table — it's
-// a virtual stage Workflow builds live from unlinked schedule events —
-// so it's excluded here since there's nothing in `projects` to count.
-const SUMMARY_STAGES = STAGE_KEYS.filter((key) => key !== "coming-events");
 
 function WorkflowSummary() {
   const [counts, setCounts] = useState({});
@@ -23,19 +19,44 @@ function WorkflowSummary() {
     const fetchCounts = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase.from("projects").select("stage");
+      const tally = {};
+      STAGE_KEYS.forEach((key) => (tally[key] = 0));
 
-      if (error) {
-        console.error("Failed to load workflow summary:", error.message);
+      // Real pipeline stages come from `projects`.
+      const { data: projects, error: projectsError } = await supabase
+        .from("projects")
+        .select("stage");
+
+      if (projectsError) {
+        console.error("Failed to load workflow summary:", projectsError.message);
         setLoading(false);
         return;
       }
 
-      const tally = {};
-      SUMMARY_STAGES.forEach((key) => (tally[key] = 0));
-      data.forEach((row) => {
+      projects.forEach((row) => {
         if (tally[row.stage] !== undefined) tally[row.stage] += 1;
       });
+
+      // "Coming Events" is virtual — it's not a real projects.stage,
+      // it's schedule events dated today or later that haven't been
+      // promoted into a project yet. Same logic as the Workflow board's
+      // Coming Events column.
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const { count: comingCount, error: comingError } = await supabase
+        .from("schedule_events")
+        .select("id", { count: "exact", head: true })
+        .gte("start_time", startOfToday.toISOString())
+        .is("project_id", null);
+
+      if (comingError) {
+        console.error("Failed to load coming events count:", comingError.message);
+        setLoading(false);
+        return;
+      }
+
+      tally["coming-events"] = comingCount || 0;
 
       setCounts(tally);
       setLoading(false);
@@ -44,10 +65,7 @@ function WorkflowSummary() {
     fetchCounts();
   }, []);
 
-  const total = SUMMARY_STAGES.reduce(
-    (sum, key) => sum + (counts[key] || 0),
-    0
-  );
+  const total = STAGE_KEYS.reduce((sum, key) => sum + (counts[key] || 0), 0);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
@@ -56,7 +74,7 @@ function WorkflowSummary() {
       </h3>
 
       <div className="space-y-2.5">
-        {SUMMARY_STAGES.map((key) => {
+        {STAGE_KEYS.map((key) => {
           const count = counts[key] || 0;
           const pct = total === 0 ? 0 : Math.round((count / total) * 100);
 

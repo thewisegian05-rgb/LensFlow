@@ -5,6 +5,7 @@ import {
   FaHourglassHalf,
   FaPhotoVideo,
   FaCoins,
+  FaFolder,
 } from "react-icons/fa";
 
 import StatCard from "./StatCard";
@@ -17,10 +18,10 @@ import { supabase } from "../../lib/supabaseClient";
 
 function Dashboard() {
   const [stats, setStats] = useState({
-    totalClients: 0,
     clientsToday: 0,
     pendingClients: 0,
     editing: 0,
+    totalFolders: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -28,55 +29,24 @@ function Dashboard() {
     const fetchStats = async () => {
       setLoadingStats(true);
 
-      // Total Clients
-      const {
-        count: totalClients,
-        error: clientsError,
-      } = await supabase
-        .from("clients")
-        .select("*", {
-          count: "exact",
-          head: true,
-        });
-
-      if (clientsError) {
-        console.error(
-          "Failed to load client count:",
-          clientsError.message
-        );
-        setLoadingStats(false);
-        return;
-      }
-
-
-      // Projects Editing
       const { data: projects, error: projectsError } = await supabase
         .from("projects")
         .select("stage");
 
       if (projectsError) {
-        console.error(
-          "Failed to load project stats:",
-          projectsError.message
-        );
+        console.error("Failed to load project stats:", projectsError.message);
         setLoadingStats(false);
         return;
       }
 
-      const editing = projects.filter(
-        (p) => p.stage === "editing"
-      ).length;
+      const editing = projects.filter((p) => p.stage === "editing").length;
 
-      // Day boundaries, in local time
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
 
       const startOfTomorrow = new Date(startOfToday);
       startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
 
-      // Clients Today: anyone with a shoot today, linked to a project
-      // or not — they still need to be attended to regardless of
-      // where the project sits in the pipeline.
       const { data: todayEvents, error: todayError } = await supabase
         .from("schedule_events")
         .select("client")
@@ -93,8 +63,6 @@ function Dashboard() {
         todayEvents.map((e) => e.client).filter(Boolean)
       ).size;
 
-      // Pending Clients: tomorrow onward, not yet promoted into a real
-      // project — matches the "Coming Events" cards on the Workflow board.
       const { data: pendingEvents, error: pendingError } = await supabase
         .from("schedule_events")
         .select("client")
@@ -111,11 +79,21 @@ function Dashboard() {
         pendingEvents.map((e) => e.client).filter(Boolean)
       ).size;
 
+      const { count: folderCount, error: folderError } = await supabase
+        .from("folders")
+        .select("id", { count: "exact", head: true });
+
+      if (folderError) {
+        console.error("Failed to load folder count:", folderError.message);
+        setLoadingStats(false);
+        return;
+      }
+
       setStats({
-        totalClients: totalClients ?? 0,
         clientsToday,
         pendingClients,
         editing,
+        totalFolders: folderCount || 0,
       });
       setLoadingStats(false);
     };
@@ -123,12 +101,15 @@ function Dashboard() {
     fetchStats();
   }, []);
 
+  // Total Clients = Clients Today + Pending Clients
+  const totalClients = stats.clientsToday + stats.pendingClients;
+
   return (
     <div>
-      <div className="mb-5 flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between mb-5">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Dashboard</h2>
-          <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-500">
+          <h2 className="text-xl font-semibold text-white">Dashboard</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
             {new Date().toLocaleDateString("en-US", {
               weekday: "long",
               month: "long",
@@ -138,16 +119,14 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
         <StatCard
           title="Total Clients"
-          value={loadingStats ? "…" : String(stats.totalClients)}
+          value={loadingStats ? "…" : String(totalClients)}
           icon={<FaUsers />}
           accent="sky"
           subtitle={
-            stats.totalClients === 0
-              ? "No clients yet"
-              : `${stats.totalClients} unique`
+            totalClients === 0 ? "No clients yet" : "Today + upcoming"
           }
         />
 
@@ -178,6 +157,16 @@ function Dashboard() {
           accent="violet"
           subtitle={
             stats.editing === 0 ? "Nothing in editing" : "In progress"
+          }
+        />
+
+        <StatCard
+          title="Total Folders"
+          value={loadingStats ? "…" : String(stats.totalFolders)}
+          icon={<FaFolder />}
+          accent="indigo"
+          subtitle={
+            stats.totalFolders === 0 ? "No folders yet" : "Across Media Storage"
           }
         />
 

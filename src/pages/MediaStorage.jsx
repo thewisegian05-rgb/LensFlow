@@ -569,7 +569,21 @@ function MediaStorage() {
               ) : (
                 <FaFolder className="text-2xl text-yellow-400" />
               )}
-              <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+
+              {/*
+                Only stop propagation while this row is actively being
+                renamed — otherwise a click on the name should bubble up
+                to the row's onClick and navigate/open like clicking
+                anywhere else on the row. Text selection via click-drag
+                or double-click still works normally since we never call
+                preventDefault() here.
+              */}
+              <div
+                className="flex-1"
+                onClick={(e) => {
+                  if (editId === item.id) e.stopPropagation();
+                }}
+              >
                 {editId === item.id ? (
                   <div className="flex items-center gap-2">
                     <input

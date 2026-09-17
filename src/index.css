@@ -1,1 +1,142 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+html {
+  background-color: #f8fafc;
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #020817;
+  color: #e2e8f0;
+}
+
+html:not(.dark) {
+  --card-bg: #ffffff;
+  --card-soft: #f8fafc;
+  --surface-border: #dfe7f1;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-soft: #64748b;
+  --input-bg: #ffffff;
+}
+
+html:not(.dark) body,
+html:not(.dark) #root {
+  background: #f8fafc;
+  color: var(--text-main);
+}
+
+html:not(.dark) .bg-slate-900,
+html:not(.dark) .bg-slate-800,
+html:not(.dark) .bg-slate-800\/50,
+html:not(.dark) .bg-slate-800\/30,
+html:not(.dark) .bg-slate-900\/80,
+html:not(.dark) .bg-slate-100 {
+  background-color: var(--card-bg) !important;
+}
+
+html:not(.dark) .border-slate-700,
+html:not(.dark) .border-slate-800,
+html:not(.dark) .border-slate-300,
+html:not(.dark) .border-slate-200 {
+  border-color: var(--surface-border) !important;
+}
+
+html:not(.dark) .text-white,
+html:not(.dark) .text-slate-300,
+html:not(.dark) .text-slate-400,
+html:not(.dark) .text-slate-500,
+html:not(.dark) .text-slate-600,
+html:not(.dark) .text-slate-700,
+html:not(.dark) .text-slate-800,
+html:not(.dark) .text-slate-900 {
+  color: var(--text-main) !important;
+}
+
+html:not(.dark) .text-slate-500,
+html:not(.dark) .text-slate-400,
+html:not(.dark) .text-slate-600,
+html:not(.dark) .text-slate-700 {
+  color: var(--text-muted) !important;
+}
+
+html:not(.dark) .placeholder-slate-500::placeholder,
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: var(--text-soft) !important;
+}
+
+html:not(.dark) input,
+html:not(.dark) textarea,
+html:not(.dark) select {
+  background: var(--input-bg) !important;
+  color: var(--text-main) !important;
+  border-color: var(--surface-border) !important;
+  box-shadow: none !important;
+}
+
+html:not(.dark) button:not(.bg-sky-500):not(.bg-sky-600):not(.bg-red-500):not(.bg-red-600):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-slate-900):not(.bg-slate-800):not(.bg-transparent) {
+  background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+  border: 1px solid #dbeafe;
+  color: var(--text-main);
+}
+
+html:not(.dark) button:not(.bg-sky-500):not(.bg-sky-600):not(.bg-red-500):not(.bg-red-600):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-slate-900):not(.bg-slate-800):not(.bg-transparent):hover {
+  background: linear-gradient(180deg, #e0f2fe 0%, #dbeafe 100%);
+  border-color: #bae6fd;
+  color: #075985;
+}
+
+html:not(.dark) .workflow-card-action:hover,
+html:not(.dark) .workflow-stage-action:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+html:not(.dark) .workflow-card-action:hover {
+  color: #0284c7 !important;
+}
+
+html:not(.dark) .workflow-card-action[title="Delete project"]:hover,
+html:not(.dark) .workflow-card-action[title="Delete Client"]:hover {
+  color: #dc2626 !important;
+}
+
+@layer base {
+  * {
+    @apply transition-colors duration-200;
+  }
+
+  body {
+    @apply antialiased;
+  }
+}
+
+@layer utilities {
+  .soft-light-surface {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+
+  .soft-light-panel {
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  }
+}

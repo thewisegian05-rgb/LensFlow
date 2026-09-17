@@ -27,7 +27,17 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
 
       <div className="client-card-top">
 
-        <div className="client-avatar">
+        <div
+          className="
+            client-avatar
+            !border !border-sky-200
+            !bg-sky-100
+            !text-sky-700
+            dark:!border-sky-700
+            dark:!bg-sky-950
+            dark:!text-sky-400
+          "
+        >
           {client.initials}
         </div>
 
@@ -60,7 +70,7 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
 
           <div>
             <small>Contact</small>
-            <p>{client.contact}</p>
+            <p>{client.contact || "No contact provided"}</p>
           </div>
         </div>
 
@@ -70,7 +80,14 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
 
           <div>
             <small>Email</small>
-            <p>{client.email}</p>
+            <p
+            style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "150px",
+            }} title={client.email}
+            >{client.email || "No email provided"}</p>
           </div>
         </div>
 
@@ -105,7 +122,7 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
       <div className="client-actions">
 
         <button
-          className="action-btn view-btn"
+          className="action-btn rounded-lg border !border-slate-400 !bg-transparent !text-slate-600 transition hover:!border-slate-500 hover:!bg-slate-100 hover:!text-slate-900 dark:!border-slate-600 dark:!text-slate-400 dark:hover:!bg-slate-800 dark:hover:!text-white"
           title="View Client"
           onClick={onView}
         >
@@ -115,7 +132,7 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
 
 
         <button
-          className="action-btn edit-btn"
+          className="action-btn rounded-lg border !border-sky-500 !bg-transparent !text-sky-600 transition hover:!border-sky-600 hover:!bg-sky-50 hover:!text-sky-700 dark:!border-sky-500/70 dark:!text-sky-400 dark:hover:!bg-sky-500/10 dark:hover:!text-sky-300"
           title="Edit Client"
           onClick={onEdit}
         >
@@ -124,8 +141,9 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
         </button>
 
 
+        {/* DELETE */}
         <button
-          className="action-btn delete-btn"
+          className="action-btn rounded-lg border !border-red-500 !bg-transparent !text-red-600 transition hover:!border-red-600 hover:!bg-red-50 hover:!text-red-700 dark:!border-red-500/70 dark:!text-red-400 dark:hover:!bg-red-500/10 dark:hover:!text-red-300"
           title="Delete Client"
           onClick={() => onDelete(client.id)}
         >
@@ -136,27 +154,27 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
       </div>
 
       <div className="message-action">
-        <button 
-        className="message-btn"
-        title="Message">
-            <FiMessageSquare/>
-            <span>Message</span>
+        <button
+          className="message-btn rounded-lg border !border-sky-500 !bg-sky-500 !text-slate-950 transition hover:!border-sky-400 hover:!bg-sky-400 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950 dark:hover:!bg-sky-400"
+          title="Message"
+        >
+          <FiMessageSquare />
+          <span>Message</span>
         </button>
-        
       </div>
 
       {client.projectStatus !== "Completed" && (
         <div className="complete-action">
-            <button
-            className="complete-btn"
+          <button
+            className="complete-btn rounded-lg border !border-emerald-500 !bg-transparent !text-emerald-600 transition hover:!border-emerald-600 hover:!bg-emerald-50 hover:!text-emerald-700 dark:!border-emerald-500/70 dark:!bg-emerald-500/10 dark:!text-emerald-400 dark:hover:!bg-emerald-500/15 dark:hover:!text-emerald-300"
             title="Mark as Complete"
             onClick={() => onComplete(client.id)}
-            >
+          >
             <FiCheckCircle />
             <span>Mark as Complete</span>
-            </button>
+          </button>
         </div>
-        )}
+      )}
 
     </div>
   );

@@ -9,172 +9,356 @@ import AddEventModal from "../components/Schedule/AddEventModal";
 import EventDetailsModal from "../components/Schedule/EventDetailsModal";
 import ConfirmModal from "../components/Common/ConfirmModal";
 
-import { sampleEvents } from "../components/Schedule/sampleEvents";
+import { supabase } from "../lib/supabaseClient";
+
+const formatDateForInput = (date) => {
+  const value = new Date(date);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
 
 function SchedulePage() {
 
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventToDelete, setEventToDelete] = useState(null);
+  const [clients, setClients] = useState([]);
+
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
+
   // =========================================================
-  // EVENTS
+  // FETCH CLIENTS FOR SCHEDULE
   // =========================================================
+  const fetchClients = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const [events, setEvents] = useState(() => {
+    if (!user) return;
 
-    const savedEvents =
-      localStorage.getItem(
-        "lensease_events"
-      );
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("user_id", user.id)
+      .order("name", { ascending: true });
 
-    if (savedEvents) {
-
-      try {
-
-        return JSON.parse(
-          savedEvents
-        ).map((event) => ({
-          ...event,
-
-          start: new Date(
-            event.start
-          ),
-
-          end: new Date(
-            event.end
-          ),
-        }));
-
-      } catch (error) {
-
-        console.error(
-          "Failed to load saved events:",
-          error
-        );
-
-      }
-
+    if (error) {
+      console.error("Failed to load clients:", error.message);
+      return;
     }
 
-    return sampleEvents;
-  });
-
-
-  // =========================================================
-  // MODALS
-  // =========================================================
-
-  const [modalOpen, setModalOpen] =
-    useState(false);
-
-  const [detailsOpen, setDetailsOpen] =
-    useState(false);
-
-  const [confirmOpen, setConfirmOpen] =
-    useState(false);
-
+    setClients(data || []);
+  };
 
   // =========================================================
-  // SELECTED DATA
+  // SYNC SCHEDULE CLIENT -> CLIENTS TABLE
   // =========================================================
 
-  const [selectedDate, setSelectedDate] =
-    useState("");
+  const syncClientFromSchedule = async (form, userId) => {
+    console.log("SYNC CLIENT STARTED");
+    console.log("Form:", form);
+    console.log("User ID:", userId);
 
-  const [selectedEvent, setSelectedEvent] =
-    useState(null);
+    const clientName = form.client?.trim();
 
-  const [eventToDelete, setEventToDelete] =
-    useState(null);
+    if (!clientName) {
+      console.log("No client name found.");
+      return;
+    }
 
+    const { data: existingClients, error: findError } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("user_id", userId)
+      .ilike("name", clientName)
+      .limit(1);
+
+    console.log("Existing client result:", existingClients);
+
+    if (findError) {
+      console.error("CLIENT LOOKUP MESSAGE:", findError?.message);
+      console.error("CLIENT LOOKUP CODE:", findError?.code);
+      console.error("CLIENT LOOKUP DETAILS:", findError?.details);
+      console.error("CLIENT LOOKUP HINT:", findError?.hint);
+      return;
+    }
+
+    const existingClient = existingClients?.[0];
+
+    const scheduleData = {
+      project: form.title,
+      venue: form.location,
+      category: form.category,
+      project_status: "Ongoing",
+    };
+
+    if (existingClient) {
+      console.log("Updating existing client:", existingClient);
+
+      const { data, error } = await supabase
+        .from("clients")
+        .update(scheduleData)
+        .eq("id", existingClient.id)
+        .select();
+
+      console.log("Update result:", data);
+
+      if (error) {
+        console.error("CLIENT UPDATE ERROR:", error);
+      }
+
+      return;
+    }
+
+    const initials = clientName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase();
+
+    console.log("Creating new client:", clientName);
+
+    const { data, error } = await supabase
+      .from("clients")
+      .insert([
+        {
+          user_id: userId,
+          name: clientName,
+          project: form.title,
+          venue: form.location,
+          category: form.category,
+          project_status: "Ongoing",
+          initials,
+          talent_fee: 0,
+          type: null,
+          contact: null,
+          email: null,
+        },
+      ])
+      .select();
+
+    console.log("Insert result:", data);
+
+    if (error) {
+      console.error("CLIENT INSERT ERROR:", error);
+    }
+  };
 
   // =========================================================
-  // SEARCH + FILTER
+  // LOAD EVENTS FROM SUPABASE
   // =========================================================
 
-  const [search, setSearch] =
-    useState("");
+  const fetchEvents = async () => {
+    setLoading(true);
 
-  const [category, setCategory] =
-    useState("All");
+    const { data, error } = await supabase
+      .from("schedule_events")
+      .select("*")
+      .order("start_time", { ascending: true });
 
+    if (error) {
+      console.error("Failed to load events:", error.message);
+      setLoading(false);
+      return;
+    }
 
-  // =========================================================
-  // SAVE EVENTS TO LOCAL STORAGE
-  // =========================================================
+    const mapped = data.map((row) => {
+      const start = new Date(row.start_time);
+      const end = new Date(row.end_time);
+
+      return {
+        id: row.id,
+        title: row.title,
+        client: row.client,
+        category: row.category,
+        photographer: row.photographer,
+        location: row.location,
+        gears: row.gears || [],
+        notes: row.notes,
+        start,
+        end,
+        date: start.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        time: start.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        project_id: row.project_id,
+        status: row.status,
+      };
+    });
+
+    setEvents(mapped);
+    setLoading(false);
+  };
 
   useEffect(() => {
-
-    localStorage.setItem(
-      "lensease_events",
-      JSON.stringify(events)
-    );
-
-  }, [events]);
+    fetchEvents();
+    fetchClients();
+  }, []);
 
 
   // =========================================================
   // ADD / UPDATE EVENT
   // =========================================================
 
-  const addOrUpdateEvent = (
-    form
-  ) => {
+  const addOrUpdateEvent = async (form) => {
 
-    const event = {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      ...form,
+    if (!user) {
+      console.error("No authenticated user found.");
+      return;
+    }
 
-      start: new Date(
-        `${form.date}T${form.start}`
-      ),
+    let clientId = form.clientId;
 
-      end: new Date(
-        `${form.date}T${form.end}`
-      ),
+    if (!clientId) {
+      const clientName = form.client?.trim();
+
+      if (!clientName) {
+        console.error("Client name is required.");
+        return;
+      }
+
+      const initials = clientName
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((word) => word[0])
+        .join("")
+        .toUpperCase();
+
+      const { data: newClient, error: clientError } = await supabase
+        .from("clients")
+        .insert([
+          {
+            user_id: user.id,
+            name: clientName,
+            project: form.title,
+            venue: form.location,
+            category: form.category,
+            project_status: "Ongoing",
+            initials,
+            talent_fee: 0,
+          },
+        ])
+        .select()
+        .single();
+
+      if (clientError) {
+        console.error(
+          "Failed to create new client:",
+          clientError.message
+        );
+        return;
+      }
+
+      clientId = newClient.id;
+
+      setClients((prev) => [
+        ...prev,
+        {
+          id: newClient.id,
+          name: newClient.name,
+        },
+      ]);
+    }
+
+    const payload = {
+      title: form.title,
+      client: form.client,
+      client_id: clientId,
+      category: form.category,
+      photographer: form.photographer,
+      location: form.location,
+      gears: form.gears,
+      notes: form.notes,
+      start_time: new Date(`${form.date}T${form.start}`).toISOString(),
+      end_time: new Date(`${form.date}T${form.end}`).toISOString(),
+      project_id: form.projectId || null,
     };
 
-
-    // =======================================================
-    // UPDATE EXISTING EVENT
-    // =======================================================
-
     if (form.id) {
+      const { error } = await supabase
+        .from("schedule_events")
+        .update(payload)
+        .eq("id", form.id);
 
-      setEvents((prev) =>
-        prev.map((item) =>
-          item.id === form.id
-            ? {
-                ...event,
-                id: form.id,
-              }
-            : item
-        )
-      );
+      if (error) {
+        console.error("Failed to update event:", error.message);
+        return;
+      }
 
+    } else {
+      const { error } = await supabase
+        .from("schedule_events")
+        .insert([{ ...payload, user_id: user.id }]);
+
+      if (error) {
+        console.error("Failed to add event:", error.message);
+        return;
+      }
     }
 
-    // =======================================================
-    // ADD NEW EVENT
-    // =======================================================
-
-    else {
-
-      setEvents((prev) => [
-
-        ...prev,
-
-        {
-          ...event,
-          id: Date.now(),
-        },
-
-      ]);
-
-    }
-
-
-    // Close modal
+    await fetchEvents();
 
     setModalOpen(false);
+    setSelectedEvent(null);
+  };
 
+
+  // =========================================================
+  // COMPLETE EVENT -> ADVANCE LINKED PROJECT
+  // =========================================================
+
+  const handleCompleteEvent = async (event) => {
+    if (!event.project_id) return;
+
+    const { error: eventError } = await supabase
+      .from("schedule_events")
+      .update({ status: "completed" })
+      .eq("id", event.id);
+
+    if (eventError) {
+      console.error("Failed to mark event complete:", eventError.message);
+      return;
+    }
+
+    const { error: projectError } = await supabase
+      .from("projects")
+      .update({ stage: "shoot-completed" })
+      .eq("id", event.project_id);
+
+    if (projectError) {
+      console.error(
+        "Failed to advance linked project:",
+        projectError.message
+      );
+      return;
+    }
+
+    await fetchEvents();
+
+    setDetailsOpen(false);
     setSelectedEvent(null);
   };
 
@@ -183,25 +367,15 @@ function SchedulePage() {
   // REQUEST DELETE
   // =========================================================
 
-  const requestDelete = (
-    id
-  ) => {
-
-    const event =
-      events.find(
-        (item) =>
-          item.id === id
-      );
+  const requestDelete = (id) => {
+    const event = events.find((item) => item.id === id);
 
     if (!event) {
       return;
     }
 
-
     setEventToDelete(event);
-
     setDetailsOpen(false);
-
     setConfirmOpen(true);
   };
 
@@ -210,26 +384,25 @@ function SchedulePage() {
   // CONFIRM DELETE
   // =========================================================
 
-  const confirmDelete = () => {
-
+  const confirmDelete = async () => {
     if (!eventToDelete) {
       return;
     }
 
+    const { error } = await supabase
+      .from("schedule_events")
+      .delete()
+      .eq("id", eventToDelete.id);
 
-    setEvents((prev) =>
-      prev.filter(
-        (event) =>
-          event.id !==
-          eventToDelete.id
-      )
-    );
+    if (error) {
+      console.error("Failed to delete event:", error.message);
+      return;
+    }
 
+    await fetchEvents();
 
     setConfirmOpen(false);
-
     setEventToDelete(null);
-
     setSelectedEvent(null);
   };
 
@@ -239,9 +412,7 @@ function SchedulePage() {
   // =========================================================
 
   const cancelDelete = () => {
-
     setConfirmOpen(false);
-
     setEventToDelete(null);
   };
 
@@ -250,56 +421,27 @@ function SchedulePage() {
   // SEARCH + CATEGORY FILTER
   // =========================================================
 
-  const filteredEvents =
-    events.filter((event) => {
+  const filteredEvents = events.filter((event) => {
+    const searchText = search.toLowerCase();
 
-      const searchText =
-        search.toLowerCase();
+    const matchesSearch =
+      event.title?.toLowerCase().includes(searchText) ||
+      event.client?.toLowerCase().includes(searchText) ||
+      event.photographer?.toLowerCase().includes(searchText);
 
+    const matchesCategory =
+      category === "All" || event.category === category;
 
-      const matchesSearch =
-
-        event.title
-          ?.toLowerCase()
-          .includes(searchText)
-
-        ||
-
-        event.client
-          ?.toLowerCase()
-          .includes(searchText)
-
-        ||
-
-        event.photographer
-          ?.toLowerCase()
-          .includes(searchText);
-
-
-      const matchesCategory =
-        category === "All" ||
-        event.category ===
-          category;
-
-
-      return (
-        matchesSearch &&
-        matchesCategory
-      );
-
-    });
+    return matchesSearch && matchesCategory;
+  });
 
 
   // =========================================================
   // CALENDAR EVENT CLICK
   // =========================================================
 
-  const handleCalendarEventClick = (
-    event
-  ) => {
-
+  const handleCalendarEventClick = (event) => {
     setSelectedEvent(event);
-
     setDetailsOpen(true);
   };
 
@@ -311,248 +453,101 @@ function SchedulePage() {
   return (
     <div className="schedule-page">
 
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
       <ScheduleHeader
         onAdd={() => {
-
           setSelectedDate("");
-
           setSelectedEvent(null);
-
           setModalOpen(true);
-
         }}
       />
 
-
-      {/* =====================================================
-          SUMMARY
-      ===================================================== */}
-
-      <ScheduleSummary
-        events={events}
-      />
-
-
-      {/* =====================================================
-          SEARCH + FILTER
-      ===================================================== */}
+      <ScheduleSummary events={events} />
 
       <ScheduleFilters
-
         search={search}
-
         setSearch={setSearch}
-
         category={category}
-
         setCategory={setCategory}
-
       />
-
-
-      {/* =====================================================
-          CALENDAR
-      ===================================================== */}
 
       <Calendar
-
         events={filteredEvents}
-
-
-        onSelectSlot={({
-          start,
-        }) => {
-
-          setSelectedDate(
-
-            new Date(start)
-              .toISOString()
-              .split("T")[0]
-
-          );
-
+        onSelectSlot={({ start }) => {
+          setSelectedDate(formatDateForInput(start));
           setSelectedEvent(null);
-
           setModalOpen(true);
-
         }}
-
-
-        /*
-          IMPORTANT:
-
-          This MUST be called onEventClick.
-
-          The custom Calendar.jsx uses:
-
-          onEventClick(event)
-        */
-
-        onEventClick={
-          handleCalendarEventClick
-        }
-
+        onEventClick={handleCalendarEventClick}
       />
-
-
-      {/* =====================================================
-          EVENT CARDS
-      ===================================================== */}
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
 
-        {filteredEvents.length >
-        0 ? (
-
-          filteredEvents.map(
-            (event) => (
-
-              <div
-                key={event.id}
-
-                className="cursor-pointer"
-
-                onClick={() => {
-
-                  setSelectedEvent(
-                    event
-                  );
-
-                  setDetailsOpen(
-                    true
-                  );
-
-                }}
-              >
-
-                <EventCard
-                  event={event}
-                />
-
-              </div>
-
-            )
-          )
-
-        ) : (
-
+        {loading ? (
           <div className="col-span-full rounded-xl border border-slate-700 bg-slate-900 p-8 text-center">
-
-            <p className="text-slate-400">
-              No events found.
-            </p>
-
-            <p className="text-sm text-slate-500 mt-1">
-              Try changing your
-              search or category
-              filter.
-            </p>
-
+            <p className="text-slate-400">Loading events...</p>
           </div>
-
+        ) : filteredEvents.length > 0 ? (
+          filteredEvents.map((event) => (
+            <div
+              key={event.id}
+              className="cursor-pointer"
+              onClick={() => {
+                setSelectedEvent(event);
+                setDetailsOpen(true);
+              }}
+            >
+              <EventCard event={event} />
+            </div>
+          ))
+        ) : (
+          <div className="col-span-full rounded-xl border border-slate-700 bg-slate-900 p-8 text-center">
+            <p className="text-slate-400">No events found.</p>
+            <p className="text-sm text-slate-500 mt-1">
+              Try changing your search or category filter.
+            </p>
+          </div>
         )}
 
       </div>
 
-
-      {/* =====================================================
-          ADD / EDIT MODAL
-      ===================================================== */}
-
       <AddEventModal
-
         open={modalOpen}
-
         onClose={() => {
-
           setModalOpen(false);
-
           setSelectedEvent(null);
-
         }}
-
-        onSave={
-          addOrUpdateEvent
-        }
-
-        selectedDate={
-          selectedDate
-        }
-
-        editingEvent={
-          selectedEvent
-        }
-
+        onSave={addOrUpdateEvent}
+        selectedDate={selectedDate}
+        editingEvent={selectedEvent}
+        clients={clients}
       />
-
-
-      {/* =====================================================
-          EVENT DETAILS MODAL
-      ===================================================== */}
 
       <EventDetailsModal
-
         open={detailsOpen}
-
         event={selectedEvent}
-
-        onClose={() => {
-
-          setDetailsOpen(false);
-
-        }}
-
+        onClose={() => setDetailsOpen(false)}
         onEdit={(event) => {
-
           setDetailsOpen(false);
-
           setSelectedEvent(event);
-
           setModalOpen(true);
-
         }}
-
-        onDelete={
-          requestDelete
-        }
-
+        onDelete={requestDelete}
+        onComplete={handleCompleteEvent}
       />
 
-
-      {/* =====================================================
-          DELETE CONFIRMATION
-      ===================================================== */}
-
       <ConfirmModal
-
         open={confirmOpen}
-
         title="Delete Event"
-
         message={
           eventToDelete
-
             ? `Are you sure you want to delete "${eventToDelete.title}"? This action cannot be undone.`
-
             : "Are you sure you want to delete this event?"
         }
-
-        onCancel={
-          cancelDelete
-        }
-
-        onConfirm={
-          confirmDelete
-        }
-
+        onCancel={cancelDelete}
+        onConfirm={confirmDelete}
       />
 
     </div>
-
   );
 }
 

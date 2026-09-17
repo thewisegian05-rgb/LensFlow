@@ -1,67 +1,78 @@
-// =========================================================
-// workflowStages.js
-// =========================================================
-// Single source of truth for the project pipeline: what stages exist,
-// what order they run in, and what color/icon goes with each. Every
-// workflow component (WorkflowPage, ProjectCard, WorkflowSummary,
-// AddProjectModal) imports from here so the pipeline can never drift
-// out of sync between components.
-// =========================================================
+// Single source of truth for the workflow pipeline: stage order, labels,
+// colors, the action-button text shown on a card in a given stage, and
+// where that button sends the project next.
+//
+// Note: "completed" (post-editing, pre-delivery) and "paid-completed"
+// (after payment) are two different stages that both display as
+// "Completed" per the requested flow — kept as separate keys internally
+// so a project's real position in the pipeline is never ambiguous, even
+// though the label repeats.
 
-// Canonical stage keys, in pipeline order. Index order IS the pipeline
-// order — components that move a card forward/back one stage just walk
-// this array by index.
 export const STAGE_KEYS = [
-  "inquiry",
-  "booked",
+  "coming-events",
   "shoot-completed",
   "editing",
-  "review",
+  "completed",
   "delivered",
+  "paid-completed",
 ];
 
 export const STAGE_LABELS = {
-  inquiry: "Inquiry",
-  booked: "Booked",
+  "coming-events": "Coming Events",
   "shoot-completed": "Shoot Completed",
   editing: "Editing",
-  review: "Client Review",
+  completed: "Completed",
   delivered: "Delivered",
+  "paid-completed": "Completed",
 };
 
-// Solid-fill badge classes — one hue per stage, roughly tracking
-// "cold → warm → done" so the pipeline reads left-to-right at a glance.
+// Button shown on a card while it's in this stage. null = terminal.
+export const STAGE_ACTION_LABEL = {
+  "coming-events": "Event Finished",
+  "shoot-completed": "Continue to Edit?",
+  editing: "Done Editing?",
+  completed: "Album Delivered?",
+  delivered: "Have You Been Paid?",
+  "paid-completed": null,
+};
+
+// Where a project goes when its action button is clicked.
+export const STAGE_NEXT = {
+  "coming-events": "shoot-completed",
+  "shoot-completed": "editing",
+  editing: "completed",
+  completed: "delivered",
+  delivered: "paid-completed",
+  "paid-completed": null,
+};
+
 export const STAGE_BADGE_CLASSES = {
-  inquiry: "bg-slate-500",
-  booked: "bg-sky-500",
+  "coming-events": "bg-sky-500",
   "shoot-completed": "bg-violet-500",
   editing: "bg-amber-500",
-  review: "bg-orange-500",
+  completed: "bg-teal-500",
   delivered: "bg-emerald-500",
+  "paid-completed": "bg-slate-500",
 };
 
 export const STAGE_SOFT_CLASSES = {
-  inquiry: "bg-slate-500/15 text-slate-300",
-  booked: "bg-sky-500/15 text-sky-400",
+  "coming-events": "bg-sky-500/15 text-sky-400",
   "shoot-completed": "bg-violet-500/15 text-violet-400",
   editing: "bg-amber-500/15 text-amber-400",
-  review: "bg-orange-500/15 text-orange-400",
+  completed: "bg-teal-500/15 text-teal-400",
   delivered: "bg-emerald-500/15 text-emerald-400",
+  "paid-completed": "bg-slate-500/15 text-slate-300",
 };
 
-// Column header accent (top border) so each Kanban column is
-// identifiable even when scrolled and the header icon isn't visible.
 export const STAGE_COLUMN_BORDER = {
-  inquiry: "border-t-slate-500",
-  booked: "border-t-sky-500",
+  "coming-events": "border-t-sky-500",
   "shoot-completed": "border-t-violet-500",
   editing: "border-t-amber-500",
-  review: "border-t-orange-500",
+  completed: "border-t-teal-500",
   delivered: "border-t-emerald-500",
+  "paid-completed": "border-t-slate-500",
 };
 
-// Returns the stage key that comes after/before the given one, or null
-// at the ends of the pipeline. Used for the "move" chevrons on cards.
 export function getAdjacentStage(stage, direction) {
   const index = STAGE_KEYS.indexOf(stage);
   if (index === -1) return null;
@@ -70,8 +81,6 @@ export function getAdjacentStage(stage, direction) {
   return STAGE_KEYS[targetIndex] || null;
 }
 
-// Percentage of a project's checklist that's complete. Returns 0 for
-// projects with no tasks yet, rather than NaN/Infinity.
 export function getTaskProgress(project) {
   const tasks = project?.tasks || [];
   if (tasks.length === 0) return 0;

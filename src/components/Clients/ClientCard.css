@@ -7,9 +7,9 @@
 
   box-sizing: border-box;
 
-  background: #111b2e;
+  background: #ffffff;
 
-  border: 1px solid #293a55;
+  border: 1px solid #dfe7f1;
   border-radius: 12px;
 
   transition:
@@ -18,13 +18,24 @@
     box-shadow 0.2s ease;
 }
 
+.dark .client-card {
+  background: #111b2e;
+  border-color: #30425f;
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.28);
+}
+
 .client-card:hover {
   transform: translateY(-3px);
 
-  border-color: #385474;
+  border-color: #b9c8d8;
 
   box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.25);
+    0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.dark .client-card:hover {
+  border-color: #486487;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.24);
 }
 
 
@@ -40,7 +51,11 @@
 
   padding-bottom: 18px;
 
-  border-bottom: 1px solid #25344c;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dark .client-card-top {
+  border-color: #24364e;
 }
 
 .client-status {
@@ -61,9 +76,13 @@
 }
 
 .status-label {
-  color: #9fb0c8;
+  color: #475569;
   font-size: 12px;
   font-weight: 600;
+}
+
+.dark .status-label {
+  color: #c7d3eb;
 }
 
 /* Status-specific highlight styles */
@@ -75,6 +94,10 @@
     0 0 60px rgba(45, 182, 110, 0.06) inset;
 }
 
+.dark .client-card.completed {
+  border-color: rgba(110, 231, 183, 0.42);
+}
+
 .client-card.ongoing,
 .client-card.pending {
   border-color: rgba(228, 178, 28, 0.34);
@@ -82,6 +105,11 @@
     0 6px 20px rgba(228, 178, 28, 0.05),
     0 0 28px rgba(228, 178, 28, 0.08),
     0 0 60px rgba(228, 178, 28, 0.04) inset;
+}
+
+.dark .client-card.ongoing,
+.dark .client-card.pending {
+  border-color: rgba(253, 224, 71, 0.42);
 }
 
 .status-dot.completed {
@@ -145,12 +173,12 @@
 
   box-sizing: border-box;
 
-  border: 1px solid rgba(53, 199, 111, 0.35);
+  border: 1px solid rgba(74, 222, 128, 0.45);
   border-radius: 7px;
 
-  background: rgba(53, 199, 111, 0.1);
+  background: rgba(34, 197, 94, 0.08);
 
-  color: #35c76f;
+  color: #15803d;
 
   font-family: inherit;
   font-size: 13px;
@@ -165,10 +193,22 @@
 }
 
 .complete-btn:hover {
-  background: rgba(53, 199, 111, 0.18);
-  border-color: #35c76f;
+  background: rgba(34, 197, 94, 0.14);
+  border-color: #22c55e;
 
   transform: translateY(-1px);
+}
+
+.dark .complete-btn {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(110, 231, 183, 0.42);
+  color: #bbf7d0;
+}
+
+.dark .complete-btn:hover {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(110, 231, 183, 0.7);
+  color: #dcfce7;
 }
 
 .complete-btn:active {
@@ -191,7 +231,7 @@
 .client-heading h2 {
   margin: 0;
 
-  color: #f3f6fb;
+  color: #0f172a;
 
   font-size: 16px;
   font-weight: 700;
@@ -201,20 +241,28 @@
   text-overflow: ellipsis;
 }
 
+.dark .client-heading h2 {
+  color: #f5f7fb;
+}
+
 .client-heading span {
   display: block;
 
   margin-top: 4px;
 
-  color: #73829a;
+  color: #475569;
 
   font-size: 12px;
+}
+
+.dark .client-heading span {
+  color: #b7c5d9;
 }
 
 
 /* ==========================================
    CLIENT DETAILS
-========================================== */
+=================================== Who's a gap all together======= */
 
 .client-details {
   display: grid;
@@ -237,6 +285,10 @@
   color: #5fa7cb;
 }
 
+.dark .client-detail {
+  color: #7ecaf3;
+}
+
 .client-detail svg {
   margin-top: 2px;
 
@@ -255,10 +307,14 @@
   font-size: 11px;
 }
 
+.dark .client-detail small {
+  color: #9aaec6;
+}
+
 .client-detail p {
   margin: 0;
 
-  color: #d9e2ee;
+  color: #000000;
 
   font-size: 13px;
 
@@ -275,9 +331,17 @@
 }
 
 .client-detail .talent-fee {
-  color: #f2f5f9;
+  color: #000000;
 
   font-weight: 700;
+}
+
+.dark .client-detail p {
+  color: #f8fbff;
+}
+
+.dark .client-detail .talent-fee {
+  color: #f8fbff;
 }
 
 
@@ -294,7 +358,11 @@
 
   padding-top: 15px;
 
-  border-top: 1px solid #25344c;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dark .client-actions {
+  border-top-color: #25344c;
 }
 
 
@@ -332,56 +400,10 @@
    VIEW BUTTON
 ========================================== */
 
-.view-btn {
-  border: 1px solid #31435e;
-
-  color: #8da7c5;
-}
-
-.view-btn:hover {
-  background: #1b2b42;
-
-  border-color: #486487;
-
-  color: #ffffff;
-}
-
-
-/* ==========================================
-   EDIT BUTTON
-========================================== */
-
-.edit-btn {
-  border: 1px solid #245676;
-
-  color: #4ab7e9;
-}
-
-.edit-btn:hover {
-  background: #12354c;
-
-  border-color: #2b82ae;
-
-  color: #ffffff;
-}
-
-
-/* ==========================================
-   DELETE BUTTON
-========================================== */
-
+.view-btn,
+.edit-btn,
 .delete-btn {
-  border: 1px solid #62383d;
-
-  color: #f17878;
-}
-
-.delete-btn:hover {
-  background: #44252a;
-
-  border-color: #915158;
-
-  color: #ffffff;
+  border-width: 1px;
 }
 
 /* ==========================================
@@ -430,6 +452,11 @@
     box-shadow 0.2s ease;
 }
 
+.dark .message-btn {
+  background: #0ea5e9;
+  border-color: rgba(147, 197, 253, 0.5);
+  color: #ecfeff;
+}
 
 /* Hover */
 
@@ -440,6 +467,11 @@
 
   box-shadow:
     0 5px 15px rgba(8, 169, 232, 0.15);
+}
+
+.dark .message-btn:hover {
+  background: #38bdf8;
+  color: #f0f9ff;
 }
 
 

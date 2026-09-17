@@ -1,243 +1,433 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FaFolder, FaPlus, FaEdit, FaTrash, FaFile, FaTimes } from "react-icons/fa";
+import { useTheme } from "../context/ThemeContext";
+import { supabase } from "../lib/supabaseClient";
+
+const PHOTOS_BUCKET = "photos";
+const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
+
+async function getSignedUrl(path) {
+  if (!path) return null;
+  const { data, error } = await supabase.storage
+    .from(PHOTOS_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (error) {
+    console.error("Signed URL error:", error);
+    return null;
+  }
+  return data.signedUrl;
+}
+
+// Same subtree-walk used in Culling — needed here too since either page
+// can trigger a folder delete.
+function collectDescendantIds(folders, rootId) {
+  const ids = [rootId];
+  let frontier = [rootId];
+
+  while (frontier.length > 0) {
+    const children = folders
+      .filter((f) => frontier.includes(f.parentId))
+      .map((f) => f.id);
+
+    ids.push(...children);
+    frontier = children;
+  }
+
+  return ids;
+}
+
+const VIDEO_EXTENSIONS = [".mp4", ".mov", ".webm", ".avi", ".mkv"];
+function looksLikeVideo(fileName) {
+  const lower = fileName.toLowerCase();
+  return VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
 
 function MediaStorage() {
-  // Main unified tree state supporting infinite nesting initialized from localStorage
-  const [clients, setClients] = useState(() => {
-    const saved = localStorage.getItem("mediaStorageClients");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse local storage", e);
-      }
-    }
-    return [
-      {
-        id: 1,
-        name: "Smith_Wedding_Photos",
-        isFile: false,
-        subItems: [
-          { 
-            id: 101, 
-            name: "Photos", 
-            isFile: false,
-            subItems: [
-              { 
-                id: 1001, 
-                name: "RAW Photos", 
-                isFile: false,
-                subItems: [{ id: 10001, name: "sample_raw_1.raw", isFile: true }] 
-              }, 
-              { 
-                id: 1002, 
-                name: "EDITED Photos", 
-                isFile: false,
-                subItems: [{ id: 10002, name: "sample_edited_1.jpg", isFile: true, url: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80" }] 
-              }
-            ] 
-          },
-          { 
-            id: 102, 
-            name: "Videos", 
-            isFile: false,
-            subItems: [
-              { 
-                id: 1003, 
-                name: "RAW Videos", 
-                isFile: false,
-                subItems: [{ id: 10003, name: "sample_raw_video.mp4", isFile: true }] 
-              }, 
-              { 
-                id: 1004, 
-                name: "EDITED Videos", 
-                isFile: false,
-                subItems: [{ id: 10004, name: "sample_edited_video.mp4", isFile: true }] 
-              }
-            ] 
-          }
-        ]
-      },
-      {
-        id: 2,
-        name: "Arvesu_Wedding_Photos",
-        isFile: false,
-        subItems: [
-          { 
-            id: 201, 
-            name: "Photos", 
-            isFile: false,
-            subItems: [
-              { id: 2001, name: "RAW Photos", isFile: false, subItems: [] }, 
-              { id: 2002, name: "EDITED Photos", isFile: false, subItems: [] }
-            ] 
-          },
-          { 
-            id: 202, 
-            name: "Videos", 
-            isFile: false,
-            subItems: [
-              { id: 2003, name: "RAW Videos", isFile: false, subItems: [] }, 
-              { id: 2004, name: "EDITED Videos", isFile: false, subItems: [] }
-            ] 
-          }
-        ]
-      }
-    ];
-  });
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
-  // Sync clients state to localStorage whenever it changes
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   useEffect(() => {
-    localStorage.setItem("mediaStorageClients", JSON.stringify(clients));
-  }, [clients]);
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user ?? null);
+      setAuthLoading(false);
+    });
 
-  // Navigation path tracking array of IDs
-  const [path, setPath] = useState([]);
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
 
-  // UI interaction states
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  // Folders flat list {id, name, parentId}; photos flat list {id, folderId, name, storagePath}
+  const [folders, setFolders] = useState([]);
+  const [photos, setPhotos] = useState([]);
+  const [dataLoading, setDataLoading] = useState(false);
+
+  const [path, setPath] = useState([]); // array of folder ids
+
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newName, setNewName] = useState("");
   const [editId, setEditId] = useState(null);
+  const [editIsFolder, setEditIsFolder] = useState(true);
   const [editName, setEditName] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, name, isFile }
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [viewingFile, setViewingFile] = useState(null); // { id, name, url, isVideo }
 
-  // File viewing modal state
-  const [viewingFile, setViewingFile] = useState(null);
-
-  // Hidden file input reference for file explorer
   const fileInputRef = useRef(null);
 
-  // Recursive helper to update nested items in the tree
-  const updateItemInTree = (list, pathIds, updater, depth = 0) => {
-    if (depth === pathIds.length) {
-      return updater(list);
+  const shellClasses = isDark ? "text-white" : "text-slate-900";
+  const topButtonClasses = isDark ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-200 hover:bg-slate-300 text-slate-900";
+  const menuClasses = isDark
+    ? "border-slate-800 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white"
+    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900";
+  const formClasses = isDark
+    ? "border-slate-800 bg-slate-900"
+    : "border-slate-200 bg-white";
+  const inputClasses = isDark
+    ? "bg-slate-800 text-white placeholder-slate-400 focus:ring-sky-500"
+    : "bg-white text-slate-900 placeholder-slate-400 border border-slate-300 focus:ring-sky-500";
+  const itemClasses = isDark
+    ? "border-slate-800 bg-slate-900/60 hover:bg-slate-800/80"
+    : "border-slate-200 bg-white hover:bg-slate-100";
+  const emptyTextClasses = isDark ? "text-slate-500" : "text-slate-500";
+  const modalContentClasses = isDark ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900";
+  const modalHeaderClasses = isDark ? "border-slate-800" : "border-slate-200";
+  const modalButtonClasses = isDark ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-900";
+
+  const currentFolderId = path.length ? path[path.length - 1] : null;
+
+  /* ---- load folders + photos, same tables Culling uses ---- */
+  const loadData = useCallback(async (userId) => {
+    setDataLoading(true);
+
+    const { data: folderRows, error: folderErr } = await supabase
+      .from("folders")
+      .select("id, name, parent_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true });
+
+    if (folderErr) {
+      console.error(folderErr);
+      setDataLoading(false);
+      return;
     }
-    const currentId = pathIds[depth];
-    return list.map(item => {
-      if (item.id === currentId) {
-        return {
-          ...item,
-          subItems: updateItemInTree(item.subItems || [], pathIds, updater, depth + 1)
-        };
-      }
-      return item;
+
+    const { data: photoRows, error: photoErr } = await supabase
+      .from("photos")
+      .select("id, folder_id, file_name, storage_path")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true });
+
+    if (photoErr) {
+      console.error(photoErr);
+      setDataLoading(false);
+      return;
+    }
+
+    setFolders(
+      folderRows.map((f) => ({ id: f.id, name: f.name, parentId: f.parent_id }))
+    );
+    setPhotos(
+      photoRows.map((p) => ({
+        id: p.id,
+        folderId: p.folder_id,
+        name: p.file_name,
+        storagePath: p.storage_path,
+      }))
+    );
+
+    setDataLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadData(user.id);
+    } else {
+      setFolders([]);
+      setPhotos([]);
+      setPath([]);
+    }
+  }, [user, loadData]);
+
+  /* ---- current level ---- */
+  const currentFolders = useMemo(
+    () => folders.filter((f) => f.parentId === currentFolderId),
+    [folders, currentFolderId]
+  );
+  const currentPhotos = useMemo(
+    () => photos.filter((p) => p.folderId === currentFolderId),
+    [photos, currentFolderId]
+  );
+
+  const currentItems = useMemo(
+    () => [
+      ...currentFolders.map((f) => ({ id: f.id, name: f.name, isFile: false })),
+      ...currentPhotos.map((p) => ({ id: p.id, name: p.name, isFile: true })),
+    ],
+    [currentFolders, currentPhotos]
+  );
+
+  const sortedCurrentItems = [...currentItems].sort((a, b) => {
+    if (a.isFile === b.isFile) return a.name.localeCompare(b.name);
+    return a.isFile ? 1 : -1;
+  });
+
+  const breadcrumbItems = useMemo(() => {
+    const items = [{ label: "Client Media Storage", id: null }];
+    path.forEach((id) => {
+      const found = folders.find((f) => f.id === id);
+      if (found) items.push({ label: found.name, id: found.id });
     });
-  };
+    return items;
+  }, [path, folders]);
 
-  // Resolve current container items and title based on path stack
-  const getCurrentContainer = () => {
-    let items = clients;
-    let currentName = "Client Media Storage";
+  const currentTitle =
+    breadcrumbItems.length > 0
+      ? breadcrumbItems[breadcrumbItems.length - 1].label
+      : "Client Media Storage";
 
-    for (let id of path) {
-      const found = items.find(item => item.id === id);
-      if (found) {
-        currentName = found.name;
-        items = found.subItems || [];
-      } else {
-        break;
-      }
-    }
-    return { items, title: currentName };
-  };
-
-  const { items: currentItems, title: currentTitle } = getCurrentContainer();
-
-  // Handle adding a new folder at the current location
-  const handleAddFolderSubmit = (e) => {
+  /* ---- create folder (subfolder of currentFolderId) ---- */
+  const handleAddFolderSubmit = async (e) => {
     e.preventDefault();
-    if (!newName.trim()) return;
+    const name = newName.trim();
+    if (!name || !user) return;
 
-    const newItem = {
-      id: Date.now(),
-      name: newName.trim(),
-      isFile: false,
-      subItems: []
-    };
+    const { data, error } = await supabase
+      .from("folders")
+      .insert({ name, user_id: user.id, parent_id: currentFolderId })
+      .select()
+      .single();
 
-    const updatedClients = updateItemInTree(clients, path, (list) => [...list, newItem]);
-    setClients(updatedClients);
+    if (error) {
+      console.error("Folder create failed:", error);
+      return;
+    }
 
+    setFolders((prev) => [...prev, { id: data.id, name: data.name, parentId: currentFolderId }]);
     setNewName("");
     setIsAddingFolder(false);
   };
 
-  // Handle uploading files via FileReader to convert them to Base64 for persistent browser storage
-  const handleFileChange = (e) => {
+  /* ---- upload a file into the current folder (or an auto "Uploads" root folder) ---- */
+  async function findOrCreateUploadsFolder() {
+    const existing = folders.find((f) => f.name === "Uploads" && f.parentId === null);
+    if (existing) return existing.id;
+
+    const { data, error } = await supabase
+      .from("folders")
+      .insert({ name: "Uploads", user_id: user.id, parent_id: null })
+      .select()
+      .single();
+
+    if (error) {
+      console.error(error);
+      return null;
+    }
+
+    setFolders((prev) => [...prev, { id: data.id, name: data.name, parentId: null }]);
+    return data.id;
+  }
+
+  const handleFileChange = async (e) => {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0 || !user) return;
 
     const file = files[0];
-    const reader = new FileReader();
 
-    reader.onload = (uploadEvent) => {
-      const base64Url = uploadEvent.target.result;
+    let targetFolderId = currentFolderId;
+    if (!targetFolderId) {
+      targetFolderId = await findOrCreateUploadsFolder();
+      if (!targetFolderId) return;
+      setPath([targetFolderId]);
+    }
 
-      const newFileItem = {
-        id: Date.now(),
-        name: file.name,
-        isFile: true,
-        url: base64Url,
-        type: file.type
-      };
+    const isPreviewable =
+      file.type.startsWith("image/") || file.type.startsWith("video/");
+    const storagePath = `${user.id}/${targetFolderId}/${Date.now()}-${file.name}`;
 
-      const updatedClients = updateItemInTree(clients, path, (list) => [...list, newFileItem]);
-      setClients(updatedClients);
-    };
+    const { error: uploadErr } = await supabase.storage
+      .from(PHOTOS_BUCKET)
+      .upload(storagePath, file);
 
-    reader.readAsDataURL(file);
+    if (uploadErr) {
+      console.error("Upload failed:", uploadErr);
+      e.target.value = "";
+      return;
+    }
+
+    const { data: row, error: insertErr } = await supabase
+      .from("photos")
+      .insert({
+        folder_id: targetFolderId,
+        user_id: user.id,
+        file_name: file.name,
+        storage_path: storagePath,
+        size_bytes: file.size,
+        previewable: isPreviewable,
+      })
+      .select()
+      .single();
+
+    if (insertErr) {
+      console.error("Insert failed:", insertErr);
+      e.target.value = "";
+      return;
+    }
+
+    setPhotos((prev) => [
+      ...prev,
+      { id: row.id, folderId: targetFolderId, name: file.name, storagePath },
+    ]);
+
     e.target.value = "";
   };
 
-  // Handle renaming an item anywhere in the tree
-  const handleSaveEdit = (id) => {
-    if (!editName.trim()) return;
+  /* ---- rename (folder or file) ---- */
+  const handleSaveEdit = async (id, isFile) => {
+    const name = editName.trim();
+    if (!name) return;
 
-    const updateItemNameRecursive = (list) => {
-      return list.map(item => {
-        if (item.id === id) {
-          return { ...item, name: editName.trim() };
-        }
-        if (item.subItems) {
-          return { ...item, subItems: updateItemNameRecursive(item.subItems) };
-        }
-        return item;
-      });
-    };
+    const table = isFile ? "photos" : "folders";
+    const column = isFile ? "file_name" : "name";
 
-    setClients(updateItemNameRecursive(clients));
+    const { error } = await supabase.from(table).update({ [column]: name }).eq("id", id);
+
+    if (error) {
+      console.error("Rename failed:", error);
+      return;
+    }
+
+    if (isFile) {
+      setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, name } : p)));
+    } else {
+      setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name } : f)));
+    }
+
     setEditId(null);
   };
 
-  // Handle deleting an item anywhere in the tree
-  const confirmDelete = () => {
-    if (!deleteTarget) return;
-    const idToDelete = deleteTarget.id;
+  /* ---- delete (file, or folder + its whole subtree) ---- */
+  const confirmDelete = async () => {
+    if (!deleteTarget || !user) return;
 
-    const deleteItemRecursive = (list) => {
-      return list
-        .filter(item => item.id !== idToDelete)
-        .map(item => {
-          if (item.subItems) {
-            return { ...item, subItems: deleteItemRecursive(item.subItems) };
-          }
-          return item;
-        });
-    };
+    if (deleteTarget.isFile) {
+      const photo = photos.find((p) => p.id === deleteTarget.id);
 
-    setClients(deleteItemRecursive(clients));
+      if (photo?.storagePath) {
+        const { error: storageErr } = await supabase.storage
+          .from(PHOTOS_BUCKET)
+          .remove([photo.storagePath]);
+
+        if (storageErr) console.error("Storage cleanup failed:", storageErr);
+      }
+
+      const { error } = await supabase
+        .from("photos")
+        .delete()
+        .eq("id", deleteTarget.id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Photo delete failed:", error);
+        return;
+      }
+
+      setPhotos((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+    } else {
+      const idsToDelete = collectDescendantIds(folders, deleteTarget.id);
+
+      const { data: photoRows, error: photoListErr } = await supabase
+        .from("photos")
+        .select("id, storage_path")
+        .in("folder_id", idsToDelete)
+        .eq("user_id", user.id);
+
+      if (photoListErr) {
+        console.error("Folder photo lookup failed:", photoListErr);
+        return;
+      }
+
+      const storagePaths = photoRows.map((p) => p.storage_path).filter(Boolean);
+      if (storagePaths.length > 0) {
+        const { error: storageErr } = await supabase.storage
+          .from(PHOTOS_BUCKET)
+          .remove(storagePaths);
+        if (storageErr) console.error("Storage cleanup failed:", storageErr);
+      }
+
+      const { error: photoDeleteErr } = await supabase
+        .from("photos")
+        .delete()
+        .in("folder_id", idsToDelete)
+        .eq("user_id", user.id);
+
+      if (photoDeleteErr) {
+        console.error("Folder photo delete failed:", photoDeleteErr);
+        return;
+      }
+
+      const { error: folderDeleteErr } = await supabase
+        .from("folders")
+        .delete()
+        .eq("id", deleteTarget.id)
+        .eq("user_id", user.id);
+
+      if (folderDeleteErr) {
+        console.error("Folder delete failed:", folderDeleteErr);
+        return;
+      }
+
+      setFolders((prev) => prev.filter((f) => !idsToDelete.includes(f.id)));
+      setPhotos((prev) => prev.filter((p) => !idsToDelete.includes(p.folderId)));
+
+      if (path.some((id) => idsToDelete.includes(id))) {
+        const keepIndex = path.findIndex((id) => idsToDelete.includes(id));
+        setPath(path.slice(0, keepIndex));
+      }
+    }
+
     setDeleteTarget(null);
   };
 
-  // Handle back navigation
-  const handleBack = () => {
-    setPath(path.slice(0, -1));
+  const handleBack = () => setPath(path.slice(0, -1));
+
+  const openFile = async (item) => {
+    const photo = photos.find((p) => p.id === item.id);
+    if (!photo) return;
+
+    const url = await getSignedUrl(photo.storagePath);
+    if (!url) {
+      alert("Couldn't load a preview for this file.");
+      return;
+    }
+
+    setViewingFile({
+      id: photo.id,
+      name: photo.name,
+      url,
+      isVideo: looksLikeVideo(photo.name),
+    });
   };
 
+  if (authLoading) {
+    return <p className="text-sm text-slate-500 text-center mt-20">Loading...</p>;
+  }
+
+  if (!user) {
+    return (
+      <p className="text-sm text-slate-500 text-center mt-20">
+        Please sign in to view your media storage.
+      </p>
+    );
+  }
+
   return (
-    <div className="p-4 text-white relative">
-      {/* Hidden file input supporting images and videos */}
+    <div className={`p-4 relative ${shellClasses}`}>
       <input
         type="file"
         ref={fileInputRef}
@@ -251,7 +441,7 @@ function MediaStorage() {
         {path.length > 0 ? (
           <button
             onClick={handleBack}
-            className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm transition hover:bg-slate-700"
+            className={`rounded-lg px-3 py-1.5 text-sm transition ${topButtonClasses}`}
           >
             ← Back
           </button>
@@ -260,20 +450,19 @@ function MediaStorage() {
         <div className="relative">
           <button
             onClick={() => setShowAddMenu(!showAddMenu)}
-            className="flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold transition hover:bg-sky-500"
+            className="flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-sky-500"
           >
             <FaPlus /> Add
           </button>
 
-          {/* Add Dropdown Menu */}
           {showAddMenu && (
-            <div className="absolute right-0 mt-2 w-36 rounded-lg border border-slate-800 bg-slate-900 shadow-xl z-20 py-1">
+            <div className={`absolute right-0 mt-2 w-36 rounded-lg border shadow-xl z-20 py-1 ${menuClasses}`}>
               <button
                 onClick={() => {
                   setShowAddMenu(false);
                   setIsAddingFolder(true);
                 }}
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 hover:text-white"
+                className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${menuClasses}`}
               >
                 <FaFolder className="text-yellow-400" /> Folder
               </button>
@@ -282,7 +471,7 @@ function MediaStorage() {
                   setShowAddMenu(false);
                   fileInputRef.current.click();
                 }}
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 hover:text-white"
+                className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${menuClasses}`}
               >
                 <FaFile className="text-sky-400" /> File
               </button>
@@ -291,41 +480,88 @@ function MediaStorage() {
         </div>
       </div>
 
-      <h1 className="mb-4 text-2xl font-bold">{currentTitle}</h1>
+      {/* Breadcrumb Navigation */}
+      <div className="mb-1 flex flex-wrap items-center gap-2 text-2xl font-semibold">
+        {breadcrumbItems.map((item, index) => {
+          const isLast = index === breadcrumbItems.length - 1;
+          const isRoot = index === 0;
 
-      {/* Input Form Popup for New Folder */}
+          return (
+            <div key={`${item.label}-${index}`} className="flex items-center gap-2">
+              {index > 0 && <span className={isDark ? "text-slate-500" : "text-slate-400"}>›</span>}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isLast) setPath(path.slice(0, index));
+                }}
+                disabled={isLast}
+                className={`transition ${
+                  isLast
+                    ? isDark ? "cursor-pointer text-white" : "cursor-pointer text-slate-900"
+                    : isDark ? "cursor-pointer text-slate-300 hover:text-white" : "cursor-pointer text-slate-700 hover:text-slate-900"
+                }`}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  boxShadow: "none",
+                  padding: 0,
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                }}
+              >
+                {item.label}
+              </button>
+              {isRoot && path.length > 0 && (
+                <span className={isDark ? "text-slate-500" : "text-slate-400"}>›</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className={`mb-4 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+        Manage and organize media files for each client and project. Folders here are shared with the Culling tab.
+      </p>
+
       {isAddingFolder && (
-        <form onSubmit={handleAddFolderSubmit} className="mb-4 flex gap-2 rounded-lg border border-slate-800 bg-slate-900 p-3">
+        <form onSubmit={handleAddFolderSubmit} className={`mb-4 flex gap-2 rounded-lg border p-3 ${formClasses}`}>
           <input
             type="text"
             placeholder="Folder name..."
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            className="flex-1 rounded bg-slate-800 px-3 py-1.5 text-sm text-white outline-none focus:ring-1 focus:ring-sky-500"
+            className={`flex-1 rounded px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-sky-500 ${inputClasses}`}
             autoFocus
           />
-          <button type="submit" className="rounded bg-sky-600 px-4 py-1.5 text-sm font-semibold hover:bg-sky-500">Save</button>
-          <button type="button" onClick={() => setIsAddingFolder(false)} className="rounded bg-slate-700 px-3 py-1.5 text-sm hover:bg-slate-600">Cancel</button>
+          <button type="submit" className="rounded bg-sky-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-sky-500">Save</button>
+          <button type="button" onClick={() => setIsAddingFolder(false)} className={`rounded px-3 py-1.5 text-sm ${modalButtonClasses}`}>Cancel</button>
         </form>
       )}
 
-      {/* Item List Display */}
       <div className="space-y-3">
-        {currentItems.map((item) => (
+        {dataLoading ? (
+          <p className={`text-sm ${emptyTextClasses}`}>Loading...</p>
+        ) : currentItems.length === 0 ? (
+          <p className={`text-sm italic ${emptyTextClasses}`}>
+            The storage is empty. Use the "+ Add" button to create folders or upload files.
+          </p>
+        ) : (
+          <p className={`text-sm font-medium ${emptyTextClasses}`}>
+            {currentItems.filter((item) => !item.isFile).length} folders · {currentItems.filter((item) => item.isFile).length} files
+          </p>
+        )}
+
+        {sortedCurrentItems.map((item) => (
           <div
-            key={item.id}
+            key={`${item.isFile ? "file" : "folder"}-${item.id}`}
             onClick={() => {
               if (item.isFile) {
-                if (item.url) {
-                  setViewingFile(item);
-                } else {
-                  alert("No preview available for this file type or sample file.");
-                }
+                openFile(item);
               } else {
                 setPath([...path, item.id]);
               }
             }}
-            className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 p-4 transition cursor-pointer hover:bg-slate-800/80"
+            className={`flex items-center justify-between rounded-lg border p-4 transition cursor-pointer ${itemClasses}`}
           >
             <div className="flex items-center gap-3 flex-1">
               {item.isFile ? (
@@ -333,18 +569,32 @@ function MediaStorage() {
               ) : (
                 <FaFolder className="text-2xl text-yellow-400" />
               )}
-              <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+
+              {/*
+                Only stop propagation while this row is actively being
+                renamed — otherwise a click on the name should bubble up
+                to the row's onClick and navigate/open like clicking
+                anywhere else on the row. Text selection via click-drag
+                or double-click still works normally since we never call
+                preventDefault() here.
+              */}
+              <div
+                className="flex-1"
+                onClick={(e) => {
+                  if (editId === item.id) e.stopPropagation();
+                }}
+              >
                 {editId === item.id ? (
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className="rounded bg-slate-800 px-2 py-1 text-sm text-white outline-none focus:ring-1 focus:ring-sky-500"
+                      className={`rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500 ${inputClasses}`}
                       autoFocus
                     />
-                    <button onClick={() => handleSaveEdit(item.id)} className="rounded bg-green-600 px-2.5 py-1 text-xs hover:bg-green-500">Save</button>
-                    <button onClick={() => setEditId(null)} className="rounded bg-slate-700 px-2.5 py-1 text-xs hover:bg-slate-600">Cancel</button>
+                    <button onClick={() => handleSaveEdit(item.id, item.isFile)} className="rounded bg-green-600 px-2.5 py-1 text-xs text-white hover:bg-green-500">Save</button>
+                    <button onClick={() => setEditId(null)} className={`rounded px-2.5 py-1 text-xs ${modalButtonClasses}`}>Cancel</button>
                   </div>
                 ) : (
                   <div>
@@ -354,12 +604,12 @@ function MediaStorage() {
               </div>
             </div>
 
-            {/* Row Actions: Edit and Delete */}
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               {editId !== item.id && (
                 <button
-                  onClick={() => { setEditId(item.id); setEditName(item.name); }}
-                  className="rounded p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+                  onClick={() => { setEditId(item.id); setEditIsFolder(!item.isFile); setEditName(item.name); }}
+                  className="rounded-lg p-2 text-slate-500 transition hover:!bg-sky-100 hover:!text-sky-600 dark:text-slate-400 dark:hover:!bg-sky-500/10 dark:hover:!text-sky-400"
+                  style={{ background: "transparent", border: "none", outline: "none", boxShadow: "none", appearance: "none", WebkitAppearance: "none" }}
                   title="Rename"
                 >
                   <FaEdit />
@@ -368,9 +618,10 @@ function MediaStorage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setDeleteTarget(item);
+                  setDeleteTarget({ id: item.id, name: item.name, isFile: item.isFile });
                 }}
-                className="rounded p-2 text-slate-400 hover:bg-slate-800 hover:text-red-400"
+                className="rounded-lg p-2 text-slate-500 transition hover:!bg-red-100 hover:!text-red-500 dark:text-slate-400 dark:hover:!bg-red-500/10 dark:hover:!text-red-500"
+                style={{ background: "transparent", border: "none", outline: "none", boxShadow: "none", appearance: "none", WebkitAppearance: "none" }}
                 title="Delete"
               >
                 <FaTrash />
@@ -378,26 +629,23 @@ function MediaStorage() {
             </div>
           </div>
         ))}
-        {currentItems.length === 0 && (
-          <p className="text-sm text-slate-500 italic">This folder is empty. Use the "+ Add" button to create subfolders or upload files.</p>
-        )}
       </div>
 
       {/* File Preview Modal */}
       {viewingFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative max-w-4xl w-full max-h-[90vh] bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+          <div className={`relative max-w-4xl w-full max-h-[90vh] border rounded-xl p-4 flex flex-col shadow-2xl ${modalContentClasses}`}>
+            <div className={`flex items-center justify-between pb-3 border-b mb-4 ${modalHeaderClasses}`}>
               <h3 className="font-semibold text-lg truncate">{viewingFile.name}</h3>
               <button
                 onClick={() => setViewingFile(null)}
-                className="rounded-lg bg-slate-800 p-2 text-slate-400 hover:bg-slate-700 hover:text-white transition"
+                className={`rounded-lg p-2 transition ${modalButtonClasses}`}
               >
                 <FaTimes />
               </button>
             </div>
             <div className="flex-1 flex items-center justify-center overflow-hidden">
-              {viewingFile.type?.startsWith("video/") || viewingFile.name.endsWith(".mp4") ? (
+              {viewingFile.isVideo ? (
                 <video controls src={viewingFile.url} className="max-h-[70vh] max-w-full rounded object-contain" />
               ) : (
                 <img src={viewingFile.url} alt={viewingFile.name} className="max-h-[70vh] max-w-full rounded object-contain" />
@@ -410,15 +658,18 @@ function MediaStorage() {
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-6 text-center shadow-xl">
-            <h3 className="mb-2 text-lg font-bold text-white">Delete Item?</h3>
-            <p className="mb-6 text-sm text-slate-400">
-              Are you sure you want to delete <span className="font-semibold text-white">"{deleteTarget.name}"</span>? This action cannot be undone.
+          <div className={`w-full max-w-sm rounded-xl border p-6 text-center shadow-xl ${modalContentClasses}`}>
+            <h3 className="mb-2 text-lg font-bold">Delete Item?</h3>
+            <p className={`mb-6 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              {deleteTarget.isFile
+                ? <>Are you sure you want to delete <span className="font-semibold">"{deleteTarget.name}"</span>? This action cannot be undone.</>
+                : <>This will permanently delete <span className="font-semibold">"{deleteTarget.name}"</span>, every subfolder inside it, and all photos inside those. This action cannot be undone.</>
+              }
             </p>
             <div className="flex justify-center gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${modalButtonClasses}`}
               >
                 Cancel
               </button>

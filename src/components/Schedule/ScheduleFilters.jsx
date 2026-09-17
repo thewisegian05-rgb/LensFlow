@@ -20,7 +20,7 @@ function ScheduleFilters({
           placeholder="Search events or clients..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-slate-900 border border-slate-700 rounded-lg py-3 pl-11 pr-4 text-white placeholder-slate-500 outline-none focus:border-sky-500 transition"
+          className="w-full rounded-lg border border-slate-200 bg-white py-3 pl-11 pr-4 text-slate-900 placeholder:text-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"
         />
 
       </div>
@@ -34,7 +34,7 @@ function ScheduleFilters({
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="w-full lg:w-52 appearance-none bg-slate-900 border border-slate-700 rounded-lg py-3 pl-11 pr-8 text-white outline-none focus:border-sky-500 transition cursor-pointer"
+          className="w-full lg:w-52 appearance-none rounded-lg border border-slate-200 bg-white py-3 pl-11 pr-8 text-slate-900 outline-none transition focus:border-sky-500 cursor-pointer dark:border-slate-700 dark:bg-slate-900 dark:text-white"
         >
           <option value="All">
             All Categories

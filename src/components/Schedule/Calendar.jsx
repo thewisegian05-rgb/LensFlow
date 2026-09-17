@@ -15,6 +15,7 @@ import isSameMonth from "date-fns/isSameMonth";
 import isToday from "date-fns/isToday";
 
 import "./Calendar.css";
+import { CATEGORY_HEX, getEventCategory } from "./eventCategory";
 
 function Calendar({
   events = [],
@@ -180,72 +181,33 @@ function Calendar({
   // EVENT COLOR
   // =========================================================
 
-  const getEventColor = (event) => {
-    const category =
-      event?.category
-        ?.toString()
-        .trim()
-        .toLowerCase() || "";
+  const hexToRgba = (hex, alpha = 1) => {
+    const normalized = (hex || "#d946ef").replace("#", "");
+    const safeHex = normalized.length === 3
+      ? normalized
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : normalized;
 
-    const title =
-      event?.title
-        ?.toString()
-        .trim()
-        .toLowerCase() || "";
+    const value = Number.parseInt(safeHex, 16);
+    const r = (value >> 16) & 255;
+    const g = (value >> 8) & 255;
+    const b = value & 255;
 
-    const value = `${category} ${title}`;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
 
-    // Birthday
-    if (
-      value.includes("birthday") ||
-      value.includes("bday")
-    ) {
-      return "birthday";
-    }
+  const getEventStyle = (event) => {
+    const category = getEventCategory(event);
+    const hex = CATEGORY_HEX[category] || CATEGORY_HEX.default;
 
-    // Wedding
-    if (
-      value.includes("wedding") ||
-      value.includes("marriage")
-    ) {
-      return "wedding";
-    }
-
-    // Prenup
-    if (
-      value.includes("prenup") ||
-      value.includes("pre-nup") ||
-      value.includes("pre nup")
-    ) {
-      return "prenup";
-    }
-
-    // Photoshoot
-    if (
-      value.includes("photoshoot") ||
-      value.includes("photo shoot") ||
-      value.includes("photo-shoot")
-    ) {
-      return "photoshoot";
-    }
-
-    // Party
-    if (
-      value.includes("party") ||
-      value.includes("celebration")
-    ) {
-      return "party";
-    }
-
-    // Corporate
-    if (
-      value.includes("corporate") ||
-      value.includes("meeting")
-    ) {
-      return "corporate";
-    }
-
-    return "default";
+    return {
+      backgroundColor: hexToRgba(hex, 0.1),
+      borderColor: hexToRgba(hex, 0.3),
+      borderLeftColor: hex,
+      color: hex,
+    };
   };
 
   // =========================================================
@@ -285,14 +247,12 @@ function Calendar({
   // =========================================================
 
   const renderMonthEvent = (event) => {
-    const eventColor =
-      getEventColor(event);
-
     return (
       <button
         key={event.id}
         type="button"
-        className={`calendar-event ${eventColor}`}
+        className="calendar-event"
+        style={getEventStyle(event)}
         onClick={(e) =>
           handleEventClick(event, e)
         }
@@ -525,15 +485,11 @@ function Calendar({
 
                     dayEvents.map(
                       (event) => {
-                        const eventColor =
-                          getEventColor(
-                            event
-                          );
-
                         return (
                           <div
                             key={event.id}
-                            className={`calendar-week-event ${eventColor}`}
+                            className="calendar-week-event"
+                            style={getEventStyle(event)}
                           >
 
                             <div className="calendar-week-event-title">

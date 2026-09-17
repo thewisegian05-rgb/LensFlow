@@ -43,52 +43,34 @@ function AddProjectModal({ open, onClose, onSave, editingProject }) {
 
   return (
     <div
-      className="
-        fixed inset-0 z-[9999]
-        flex items-center justify-center
-        bg-black/60 backdrop-blur-sm p-4
-      "
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
-        className="
-          bg-slate-900 border border-slate-700 rounded-xl
-          w-full max-w-lg max-h-[90vh] overflow-y-auto
-          p-6 shadow-2xl
-        "
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl transition-colors dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-2xl font-bold text-white mb-6">
+        <h2 className="mb-6 text-2xl font-bold text-slate-900 dark:text-white">
           {editingProject ? "Edit Project" : "New Project"}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* CLIENT */}
-
           <input
             type="text"
             name="client"
             placeholder="Client Name"
             value={form.client}
             onChange={handleChange}
-            className="
-              w-full bg-slate-800 border border-slate-700 rounded-lg p-3
-              text-white placeholder-slate-500 outline-none focus:border-sky-500
-            "
+            className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
             required
           />
 
-          {/* CATEGORY + STAGE */}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <select
               name="category"
               value={form.category}
               onChange={handleChange}
-              className="
-                bg-slate-800 border border-slate-700 rounded-lg p-3
-                text-white outline-none focus:border-sky-500
-              "
+              className="rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             >
               {CATEGORY_KEYS.map((key) => (
                 <option key={key} value={key}>
@@ -101,10 +83,7 @@ function AddProjectModal({ open, onClose, onSave, editingProject }) {
               name="stage"
               value={form.stage}
               onChange={handleChange}
-              className="
-                bg-slate-800 border border-slate-700 rounded-lg p-3
-                text-white outline-none focus:border-sky-500
-              "
+              className="rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             >
               {STAGE_KEYS.map((key) => (
                 <option key={key} value={key}>
@@ -114,20 +93,13 @@ function AddProjectModal({ open, onClose, onSave, editingProject }) {
             </select>
           </div>
 
-          {/* DATE */}
-
           <input
             type="date"
             name="date"
             value={form.date}
             onChange={handleChange}
-            className="
-              w-full bg-slate-800 border border-slate-700 rounded-lg p-3
-              text-white outline-none focus:border-sky-500
-            "
+            className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
           />
-
-          {/* NOTES */}
 
           <textarea
             rows="3"
@@ -135,26 +107,20 @@ function AddProjectModal({ open, onClose, onSave, editingProject }) {
             placeholder="Notes..."
             value={form.notes}
             onChange={handleChange}
-            className="
-              w-full bg-slate-800 border border-slate-700 rounded-lg p-3
-              text-white placeholder-slate-500 outline-none resize-none
-              focus:border-sky-500
-            "
+            className="w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
           />
-
-          {/* BUTTONS */}
 
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition"
+              className="rounded-lg border border-slate-200 bg-slate-100 px-5 py-2 text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-slate-900 font-semibold transition"
+              className="rounded-lg bg-sky-500 px-5 py-2 font-semibold text-slate-900 transition hover:bg-sky-600"
             >
               {editingProject ? "Update Project" : "Create Project"}
             </button>

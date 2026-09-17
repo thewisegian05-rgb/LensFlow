@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 import ClientCard from "../components/Clients/ClientCard.jsx";
 import ClientList from "../components/Clients/ClientList.jsx";
 import AddClientModal from "../components/Clients/AddClientModal.jsx";
 import ViewClientModal from "../components/Clients/ViewClientModal.jsx";
 import EditClientModal from "../components/Clients/EditClientModal.jsx";
+import ConfirmModal from "../components/Common/ConfirmModal.jsx";
 
 import "../components/Clients/Clients.css";
 import "../components/Clients/ClientCard.css";
@@ -28,6 +30,7 @@ function ClientPage() {
   const [showAddClient, setShowAddClient] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [editingClient, setEditingClient] = useState(null);
+  const [clientToDelete, setClientToDelete] = useState(null);
 
   // Search and Filter States
   const [searchTerm, setSearchTerm] = useState("");
@@ -37,34 +40,142 @@ function ClientPage() {
   // "list" = table/list view
   const [viewType, setViewType] = useState("grid");
 
-  // Mock client data for demonstration purposes
-  const [clients, setClients] = useState([
-    {
-      id: 1,
-      name: "Jane Smith",
-      type: "Individual Client",
-      contact: "09123456789",
-      email: "sarah@gmail.com",
-      category: "Weddings",
-      project: "Smith Wedding",
-      projectStatus: "Ongoing",
-      talentFee: "4500",
-      initials: "JS",
-    },
-    {
-      id: 2,
-      name: "TechCorp Ltd.",
-      type: "Business Client",
-      contact: "09676543210",
-      email: "contact@techcorp.com",
-      category: "Corporate & Commercial",
-      project: "TechCorp Event",
-      projectStatus: "Completed",
-      talentFee: "6200",
-      initials: "TC",
-    },
-  ]);
+  const [clients, setClients] = useState([]);
 
+  const [loadingClients, setLoadingClients] = useState(true);
+
+  const fetchClients = async () => {
+    setLoadingClients(true);
+
+    const { data: { user }, } = await supabase.auth.getUser();
+
+    if (!user) {
+      setClients([]);
+      setLoadingClients(false);
+      return;
+    }
+
+    // Load clients
+    const { data: clientRows, error: clientsError } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (clientsError) {
+      console.error(
+        "Failed to load clients:",
+        clientsError.message
+      );
+
+      setLoadingClients(false);
+      return;
+    }
+
+    // Load schedule events
+    const { data: eventRows, error: eventsError } = await supabase
+      .from("schedule_events")
+      .select(`
+        id,
+        client_id,
+        title,
+        location,
+        category,
+        start_time,
+        end_time,
+        status,
+        project_id
+      `)
+      .eq("user_id", user.id)
+      .order("start_time", { ascending: true });
+
+    if (eventsError) {
+      console.error(
+        "Failed to load client events:",
+        eventsError.message
+      );
+
+      setLoadingClients(false);
+      return;
+    }
+
+    const now = new Date();
+
+    const mappedClients = clientRows.map((row) => {
+
+      // All events belonging to this client
+      const projects = eventRows
+        .filter((event) => event.client_id === row.id)
+        .map((event) => ({
+          id: event.id,
+          projectId: event.project_id,
+
+          title: event.title,
+          venue: event.location,
+          category: event.category,
+
+          start: event.start_time,
+          end: event.end_time,
+
+          status: event.status,
+        }));
+
+
+      // Upcoming events only
+      const upcomingProjects = projects.filter(
+        (project) =>
+          new Date(project.start) >= now
+      );
+
+
+      // Because our Supabase query is already ascending,
+      // index 0 is the nearest upcoming event.
+      const activeProject =
+        upcomingProjects[0] ||
+        projects[projects.length - 1] ||
+        null;
+
+
+      return {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        contact: row.contact,
+        email: row.email,
+
+        projectStatus: row.project_status,
+        talentFee: row.talent_fee,
+        initials: row.initials,
+
+        // All scheduled projects/events
+        projects,
+
+        // What Card/List should display
+        activeProject,
+
+        // Keep these for compatibility with your
+        // existing components for now
+        project:
+          activeProject?.title ||
+          row.project,
+
+        venue:
+          activeProject?.venue ||
+          row.venue,
+
+        category:
+          activeProject?.category ||
+          row.category,
+      };
+    });
+
+    setClients(mappedClients);
+    setLoadingClients(false);
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
 
   // Add New Client
   const handleAddClient = (newClient) => {
@@ -79,19 +190,49 @@ function ClientPage() {
 
   // Delete Client
   const handleDeleteClient = (id) => {
+    setClientToDelete(id);
+  };
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this client?"
+  const confirmDeleteClient = async () => {
+    if (!clientToDelete) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.error("No authenticated user found.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("clients")
+      .delete()
+      .eq("id", clientToDelete)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error(
+        "Failed to delete client:",
+        error.message
+      );
+      return;
+    }
+
+    setClients((previousClients) =>
+      previousClients.filter(
+        (client) => client.id !== clientToDelete
+      )
     );
 
-    if (confirmed) {
+    setClientToDelete(null);
 
-      setClients((previousClients) =>
-        previousClients.filter(
-          (client) => client.id !== id
-        )
-      );
+    if (selectedClient?.id === clientToDelete) {
+      setSelectedClient(null);
+    }
 
+    if (editingClient?.id === clientToDelete) {
+      setEditingClient(null);
     }
   };
 
@@ -119,11 +260,11 @@ function ClientPage() {
 
 // Filter clients based on search term or selected category
 const filteredClients = clients.filter((client) => {
-
+  const searchText = searchTerm.toLowerCase();
   const matchesSearch =
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.project.toLowerCase().includes(searchTerm.toLowerCase());
+    client.name?.toLowerCase().includes(searchText) ||
+    client.email?.toLowerCase().includes(searchText) ||
+    client.project?.toLowerCase().includes(searchText);
 
   const matchesCategory =
     selectedCategory === "All Categories" ||
@@ -133,19 +274,65 @@ const filteredClients = clients.filter((client) => {
 });
 
 // Edit Client
-const handleEditClient = (updatedClient) => {
+const handleEditClient = async (updatedClient) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    console.error("No authenticated user found.");
+    return;
+  }
+
+  const payload = {
+    name: updatedClient.name,
+    type: updatedClient.type,
+    contact: updatedClient.contact,
+    email: updatedClient.email,
+    project: updatedClient.project,
+    venue: updatedClient.venue,
+    category: updatedClient.category,
+    project_status: updatedClient.projectStatus,
+    talent_fee: updatedClient.talentFee,
+    initials: updatedClient.initials,
+  };
+
+  const { data, error } = await supabase
+    .from("clients")
+    .update(payload)
+    .eq("id", updatedClient.id)
+    .eq("user_id", user.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Failed to update client:", error.message);
+    return;
+  }
+
+  const mappedClient = {
+    id: data.id,
+    name: data.name,
+    type: data.type,
+    contact: data.contact,
+    email: data.email,
+    project: data.project,
+    venue: data.venue,
+    category: data.category,
+    projectStatus: data.project_status,
+    talentFee: data.talent_fee,
+    initials: data.initials,
+  };
+
   setClients((previousClients) =>
     previousClients.map((client) =>
-      client.id === updatedClient.id
-        ? updatedClient
-        : client
+      client.id === mappedClient.id ? mappedClient : client
     )
   );
 
-  // Keep the View modal updated too if the same client is open
   setSelectedClient((previousClient) =>
-    previousClient?.id === updatedClient.id
-      ? updatedClient
+    previousClient?.id === mappedClient.id
+      ? mappedClient
       : previousClient
   );
 
@@ -214,12 +401,14 @@ const handleEditClient = (updatedClient) => {
 
 
         {/* VIEW SWITCHER */}
-
         <div className="view-switcher">
 
+          {/* GRID */}
           <button
             className={`view-toggle-btn ${
-              viewType === "grid" ? "active" : ""
+              viewType === "grid"
+                ? "!border-sky-500 !bg-sky-500 !text-slate-950 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950"
+                : "!border-transparent !bg-transparent !text-slate-500 hover:!bg-slate-100 hover:!text-slate-800 dark:!text-slate-500 dark:hover:!bg-slate-800 dark:hover:!text-slate-300"
             }`}
             onClick={() => setViewType("grid")}
             title="Block View"
@@ -228,9 +417,12 @@ const handleEditClient = (updatedClient) => {
           </button>
 
 
+          {/* LIST */}
           <button
             className={`view-toggle-btn ${
-              viewType === "list" ? "active" : ""
+              viewType === "list"
+                ? "!border-sky-500 !bg-sky-500 !text-slate-950 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950"
+                : "!border-transparent !bg-transparent !text-slate-500 hover:!bg-slate-100 hover:!text-slate-800 dark:!text-slate-500 dark:hover:!bg-slate-800 dark:hover:!text-slate-300"
             }`}
             onClick={() => setViewType("list")}
             title="List View"
@@ -309,41 +501,37 @@ const handleEditClient = (updatedClient) => {
 
       {/* GRID / BLOCK VIEW */}
 
-      {viewType === "grid" && (
-
-        <div className="clients-grid">
-
-          {filteredClients.map((client) => (
-          <ClientCard
-            key={client.id}
-            client={client}
-            onDelete={handleDeleteClient}
-            onView={() => setSelectedClient(client)}
-            onComplete={handleCompleteClient}
-            onEdit={() => setEditingClient(client)}
-          />
-        ))}
-
+      {filteredClients.length === 0 ? (
+        <div className="no-clients">
+          <p>No clients found.</p>
         </div>
+      ) : (
+        <>
+          {viewType === "grid" && (
+            <div className="clients-grid">
+              {filteredClients.map((client) => (
+                <ClientCard
+                  key={client.id}
+                  client={client}
+                  onDelete={handleDeleteClient}
+                  onView={() => setSelectedClient(client)}
+                  onComplete={handleCompleteClient}
+                  onEdit={() => setEditingClient(client)}
+                />
+              ))}
+            </div>
+          )}
 
-      )}
-
-
-
-      {/* ==========================================
-          LIST VIEW
-      ========================================== */}
-
-      {viewType === "list" && (
-
-        <ClientList
-          clients={filteredClients}
-            onDelete={handleDeleteClient}
-            onView={(client) => setSelectedClient(client)}
-            onComplete={handleCompleteClient}
-            onEdit={(client) => setEditingClient(client)}
-        />
-
+          {viewType === "list" && (
+            <ClientList
+              clients={filteredClients}
+              onDelete={handleDeleteClient}
+              onView={(client) => setSelectedClient(client)}
+              onEdit={(client) => setEditingClient(client)}
+              onComplete={handleCompleteClient}
+            />
+          )}
+        </>
       )}
 
 
@@ -381,6 +569,14 @@ const handleEditClient = (updatedClient) => {
           onSave={handleEditClient}
         />
       )}
+
+      <ConfirmModal
+        open={Boolean(clientToDelete)}
+        title="Delete Client"
+        message="Are you sure you want to delete this client? This action cannot be undone."
+        onCancel={() => setClientToDelete(null)}
+        onConfirm={confirmDeleteClient}
+      />
 
     </div>
   );

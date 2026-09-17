@@ -103,31 +103,17 @@ function ScheduleSummary({ events = [] }) {
         />
       </div>
 
-      {/* Category breakdown: up to 11 possible categories, so a grid of
-          full-size stat cards either wraps or gets crushed. A compact,
-          single-line strip of chips keeps every category readable on
-          one row, and scrolls horizontally on narrow viewports instead
-          of wrapping into a second (uneven) row. */}
+      {/* Category breakdown: up to 12 possible categories. Rather than
+          a horizontally-scrolling strip, this wraps into a responsive
+          grid so every category is visible at once without scrolling —
+          fewer columns (and more rows) on narrow viewports, up to one
+          full row on very wide screens. */}
       {categoryCards.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
             By Category
           </p>
-          <div
-            className="
-              flex
-              gap-3
-              overflow-x-auto
-              pb-2
-              snap-x
-              snap-mandatory
-              [scrollbar-width:thin]
-              [&::-webkit-scrollbar]:h-1.5
-              [&::-webkit-scrollbar-track]:bg-transparent
-              [&::-webkit-scrollbar-thumb]:bg-slate-700
-              [&::-webkit-scrollbar-thumb]:rounded-full
-            "
-          >
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-11 gap-3">
             {categoryCards.map((card) => (
               <CategoryChip key={card.key} {...card} />
             ))}
@@ -158,8 +144,9 @@ function StatCard({ title, value, subtitle, icon, iconClass }) {
   );
 }
 
-// Compact category chip — icon + count on one row, label below. Fixed
-// width so the strip lines up evenly regardless of label length.
+// Compact category chip — icon + count on one row, label below. Fills
+// its grid cell rather than a fixed width, so it scales cleanly across
+// the responsive column counts above.
 // Zero-count categories are dimmed rather than hidden, so the full
 // service lineup stays visible without competing visually with the
 // categories that actually have bookings.
@@ -167,12 +154,9 @@ function CategoryChip({ title, value, icon, iconClass }) {
   const isEmpty = value === 0;
 
   return (
-    
     <div
       className={`
-        flex-shrink-0
-        snap-start
-        w-[128px]
+        min-w-0
         bg-slate-900
         border
         border-slate-700

@@ -213,6 +213,24 @@
   color: #64748b;
 }
 
+.form-group input.input-error {
+  border-color: #ef4444;
+}
+
+.dark .form-group input.input-error {
+  border-color: #f87171;
+}
+
+.field-error {
+  margin: 5px 0 0;
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.dark .field-error {
+  color: #f87171;
+}
+
 .dark .form-group input::placeholder {
   color: #53627a;
 }

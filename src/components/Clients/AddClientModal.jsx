@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 import "./AddClientModal.css";
 
@@ -13,14 +13,44 @@ function AddClientModal({ onClose, onAddClient }) {
     category: "Weddings",
     talentFee: "",
   });
+  const [errors, setErrors] = useState({});
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((s) => ({ ...s, [name]: value }));
+    setErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    const nextErrors = {};
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!form.name.trim()) {
+      nextErrors.name = "Client name is required.";
+    }
+
+    if (form.email && !emailPattern.test(form.email.trim())) {
+      nextErrors.email = "Enter a valid email address.";
+    }
+
+    if (form.talentFee !== "") {
+      const talentFee = Number(form.talentFee);
+      if (!Number.isFinite(talentFee) || talentFee < 0) {
+        nextErrors.talentFee = "Enter a valid, non-negative talent fee.";
+      }
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
 
     const initials = form.name
       .split(" ")
@@ -43,8 +73,18 @@ function AddClientModal({ onClose, onAddClient }) {
     };
 
     onAddClient(newClient);
+    setErrors({});
     onClose();
   };
+
+  const inputClass = (field) => (errors[field] ? "input-error" : "");
+
+  const errorMessage = (field) =>
+    errors[field] ? (
+      <p className="field-error" role="alert">
+        {errors[field]}
+      </p>
+    ) : null;
 
   return (
     <div className="client-modal custom-scrollbar">
@@ -60,7 +100,7 @@ function AddClientModal({ onClose, onAddClient }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="form-group">
             <label>Name</label>
             <input
@@ -68,7 +108,13 @@ function AddClientModal({ onClose, onAddClient }) {
               value={form.name}
               onChange={handleChange}
               placeholder="Full name"
+              className={inputClass("name")}
+              aria-invalid={Boolean(errors.name)}
+              aria-describedby={errors.name ? "client-name-error" : undefined}
             />
+            {errors.name && (
+              <div id="client-name-error">{errorMessage("name")}</div>
+            )}
           </div>
 
           <div className="form-group">
@@ -97,7 +143,13 @@ function AddClientModal({ onClose, onAddClient }) {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="email@example.com"
+                className={inputClass("email")}
+                aria-invalid={Boolean(errors.email)}
+                aria-describedby={errors.email ? "client-email-error" : undefined}
               />
+              {errors.email && (
+                <div id="client-email-error">{errorMessage("email")}</div>
+              )}
             </div>
           </div>
 
@@ -164,7 +216,13 @@ function AddClientModal({ onClose, onAddClient }) {
               onChange={handleChange}
               placeholder="₱0"
               min="0"
+              className={inputClass("talentFee")}
+              aria-invalid={Boolean(errors.talentFee)}
+              aria-describedby={errors.talentFee ? "client-fee-error" : undefined}
             />
+            {errors.talentFee && (
+              <div id="client-fee-error">{errorMessage("talentFee")}</div>
+            )}
           </div>
 
           <div className="modal-actions">

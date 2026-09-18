@@ -42,6 +42,7 @@ function AddEventModal({
   };
 
   const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState({});
   const [projects, setProjects] = useState([]);
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
 
@@ -81,6 +82,7 @@ function AddEventModal({
 
   useEffect(() => {
     if (editingEvent) {
+      setErrors({});
       const startDate = editingEvent.start
         ? new Date(editingEvent.start)
         : null;
@@ -124,6 +126,7 @@ function AddEventModal({
       return;
     }
 
+    setErrors({});
     setForm({
       ...emptyForm,
       date: selectedDate || "",
@@ -135,10 +138,43 @@ function AddEventModal({
   }
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
+
     setForm((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: value,
     }));
+
+    setErrors((prev) => {
+      if (!prev[name]) return prev;
+
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+  };
+
+  const handleClientChange = (e) => {
+    const value = e.target.value;
+    const matchedClient = clients.find(
+      (client) => client.name.toLowerCase() === value.toLowerCase()
+    );
+
+    setForm((prev) => ({
+      ...prev,
+      client: value,
+      clientId: matchedClient?.id || null,
+    }));
+
+    setErrors((prev) => {
+      if (!prev.client) return prev;
+
+      const next = { ...prev };
+      delete next.client;
+      return next;
+    });
+
+    setClientDropdownOpen(true);
   };
 
   const toggleGear = (value) => {
@@ -157,6 +193,29 @@ function AddEventModal({
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    const nextErrors = {};
+
+    if (!form.title.trim()) nextErrors.title = "Event title is required.";
+    if (!form.client.trim()) nextErrors.client = "Client name is required.";
+    if (!form.date) nextErrors.date = "Choose a date for this event.";
+    if (!form.start) nextErrors.start = "Choose a start time.";
+    if (!form.end) nextErrors.end = "Choose an end time.";
+    if (form.start && form.end && form.end <= form.start) {
+      nextErrors.end = "End time must be after the start time.";
+    }
+
+    if (form.talentFee !== "") {
+      const talentFee = Number(form.talentFee);
+      if (!Number.isFinite(talentFee) || talentFee < 0) {
+        nextErrors.talentFee = "Enter a valid, non-negative talent fee.";
+      }
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
     onSave({
       ...form,
       // Keep this numeric so downstream income totals don't have to
@@ -165,7 +224,22 @@ function AddEventModal({
     });
 
     setForm(emptyForm);
+    setErrors({});
   };
+
+  const inputClass = (field) =>
+    `w-full rounded-lg border bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500 ${
+      errors[field]
+        ? "border-red-500 dark:border-red-400"
+        : "border-slate-200 dark:border-slate-700"
+    }`;
+
+  const errorMessage = (field) =>
+    errors[field] ? (
+      <p className="mt-1 text-sm text-red-500" role="alert">
+        {errors[field]}
+      </p>
+    ) : null;
 
   const activeColor = CATEGORY_HEX[form.category] || CATEGORY_HEX.default;
 
@@ -183,16 +257,20 @@ function AddEventModal({
             {editingEvent ? "Edit Event" : "Add New Event"}
           </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <input
               type="text"
               name="title"
               placeholder="Event Title"
               value={form.title}
               onChange={handleChange}
-              className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
-              required
+              className={inputClass("title")}
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby={errors.title ? "title-error" : undefined}
             />
+            {errors.title && (
+              <div id="title-error">{errorMessage("title")}</div>
+            )}
 
             <div className="relative">
               <label className="mb-1 block text-sm font-medium text-slate-300">
@@ -204,31 +282,11 @@ function AddEventModal({
                   type="text"
                   value={form.client}
                   onFocus={() => setClientDropdownOpen(true)}
-                  onChange={(e) => {
-                    const value = e.target.value;
-
-                    const matchedClient = clients.find(
-                      (client) =>
-                        client.name.toLowerCase() === value.toLowerCase()
-                    );
-
-                    setForm((prev) => ({
-                      ...prev,
-                      client: value,
-                      clientId: matchedClient?.id || null,
-                    }));
-
-                    setClientDropdownOpen(true);
-                  }}
+                  onChange={handleClientChange}
                   placeholder="Select or enter a client"
-                  required
-                  className="
-                    w-full rounded-lg border border-slate-700
-                    bg-slate-800 px-4 py-3 pr-10
-                    text-white outline-none
-                    transition
-                    focus:border-sky-500
-                  "
+                  className={`${inputClass("client")} pr-10`}
+                  aria-invalid={Boolean(errors.client)}
+                  aria-describedby={errors.client ? "client-error" : undefined}
                 />
 
                 <button
@@ -270,6 +328,14 @@ function AddEventModal({
                             clientId: client.id,
                           }));
 
+                          setErrors((prev) => {
+                            if (!prev.client) return prev;
+
+                            const next = { ...prev };
+                            delete next.client;
+                            return next;
+                          });
+
                           setClientDropdownOpen(false);
                         }}
                         className="
@@ -296,6 +362,9 @@ function AddEventModal({
                 <p className="mt-1 text-xs text-sky-400">
                   New client — this client will be created when you save the event.
                 </p>
+              )}
+              {errors.client && (
+                <div id="client-error">{errorMessage("client")}</div>
               )}
             </div>
 
@@ -336,9 +405,14 @@ function AddEventModal({
                   inputMode="decimal"
                   value={form.talentFee}
                   onChange={handleChange}
-                  className="w-full rounded-lg border border-slate-200 bg-white p-3 pl-7 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                  className={`${inputClass("talentFee")} pl-7`}
+                  aria-invalid={Boolean(errors.talentFee)}
+                  aria-describedby={errors.talentFee ? "talent-fee-error" : undefined}
                 />
               </div>
+              {errors.talentFee && (
+                <div id="talent-fee-error">{errorMessage("talentFee")}</div>
+              )}
 
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
                 Used to estimate approximate income on the dashboard.
@@ -420,8 +494,9 @@ function AddEventModal({
                 name="date"
                 value={form.date}
                 onChange={handleChange}
-                className="rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                required
+                className={inputClass("date")}
+                aria-invalid={Boolean(errors.date)}
+                aria-describedby={errors.date ? "date-error" : undefined}
               />
 
               <input
@@ -429,8 +504,9 @@ function AddEventModal({
                 name="start"
                 value={form.start}
                 onChange={handleChange}
-                className="rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                required
+                className={inputClass("start")}
+                aria-invalid={Boolean(errors.start)}
+                aria-describedby={errors.start ? "start-error" : undefined}
               />
 
               <input
@@ -438,10 +514,18 @@ function AddEventModal({
                 name="end"
                 value={form.end}
                 onChange={handleChange}
-                className="rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                required
+                className={inputClass("end")}
+                aria-invalid={Boolean(errors.end)}
+                aria-describedby={errors.end ? "end-error" : undefined}
               />
             </div>
+            {(errors.date || errors.start || errors.end) && (
+              <div className="space-y-1">
+                {errors.date && <div id="date-error">{errorMessage("date")}</div>}
+                {errors.start && <div id="start-error">{errorMessage("start")}</div>}
+                {errors.end && <div id="end-error">{errorMessage("end")}</div>}
+              </div>
+            )}
 
             <textarea
               rows="4"

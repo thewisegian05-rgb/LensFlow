@@ -12,9 +12,11 @@ function AddProjectModal({ open, onClose, onSave, editingProject }) {
   };
 
   const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (editingProject) {
+      setErrors({});
       setForm({
         id: editingProject.id,
         client: editingProject.client || "",
@@ -26,20 +28,49 @@ function AddProjectModal({ open, onClose, onSave, editingProject }) {
       return;
     }
 
+    setErrors({});
     setForm(emptyForm);
   }, [editingProject, open]);
 
   if (!open) return null;
 
   const handleChange = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (!form.client.trim()) {
+      setErrors({ client: "Client name is required." });
+      return;
+    }
+
     onSave(form);
     setForm(emptyForm);
+    setErrors({});
   };
+
+  const inputClass = (field) =>
+    `w-full rounded-lg border bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500 ${
+      errors[field]
+        ? "border-red-500 dark:border-red-400"
+        : "border-slate-200 dark:border-slate-700"
+    }`;
+
+  const errorMessage = (field) =>
+    errors[field] ? (
+      <p className="mt-1 text-sm text-red-500" role="alert">
+        {errors[field]}
+      </p>
+    ) : null;
 
   return (
     <div
@@ -54,16 +85,20 @@ function AddProjectModal({ open, onClose, onSave, editingProject }) {
           {editingProject ? "Edit Project" : "New Project"}
         </h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <input
             type="text"
             name="client"
             placeholder="Client Name"
             value={form.client}
             onChange={handleChange}
-            className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
-            required
+            className={inputClass("client")}
+            aria-invalid={Boolean(errors.client)}
+            aria-describedby={errors.client ? "project-client-error" : undefined}
           />
+          {errors.client && (
+            <div id="project-client-error">{errorMessage("client")}</div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <select

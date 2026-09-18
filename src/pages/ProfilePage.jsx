@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useTheme } from "../context/ThemeContext";
 
 // ======================================================
 // DEFAULT CAROUSEL ALBUMS
@@ -105,6 +106,8 @@ const featuredStart = [
 // MAIN PROFILE COMPONENT
 // ======================================================
 export default function Profile() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   useEffect(() => {
     const savedProfile = localStorage.getItem("lensflow_profile");
@@ -571,7 +574,35 @@ export default function Profile() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 px-4 py-8 text-white md:px-8">
+    <div className={`${isDark ? "profile-page-dark" : "profile-page-light"} min-h-screen bg-slate-950 px-4 py-8 text-white md:px-8`}>
+
+      <style>{`
+        .profile-page-light {
+          background-color: #f8fafc !important;
+          color: #0f172a !important;
+        }
+
+        .profile-page-light .bg-slate-950 { background-color: #ffffff !important; }
+        .profile-page-light .bg-slate-900 { background-color: #ffffff !important; }
+        .profile-page-light .bg-slate-900\\/70 { background-color: rgba(255, 255, 255, 0.9) !important; }
+        .profile-page-light .bg-slate-950\\/40 { background-color: rgba(241, 245, 249, 0.7) !important; }
+        .profile-page-light .bg-slate-800 { background-color: #e2e8f0 !important; }
+        .profile-page-light .bg-slate-700 { background-color: #cbd5e1 !important; }
+        .profile-page-light .text-white { color: #0f172a !important; }
+        .profile-page-light .text-slate-200 { color: #334155 !important; }
+        .profile-page-light .text-slate-300 { color: #475569 !important; }
+        .profile-page-light .text-slate-400 { color: #64748b !important; }
+        .profile-page-light .text-slate-500 { color: #64748b !important; }
+        .profile-page-light .text-slate-600 { color: #475569 !important; }
+        .profile-page-light .border-slate-800 { border-color: #e2e8f0 !important; }
+        .profile-page-light .border-slate-700 { border-color: #cbd5e1 !important; }
+        .profile-page-light .border-slate-600 { border-color: #94a3b8 !important; }
+        .profile-page-light .hover\\:bg-slate-800:hover { background-color: #f1f5f9 !important; }
+        .profile-page-light .hover\\:bg-slate-700:hover { background-color: #e2e8f0 !important; }
+        .profile-page-light .hover\\:text-white:hover { color: #0f172a !important; }
+        .profile-page-light .from-slate-900 { --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important; }
+        .profile-page-light .to-transparent { --tw-gradient-to: transparent var(--tw-gradient-to-position) !important; }
+      `}</style>
 
       {/* ==================================================
           CAROUSEL ANIMATION

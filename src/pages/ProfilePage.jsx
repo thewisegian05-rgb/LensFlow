@@ -1,4 +1,12 @@
+// ========================================
+// IMPORTS
+// ========================================
 import React, { useState, useRef, useEffect } from "react";
+
+
+// ========================================
+// DEFAULT CAROUSEL ALBUMS
+// ========================================
 const carouselStart = [
   {
     id: 1,
@@ -65,6 +73,11 @@ const carouselStart = [
     ],
   },
 ];
+
+
+// ========================================
+// DEFAULT FEATURED PHOTOS
+// ========================================
 const featuredStart = [
   {
     id: 1,
@@ -92,38 +105,16 @@ const featuredStart = [
     title: "Lifestyle",
   },
 ];
+
+
 export default function Profile() {
-  const saveProfileData = (updates = {}) => {
-    const saved = localStorage.getItem("lensflow_profile");
-    const current = saved ? JSON.parse(saved) : {};
-    localStorage.setItem(
-      "lensflow_profile",
-      JSON.stringify({
-        ...current,
-        username,
-        bio,
-        profileInfo,
-        profilePicture,
-        carouselAlbums,
-        featuredPhotos,
-        ...updates,
-      })
-    );
-  };
-  useEffect(() => {
-    const savedProfile = localStorage.getItem("lensflow_profile");
-    if (savedProfile) {
-      const data = JSON.parse(savedProfile);
-      setUsername(data.username);
-      setBio(data.bio);
-      setProfileInfo(data.profileInfo);
-      if (data.profilePicture) {
-        setProfilePicture(data.profilePicture);
-      }
-    }
-  }, []);
+
+  // ========================================
+  // PROFILE INFORMATION STATES
+  // ========================================
   const [username, setUsername] = useState("LENSFLOW");
   const [bio, setBio] = useState("Gian and Friends");
+
   const [profileInfo, setProfileInfo] = useState({
     birthday: "July 19, 2005",
     gender: "Male",
@@ -139,9 +130,19 @@ export default function Profile() {
     studioEmail: "",
     studioNumber: "",
   });
+
+
+  // ========================================
+  // PROFILE PICTURE & PHOTO STATES
+  // ========================================
   const [profilePicture, setProfilePicture] = useState("");
   const [carouselAlbums, setCarouselAlbums] = useState(carouselStart);
   const [featuredPhotos, setFeaturedPhotos] = useState(featuredStart);
+
+
+  // ========================================
+  // MODAL & EDITING STATES
+  // ========================================
   const [editProfile, setEditProfile] = useState(false);
   const [viewDetails, setViewDetails] = useState(false);
   const [carouselManager, setCarouselManager] = useState(false);
@@ -152,11 +153,21 @@ export default function Profile() {
   const [profilePreview, setProfilePreview] = useState(false);
   const [featuredPreview, setFeaturedPreview] = useState(null);
   const [detailEditor, setDetailEditor] = useState(null);
+
+
+  // ========================================
+  // TEMPORARY EDITING STATES
+  // ========================================
   const [tempUsername, setTempUsername] = useState(username);
   const [tempBio, setTempBio] = useState(bio);
   const [tempDetails, setTempDetails] = useState(profileInfo);
   const [carouselSetup, setCarouselSetup] = useState(null);
   const [featuredSetup, setFeaturedSetup] = useState([]);
+
+
+  // ========================================
+  // DELETE CONFIRMATION MODAL STATE
+  // ========================================
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: "Delete Item?",
@@ -164,8 +175,60 @@ export default function Profile() {
       "Are you sure you want to delete this item? This action cannot be undone.",
     onConfirm: () => {},
   });
+
+
+  // ========================================
+  // REFS
+  // ========================================
   const scrollContainerRef = useRef(null);
   const profileContainerRef = useRef(null);
+
+
+  // ========================================
+  // LOCAL STORAGE - SAVE PROFILE DATA
+  // ========================================
+  const saveProfileData = (updates = {}) => {
+    const saved = localStorage.getItem("lensflow_profile");
+    const current = saved ? JSON.parse(saved) : {};
+
+    localStorage.setItem(
+      "lensflow_profile",
+      JSON.stringify({
+        ...current,
+        username,
+        bio,
+        profileInfo,
+        profilePicture,
+        carouselAlbums,
+        featuredPhotos,
+        ...updates,
+      })
+    );
+  };
+
+
+  // ========================================
+  // LOAD SAVED PROFILE DATA
+  // ========================================
+  useEffect(() => {
+    const savedProfile = localStorage.getItem("lensflow_profile");
+
+    if (savedProfile) {
+      const data = JSON.parse(savedProfile);
+
+      if (data.username) setUsername(data.username);
+      if (data.bio) setBio(data.bio);
+      if (data.profileInfo) setProfileInfo(data.profileInfo);
+      if (data.profilePicture) setProfilePicture(data.profilePicture);
+      if (data.carouselAlbums) setCarouselAlbums(data.carouselAlbums);
+      if (data.featuredPhotos) setFeaturedPhotos(data.featuredPhotos);
+    }
+  }, []);
+
+
+  // ========================================
+  // CLOSE PROFILE MENU WHEN CLICKING OUTSIDE
+  // ========================================
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -175,41 +238,45 @@ export default function Profile() {
         setProfileMenu(false);
       }
     };
+
     if (profileMenu) {
       document.addEventListener("mousedown", handleClickOutside);
     }
+
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [profileMenu]);
+
+
+  // ========================================
+  // AUTO-SAVE PROFILE CHANGES
+  // ========================================
   useEffect(() => {
-    const saved = localStorage.getItem("lensflow_profile");
-    if (!saved) return;
-    const data = JSON.parse(saved);
-    if (data.carouselAlbums) setCarouselAlbums(data.carouselAlbums);
-    if (data.featuredPhotos) setFeaturedPhotos(data.featuredPhotos);
-  }, []);
-  useEffect(() => {
-    const saved = localStorage.getItem("lensflow_profile");
-    const data = saved ? JSON.parse(saved) : {};
-    localStorage.setItem(
-      "lensflow_profile",
-      JSON.stringify({
-        ...data,
-        username,
-        bio,
-        profileInfo,
-        profilePicture,
-        carouselAlbums,
-        featuredPhotos,
-      })
-    );
-  }, [username, bio, profileInfo, profilePicture, carouselAlbums, featuredPhotos]);
+    saveProfileData();
+  }, [
+    username,
+    bio,
+    profileInfo,
+    profilePicture,
+    carouselAlbums,
+    featuredPhotos,
+  ]);
+
+
+  // ========================================
+  // OPEN EDIT PROFILE
+  // ========================================
   const openEditProfile = () => {
     setTempUsername(username);
     setTempBio(bio);
     setEditProfile(true);
   };
+
+
+  // ========================================
+  // SAVE EDIT PROFILE
+  // ========================================
   const saveProfile = () => {
     const updated = {
       username: tempUsername,
@@ -219,51 +286,104 @@ export default function Profile() {
       carouselAlbums,
       featuredPhotos,
     };
-    localStorage.setItem("lensflow_profile", JSON.stringify(updated));
+
+    localStorage.setItem(
+      "lensflow_profile",
+      JSON.stringify(updated)
+    );
+
     setUsername(tempUsername);
     setBio(tempBio);
     setEditProfile(false);
   };
+
+
+  // ========================================
+  // OPEN DETAIL EDITOR
+  // ========================================
   const openDetailEditor = (type) => {
     setTempDetails({ ...profileInfo });
     setDetailEditor(type);
   };
+
+
+  // ========================================
+  // SAVE DETAIL CHANGES
+  // ========================================
   const saveDetailEditor = () => {
     const updated = { ...tempDetails };
+
     setProfileInfo(updated);
-    saveProfileData({ profileInfo: updated });
-    setDetailEditor(null);
-  };
- const changeProfilePictureDirect = (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onloadend = () => {
-    const imageData = reader.result;
-    setProfilePicture(imageData);
-    const savedProfile = localStorage.getItem("lensflow_profile");
-    const data = savedProfile ? JSON.parse(savedProfile) : {};
-    const updatedProfile = {
-      ...data,
-      username,
-      bio,
-      profileInfo,
-      profilePicture: imageData,
-      carouselAlbums,
-      featuredPhotos,
-    };
+
+    const saved = localStorage.getItem("lensflow_profile");
+    const current = saved ? JSON.parse(saved) : {};
+
     localStorage.setItem(
       "lensflow_profile",
-      JSON.stringify(updatedProfile)
+      JSON.stringify({
+        ...current,
+        username,
+        bio,
+        profileInfo: updated,
+        profilePicture,
+        carouselAlbums,
+        featuredPhotos,
+      })
     );
+
+    setDetailEditor(null);
   };
-  reader.readAsDataURL(file);
-  setProfileMenu(false);
-  e.target.value = "";
-};
+
+
+  // ========================================
+  // CHANGE PROFILE PICTURE
+  // ========================================
+  const changeProfilePictureDirect = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onloadend = () => {
+      const imageData = reader.result;
+
+      setProfilePicture(imageData);
+
+      const savedProfile = localStorage.getItem("lensflow_profile");
+      const data = savedProfile ? JSON.parse(savedProfile) : {};
+
+      const updatedProfile = {
+        ...data,
+        username,
+        bio,
+        profileInfo,
+        profilePicture: imageData,
+        carouselAlbums,
+        featuredPhotos,
+      };
+
+      localStorage.setItem(
+        "lensflow_profile",
+        JSON.stringify(updatedProfile)
+      );
+    };
+
+    reader.readAsDataURL(file);
+
+    setProfileMenu(false);
+    e.target.value = "";
+  };
+
+
+  // ========================================
+  // ADD NEW CAROUSEL ALBUM
+  // ========================================
   const addNewAlbumCard = (e) => {
     const files = Array.from(e.target.files || []);
+
     if (files.length === 0) return;
+
     setCarouselSetup({
       id: Date.now(),
       title: `Carousel Slot ${carouselAlbums.length + 1}`,
@@ -273,13 +393,21 @@ export default function Profile() {
         title: file.name,
       })),
     });
+
     e.target.value = "";
   };
+
+
+  // ========================================
+  // CONFIRM NEW CAROUSEL ALBUM
+  // ========================================
   const confirmCarouselSetup = () => {
     if (!carouselSetup) return;
+
     const title =
       carouselSetup.title.trim() ||
       `Carousel Slot ${carouselAlbums.length + 1}`;
+
     setCarouselAlbums((albums) => [
       ...albums,
       {
@@ -287,8 +415,14 @@ export default function Profile() {
         title,
       },
     ]);
+
     setCarouselSetup(null);
   };
+
+
+  // ========================================
+  // UPDATE CAROUSEL ALBUM TITLE
+  // ========================================
   const updateAlbumTitle = (albumId, newTitle) => {
     setCarouselAlbums((albums) =>
       albums.map((album) =>
@@ -301,9 +435,16 @@ export default function Profile() {
       )
     );
   };
+
+
+  // ========================================
+  // ADD PHOTOS TO CAROUSEL ALBUM
+  // ========================================
   const addPhotosToAlbum = (albumId, e) => {
     const files = Array.from(e.target.files || []);
+
     if (files.length === 0) return;
+
     setCarouselAlbums((albums) =>
       albums.map((album) => {
         if (album.id === albumId) {
@@ -312,21 +453,30 @@ export default function Profile() {
             src: URL.createObjectURL(file),
             title: file.name,
           }));
+
           return {
             ...album,
             photos: [...album.photos, ...newPhotos],
           };
         }
+
         return album;
       })
     );
+
     e.target.value = "";
   };
+
+
+  // ========================================
+  // DELETE PHOTO FROM CAROUSEL ALBUM
+  // ========================================
   const deletePhotoFromAlbum = (albumId, photoName) => {
     setConfirmModal({
       isOpen: true,
       title: "Delete Photo?",
       message: `Are you sure you want to delete "${photoName}"? This action cannot be undone.`,
+
       onConfirm: () => {
         setCarouselAlbums((albums) =>
           albums.map((album) => {
@@ -338,9 +488,11 @@ export default function Profile() {
                 ),
               };
             }
+
             return album;
           })
         );
+
         setConfirmModal((prev) => ({
           ...prev,
           isOpen: false,
@@ -348,15 +500,22 @@ export default function Profile() {
       },
     });
   };
+
+
+  // ========================================
+  // DELETE CAROUSEL ALBUM
+  // ========================================
   const deleteCarouselCard = (albumId, albumTitle) => {
     setConfirmModal({
       isOpen: true,
       title: "Delete Album?",
       message: `Are you sure you want to delete album "${albumTitle}"? This action cannot be undone.`,
+
       onConfirm: () => {
         setCarouselAlbums((albums) =>
           albums.filter((album) => album.id !== albumId)
         );
+
         setConfirmModal((prev) => ({
           ...prev,
           isOpen: false,
@@ -364,9 +523,16 @@ export default function Profile() {
       },
     });
   };
+
+
+  // ========================================
+  // ADD FEATURED PHOTOS
+  // ========================================
   const addFeaturedPhotos = (e) => {
     const files = Array.from(e.target.files || []);
+
     if (files.length === 0) return;
+
     setFeaturedSetup(
       files.map((file, i) => ({
         id: Date.now() + i,
@@ -374,8 +540,14 @@ export default function Profile() {
         title: file.name,
       }))
     );
+
     e.target.value = "";
   };
+
+
+  // ========================================
+  // UPDATE PENDING FEATURED PHOTO TITLE
+  // ========================================
   const updatePendingFeaturedTitle = (photoId, newTitle) => {
     setFeaturedSetup((photos) =>
       photos.map((photo) =>
@@ -388,19 +560,36 @@ export default function Profile() {
       )
     );
   };
+
+
+  // ========================================
+  // REMOVE PENDING FEATURED PHOTO
+  // ========================================
   const removePendingFeatured = (photoId) => {
     setFeaturedSetup((photos) =>
       photos.filter((photo) => photo.id !== photoId)
     );
   };
+
+
+  // ========================================
+  // POST FEATURED PHOTOS
+  // ========================================
   const postFeaturedPhotos = () => {
     if (featuredSetup.length === 0) return;
+
     setFeaturedPhotos((photos) => [
       ...photos,
       ...featuredSetup,
     ]);
+
     setFeaturedSetup([]);
   };
+
+
+  // ========================================
+  // UPDATE FEATURED PHOTO TITLE
+  // ========================================
   const updateFeaturedTitle = (photoId, newTitle) => {
     setFeaturedPhotos((photos) =>
       photos.map((photo) =>
@@ -413,15 +602,22 @@ export default function Profile() {
       )
     );
   };
+
+
+  // ========================================
+  // DELETE FEATURED PHOTO
+  // ========================================
   const deleteFeaturedPhoto = (photoId, photoTitle) => {
     setConfirmModal({
       isOpen: true,
       title: "Delete Featured Photo?",
       message: `Are you sure you want to delete "${photoTitle}"? This action cannot be undone.`,
+
       onConfirm: () => {
         setFeaturedPhotos((photos) =>
           photos.filter((photo) => photo.id !== photoId)
         );
+
         setConfirmModal((prev) => ({
           ...prev,
           isOpen: false,
@@ -429,12 +625,19 @@ export default function Profile() {
       },
     });
   };
+
+
+  // ========================================
+  // CAROUSEL PHOTO SCROLL
+  // ========================================
   const handleScroll = (e) => {
     if (!activeAlbum) return;
+
     const container = e.target;
     const scrollLeft = container.scrollLeft;
     const width = container.clientWidth;
     const index = Math.round(scrollLeft / width);
+
     if (
       index >= 0 &&
       index < activeAlbum.photos.length
@@ -442,46 +645,77 @@ export default function Profile() {
       setCurrentPhotoIndex(index);
     }
   };
+
+
+  // ========================================
+  // SCROLL TO SELECTED PHOTO
+  // ========================================
   const scrollToPhoto = (index) => {
     if (!scrollContainerRef.current) return;
+
     const container = scrollContainerRef.current;
+
     container.scrollTo({
       left: index * container.clientWidth,
       behavior: "smooth",
     });
+
     setCurrentPhotoIndex(index);
   };
+
+
+  // ========================================
+  // INFINITE CAROUSEL DATA
+  // ========================================
   const infiniteCarousel = [
     ...carouselAlbums,
     ...carouselAlbums,
     ...carouselAlbums,
   ];
+
+
+  // ========================================
+  // PROFILE PAGE UI
+  // ========================================
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-white md:px-8">
+
+      {/* ========================================
+          CAROUSEL ANIMATION
+          ======================================== */}
       <style>{`
         @keyframes parade {
-          0% {
-            transform: translateX(0);
-          }
-          100% {
-            transform: translateX(-33.333%);
-          }
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-33.333%); }
         }
+
         .animate-parade {
           display: flex;
           width: max-content;
           animation: parade 30s linear infinite;
         }
+
         .animate-parade:hover {
           animation-play-state: paused;
         }
       `}</style>
+
+
       <div className="mx-auto max-w-6xl">
+
+        {/* ========================================
+            PROFILE NAME
+            ======================================== */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">
             {username}
           </h1>
         </div>
+
+
+        {/* ========================================
+            PROFILE HEADER & PROFILE PICTURE
+            ======================================== */}
         <div className="flex flex-col gap-7 md:flex-row md:items-center">
           <div
             ref={profileContainerRef}
@@ -498,6 +732,11 @@ export default function Profile() {
                 className="h-full w-full object-cover"
               />
             </button>
+
+
+            {/* ========================================
+                PROFILE PICTURE MENU
+                ======================================== */}
             {profileMenu && (
               <div className="absolute left-1/2 top-full z-50 mt-3 w-56 -translate-x-1/2 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
                 <button
@@ -511,6 +750,7 @@ export default function Profile() {
                   👁️
                   <span>View Profile Picture</span>
                 </button>
+
                 <label
                   htmlFor="profile-picture-upload-menu"
                   className="flex cursor-pointer items-center gap-3 border-t border-slate-800 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-sky-400"
@@ -520,6 +760,7 @@ export default function Profile() {
                 </label>
               </div>
             )}
+
             <input
               id="profile-picture-upload-menu"
               type="file"
@@ -528,6 +769,11 @@ export default function Profile() {
               onChange={changeProfilePictureDirect}
             />
           </div>
+
+
+          {/* ========================================
+              PROFILE STATS & BIO
+              ======================================== */}
           <div className="flex-1">
             <div className="mb-5 flex gap-8">
               {[
@@ -536,36 +782,47 @@ export default function Profile() {
                 ["0", "Following"],
               ].map(([number, label]) => (
                 <div key={label}>
-                  <p className="text-xl font-bold">
-                    {number}
-                  </p>
+                  <p className="text-xl font-bold">{number}</p>
                   <p className="text-sm text-slate-400">
                     {label}
                   </p>
                 </div>
               ))}
             </div>
+
             <p className="mt-1 max-w-md whitespace-pre-line text-sm leading-6 text-slate-400">
               {bio}
             </p>
           </div>
         </div>
+
+
+        {/* ========================================
+            EDIT PROFILE BUTTON
+            ======================================== */}
         <button
           onClick={openEditProfile}
           className="mt-7 w-full rounded-xl border border-slate-700 bg-slate-900 py-3 text-sm font-semibold transition hover:border-sky-500 hover:bg-slate-800"
         >
           Edit Profile
         </button>
+
+
+        {/* ========================================
+            ABOUT SECTION
+            ======================================== */}
         <section className="mt-8 border-t border-slate-800 pt-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold">
                 About
               </h2>
+
               <p className="mt-1 text-sm text-slate-500">
                 Information about the account owner
               </p>
             </div>
+
             <button
               type="button"
               onClick={() => setViewDetails(true)}
@@ -574,78 +831,60 @@ export default function Profile() {
               See more
             </button>
           </div>
+
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-lg">
-                📷
-              </span>
-              <div>
-                <p className="text-xs text-slate-500">
-                  Work
-                </p>
-                <p className="text-sm text-slate-200">
-                  {profileInfo.work || "Not set"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-lg">
-                📍
-              </span>
-              <div>
-                <p className="text-xs text-slate-500">
-                  Location
-                </p>
-                <p className="text-sm text-slate-200">
-                  {profileInfo.location || "Not set"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-lg">
-                ✉️
-              </span>
-              <div>
-                <p className="text-xs text-slate-500">
-                  Personal Email
-                </p>
-                <p className="text-sm text-slate-200">
-                  {profileInfo.personalEmail || "Not set"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-lg">
-                📱
-              </span>
-              <div>
-                <p className="text-xs text-slate-500">
-                  Personal Number
-                </p>
-                <p className="text-sm text-slate-200">
-                  {profileInfo.personalNumber || "Not set"}
-                </p>
-              </div>
-            </div>
+            <DetailRow
+              icon="📷"
+              label="Work"
+              value={profileInfo.work || "Not set"}
+            />
+
+            <DetailRow
+              icon="📍"
+              label="Location"
+              value={profileInfo.location || "Not set"}
+            />
+
+            <DetailRow
+              icon="✉️"
+              label="Personal Email"
+              value={profileInfo.personalEmail || "Not set"}
+            />
+
+            <DetailRow
+              icon="📱"
+              label="Personal Number"
+              value={profileInfo.personalNumber || "Not set"}
+            />
           </div>
         </section>
+
+
+        {/* ========================================
+            CAROUSEL SECTION
+            ======================================== */}
         <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl">
           <div className="mb-5">
             <h2 className="text-lg font-bold">
               Carousel
             </h2>
+
             <p className="mt-1 text-xs text-slate-500">
               Featured carousel items on your profile
             </p>
           </div>
+
           <div className="relative overflow-hidden rounded-xl py-4">
             <div className="pointer-events-none absolute left-0 top-0 z-20 h-full w-16 bg-gradient-to-r from-slate-900 to-transparent" />
+
             <div className="pointer-events-none absolute right-0 top-0 z-20 h-full w-16 bg-gradient-to-l from-slate-900 to-transparent" />
+
             <div className="animate-parade gap-4">
               {infiniteCarousel.map((album, i) => {
                 const coverPhoto =
                   album.photos?.[0]?.src ||
                   "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800";
+
                 return (
                   <div
                     key={`${album.id}-${i}`}
@@ -660,12 +899,15 @@ export default function Profile() {
                       alt={album.title}
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
+
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+
                     {album.photos.length > 1 && (
                       <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm shadow">
                         🎞️
                       </div>
                     )}
+
                     <p className="absolute bottom-2 left-3 right-3 truncate text-xs font-semibold">
                       {album.title}
                     </p>
@@ -674,6 +916,11 @@ export default function Profile() {
               })}
             </div>
           </div>
+
+
+          {/* ========================================
+              UPDATE CAROUSEL BUTTON
+              ======================================== */}
           <button
             onClick={() => setCarouselManager(true)}
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-950 py-3 text-sm font-semibold text-slate-300 transition hover:border-sky-500 hover:text-white"
@@ -681,23 +928,38 @@ export default function Profile() {
             Update Carousel
           </button>
         </section>
+
+
+        {/* ========================================
+            FEATURED PHOTOS SECTION
+            ======================================== */}
         <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold">
                 Featured Photos
               </h2>
+
               <p className="mt-1 text-xs text-slate-500">
                 A collection of selected moments and work.
               </p>
             </div>
+
             <div className="flex items-center gap-2">
+
+              {/* ========================================
+                  ADD FEATURES BUTTON
+                  ======================================== */}
               <label
                 htmlFor="featured-upload"
                 className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-sky-400 transition hover:border-sky-500 hover:bg-slate-800"
               >
                 <span>+ Add Features</span>
               </label>
+
+              {/* ========================================
+                  FEATURED PHOTO MANAGE BUTTON
+                  ======================================== */}
               <button
                 onClick={() => setFeaturedManager(true)}
                 className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:border-sky-500 hover:text-white"
@@ -705,6 +967,7 @@ export default function Profile() {
                 Manage
               </button>
             </div>
+
             <input
               id="featured-upload"
               type="file"
@@ -714,6 +977,11 @@ export default function Profile() {
               onChange={addFeaturedPhotos}
             />
           </div>
+
+
+          {/* ========================================
+              FEATURED PHOTO GRID
+              ======================================== */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
             {featuredPhotos.map((photo) => (
               <div
@@ -731,10 +999,15 @@ export default function Profile() {
                     className="h-full w-full rounded-2xl object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </button>
+
+                {/* ========================================
+                    FEATURED PHOTO NAME
+                    ======================================== */}
                 <div className="mt-2 px-1">
                   <p className="truncate text-sm font-semibold text-white">
                     {photo.title}
                   </p>
+
                   <p className="text-xs text-slate-500">
                     Featured photo
                   </p>
@@ -744,18 +1017,29 @@ export default function Profile() {
           </div>
         </section>
       </div>
+
+
+      {/* ========================================
+          ABOUT DETAILS MODAL
+          ======================================== */}
       {viewDetails && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+            {/* ========================================
+                ABOUT MODAL HEADER
+                ======================================== */}
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
               <div>
                 <h2 className="text-xl font-bold">
                   About
                 </h2>
+
                 <p className="mt-1 text-xs text-slate-400">
                   Personal information and account details
                 </p>
               </div>
+
               <button
                 type="button"
                 onClick={() => setViewDetails(false)}
@@ -764,95 +1048,106 @@ export default function Profile() {
                 ✕
               </button>
             </div>
+
+
+            {/* ========================================
+                ABOUT MODAL CONTENT
+                ======================================== */}
             <div className="flex-1 space-y-8 overflow-y-auto p-6">
+
+              {/* ========================================
+                  PERSONAL DETAILS
+                  ======================================== */}
               <section>
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-white">
                     Personal Details
                   </h3>
+
                   <button
                     type="button"
-                    onClick={() =>
-                      openDetailEditor("personal")
-                    }
+                    onClick={() => openDetailEditor("personal")}
                     className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
                     title="Edit Personal Details"
                   >
                     ✏️
                   </button>
                 </div>
+
                 <div className="space-y-4">
                   <DetailRow
                     icon="🎂"
                     label="Birthday"
-                    value={
-                      profileInfo.birthday || "Not set"
-                    }
+                    value={profileInfo.birthday || "Not set"}
                   />
+
                   <DetailRow
                     icon="⚧"
                     label="Gender"
-                    value={
-                      profileInfo.gender || "Not set"
-                    }
+                    value={profileInfo.gender || "Not set"}
                   />
+
                   <DetailRow
                     icon="👤"
                     label="Pronouns"
-                    value={
-                      profileInfo.pronouns || "Not set"
-                    }
+                    value={profileInfo.pronouns || "Not set"}
                   />
+
                   <DetailRow
                     icon="❤️"
                     label="Relationship"
-                    value={
-                      profileInfo.relationship || "Not set"
-                    }
+                    value={profileInfo.relationship || "Not set"}
                   />
                 </div>
               </section>
+
+
+              {/* ========================================
+                  WORK DETAILS
+                  ======================================== */}
               <section className="border-t border-slate-800 pt-6">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-white">
                     Work
                   </h3>
+
                   <button
                     type="button"
-                    onClick={() =>
-                      openDetailEditor("work")
-                    }
+                    onClick={() => openDetailEditor("work")}
                     className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
                     title="Edit Work"
                   >
                     ✏️
                   </button>
                 </div>
+
                 <DetailRow
                   icon="📷"
                   label="Profession"
-                  value={
-                    profileInfo.work || "Not set"
-                  }
+                  value={profileInfo.work || "Not set"}
                 />
               </section>
+
+
+              {/* ========================================
+                  NICHES
+                  ======================================== */}
               <section className="border-t border-slate-800 pt-6">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-white">
-                   
                     Niches
                   </h3>
+
                   <button
                     type="button"
-                    onClick={() =>
-                      openDetailEditor("niches")
-                    }
+                    onClick={() => openDetailEditor("niches")}
                     className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
                     title="Edit Niches"
                   >
                     ✏️
                   </button>
                 </div>
+
                 {profileInfo.niches?.length > 0 ||
                 profileInfo.customNiche ? (
                   <div className="flex flex-wrap gap-2">
@@ -860,12 +1155,13 @@ export default function Profile() {
                       (niche, index) => (
                         <span
                           key={`${niche}-${index}`}
-                          className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200"
+                          className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200"
                         >
                           {niche}
                         </span>
                       )
                     )}
+
                     {profileInfo.customNiche && (
                       <span className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200">
                         {profileInfo.customNiche}
@@ -878,91 +1174,94 @@ export default function Profile() {
                   </p>
                 )}
               </section>
+
+
+              {/* ========================================
+                  LOCATION
+                  ======================================== */}
               <section className="border-t border-slate-800 pt-6">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-white">
                     Location
                   </h3>
+
                   <button
                     type="button"
-                    onClick={() =>
-                      openDetailEditor("location")
-                    }
+                    onClick={() => openDetailEditor("location")}
                     className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
                     title="Edit Location"
                   >
                     ✏️
                   </button>
                 </div>
+
                 <div className="space-y-4">
                   <DetailRow
                     icon="📍"
                     label="Location"
-                    value={
-                      profileInfo.location || "Not set"
-                    }
+                    value={profileInfo.location || "Not set"}
                   />
+
                   <DetailRow
                     icon="🏠"
                     label="Hometown"
-                    value={
-                      profileInfo.hometown || "Not set"
-                    }
+                    value={profileInfo.hometown || "Not set"}
                   />
                 </div>
               </section>
+
+
+              {/* ========================================
+                  CONTACT INFORMATION
+                  ======================================== */}
               <section className="border-t border-slate-800 pt-6">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-white">
                     Contact Info
                   </h3>
+
                   <button
                     type="button"
-                    onClick={() =>
-                      openDetailEditor("contact")
-                    }
+                    onClick={() => openDetailEditor("contact")}
                     className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
                     title="Edit Contact Info"
                   >
                     ✏️
                   </button>
                 </div>
+
                 <div className="space-y-4">
                   <DetailRow
                     icon="✉️"
                     label="Personal Email"
-                    value={
-                      profileInfo.personalEmail ||
-                      "Not set"
-                    }
+                    value={profileInfo.personalEmail || "Not set"}
                   />
+
                   <DetailRow
                     icon="📱"
                     label="Personal Number"
-                    value={
-                      profileInfo.personalNumber ||
-                      "Not set"
-                    }
+                    value={profileInfo.personalNumber || "Not set"}
                   />
+
                   <DetailRow
                     icon="✉️"
                     label="Studio Email"
-                    value={
-                      profileInfo.studioEmail ||
-                      "Not set"
-                    }
+                    value={profileInfo.studioEmail || "Not set"}
                   />
+
                   <DetailRow
                     icon="📱"
                     label="Studio Number"
-                    value={
-                      profileInfo.studioNumber ||
-                      "Not set"
-                    }
+                    value={profileInfo.studioNumber || "Not set"}
                   />
                 </div>
               </section>
             </div>
+
+
+            {/* ========================================
+                ABOUT MODAL SAVE BUTTON
+                ======================================== */}
             <div className="flex justify-end border-t border-slate-800 bg-slate-950 px-6 py-4">
               <button
                 type="button"
@@ -975,6 +1274,11 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+
+      {/* ========================================
+          DETAIL EDITOR MODAL
+          ======================================== */}
       {detailEditor && (
         <DetailEditor
           type={detailEditor}
@@ -984,6 +1288,11 @@ export default function Profile() {
           onSave={saveDetailEditor}
         />
       )}
+
+
+      {/* ========================================
+          PROFILE PICTURE PREVIEW MODAL
+          ======================================== */}
       {profilePreview && (
         <div
           onClick={() => setProfilePreview(false)}
@@ -997,6 +1306,7 @@ export default function Profile() {
               <p className="text-sm font-bold">
                 Profile Picture
               </p>
+
               <button
                 onClick={() => setProfilePreview(false)}
                 className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300 hover:text-white"
@@ -1004,6 +1314,7 @@ export default function Profile() {
                 ✕
               </button>
             </div>
+
             <div className="bg-black p-5">
               <img
                 src={profilePicture}
@@ -1014,6 +1325,11 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+
+      {/* ========================================
+          FEATURED PHOTO PREVIEW MODAL
+          ======================================== */}
       {featuredPreview && (
         <div
           onClick={() => setFeaturedPreview(null)}
@@ -1027,6 +1343,7 @@ export default function Profile() {
               <p className="max-w-[75%] truncate text-sm font-bold text-white">
                 {featuredPreview.title}
               </p>
+
               <button
                 onClick={() => setFeaturedPreview(null)}
                 className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-sky-500 hover:text-white"
@@ -1034,6 +1351,7 @@ export default function Profile() {
                 − Minimize
               </button>
             </div>
+
             <div className="flex min-h-0 flex-1 items-center justify-center bg-black p-3 sm:p-5">
               <img
                 src={featuredPreview.src}
@@ -1044,18 +1362,29 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+
+      {/* ========================================
+          EDIT PROFILE MODAL
+          ======================================== */}
       {editProfile && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+            {/* ========================================
+                EDIT PROFILE MODAL HEADER
+                ======================================== */}
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
               <div>
                 <h2 className="text-xl font-bold">
                   Edit Profile
                 </h2>
+
                 <p className="mt-0.5 text-xs text-slate-400">
                   Update your account information.
                 </p>
               </div>
+
               <button
                 onClick={() => setEditProfile(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white"
@@ -1063,11 +1392,19 @@ export default function Profile() {
                 ✕
               </button>
             </div>
+
+
+            {/* ========================================
+                EDIT PROFILE FORM
+                ======================================== */}
             <div className="flex-1 space-y-4 overflow-y-auto p-6">
+
+              {/* Username */}
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Username
                 </label>
+
                 <input
                   type="text"
                   value={tempUsername}
@@ -1077,10 +1414,14 @@ export default function Profile() {
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
                 />
               </div>
+
+
+              {/* Bio */}
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Bio
                 </label>
+
                 <textarea
                   rows={4}
                   value={tempBio}
@@ -1091,6 +1432,11 @@ export default function Profile() {
                 />
               </div>
             </div>
+
+
+            {/* ========================================
+                EDIT PROFILE ACTION BUTTONS
+                ======================================== */}
             <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-950 px-6 py-4">
               <button
                 onClick={() => setEditProfile(false)}
@@ -1098,6 +1444,7 @@ export default function Profile() {
               >
                 Cancel
               </button>
+
               <button
                 onClick={saveProfile}
                 className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
@@ -1108,18 +1455,27 @@ export default function Profile() {
           </div>
         </div>
       )}
-            {carouselSetup && (
+
+
+      {/* ========================================
+          CAROUSEL SETUP MODAL
+          ======================================== */}
+      {carouselSetup && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
           <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+            {/* Carousel Setup Header */}
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
               <div>
                 <h2 className="text-xl font-bold">
                   Carousel Setup
                 </h2>
+
                 <p className="mt-0.5 text-xs text-slate-400">
                   Edit the album name before adding it.
                 </p>
               </div>
+
               <button
                 onClick={() => setCarouselSetup(null)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -1127,11 +1483,15 @@ export default function Profile() {
                 ✕
               </button>
             </div>
+
+
+            {/* Carousel Setup Content */}
             <div className="flex-1 space-y-5 overflow-y-auto p-6">
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Album Name
                 </label>
+
                 <input
                   type="text"
                   value={carouselSetup.title}
@@ -1145,6 +1505,7 @@ export default function Profile() {
                   placeholder="Album Name"
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {carouselSetup.photos.map((photo) => (
                   <div
@@ -1160,6 +1521,9 @@ export default function Profile() {
                 ))}
               </div>
             </div>
+
+
+            {/* Carousel Setup Buttons */}
             <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-950 px-6 py-4">
               <button
                 onClick={() => setCarouselSetup(null)}
@@ -1167,6 +1531,7 @@ export default function Profile() {
               >
                 Cancel
               </button>
+
               <button
                 onClick={confirmCarouselSetup}
                 className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-400"
@@ -1177,18 +1542,27 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+
+      {/* ========================================
+          FEATURED PHOTO SETUP MODAL
+          ======================================== */}
       {featuredSetup.length > 0 && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
           <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+            {/* Featured Setup Header */}
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
               <div>
                 <h2 className="text-xl font-bold">
                   Featured Setup
                 </h2>
+
                 <p className="mt-0.5 text-xs text-slate-400">
                   Edit the name of each featured photo before posting.
                 </p>
               </div>
+
               <button
                 onClick={() => setFeaturedSetup([])}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -1196,6 +1570,9 @@ export default function Profile() {
                 ✕
               </button>
             </div>
+
+
+            {/* Featured Setup Content */}
             <div className="flex-1 space-y-4 overflow-y-auto p-6">
               {featuredSetup.map((photo) => (
                 <div
@@ -1209,10 +1586,12 @@ export default function Profile() {
                       className="h-full w-full object-cover"
                     />
                   </div>
+
                   <div className="flex flex-1 flex-col justify-center gap-3">
                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                       Featured Name
                     </label>
+
                     <input
                       type="text"
                       value={photo.title}
@@ -1225,6 +1604,7 @@ export default function Profile() {
                       className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
                       placeholder="Featured Name"
                     />
+
                     <button
                       onClick={() =>
                         removePendingFeatured(photo.id)
@@ -1237,6 +1617,9 @@ export default function Profile() {
                 </div>
               ))}
             </div>
+
+
+            {/* Featured Setup Buttons */}
             <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-950 px-6 py-4">
               <button
                 onClick={() => setFeaturedSetup([])}
@@ -1244,6 +1627,7 @@ export default function Profile() {
               >
                 Cancel
               </button>
+
               <button
                 onClick={postFeaturedPhotos}
                 className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-400"
@@ -1254,6 +1638,11 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+
+      {/* ========================================
+          ACTIVE ALBUM / CAROUSEL PHOTO VIEWER
+          ======================================== */}
       {activeAlbum && (
         <div
           onClick={() => setActiveAlbum(null)}
@@ -1263,10 +1652,13 @@ export default function Profile() {
             className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
+
+            {/* Album Viewer Header */}
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-3">
               <p className="max-w-[80%] truncate text-xs font-bold text-white">
                 {activeAlbum.title}
               </p>
+
               <button
                 onClick={() => setActiveAlbum(null)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -1274,11 +1666,14 @@ export default function Profile() {
                 ✕
               </button>
             </div>
+
+
+            {/* Album Photos */}
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-black sm:aspect-[16/10]">
               <div className="absolute right-3 top-3 z-30 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                {currentPhotoIndex + 1}/
-                {activeAlbum.photos.length}
+                {currentPhotoIndex + 1}/{activeAlbum.photos.length}
               </div>
+
               <div
                 ref={scrollContainerRef}
                 onScroll={handleScroll}
@@ -1301,25 +1696,27 @@ export default function Profile() {
                   </div>
                 ))}
               </div>
+
+
+              {/* Previous Photo Button */}
               {currentPhotoIndex > 0 && (
                 <button
                   onClick={() =>
-                    scrollToPhoto(
-                      currentPhotoIndex - 1
-                    )
+                    scrollToPhoto(currentPhotoIndex - 1)
                   }
                   className="absolute left-3 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg backdrop-blur transition hover:bg-black/80"
                 >
                   ‹
                 </button>
               )}
+
+
+              {/* Next Photo Button */}
               {currentPhotoIndex <
                 activeAlbum.photos.length - 1 && (
                 <button
                   onClick={() =>
-                    scrollToPhoto(
-                      currentPhotoIndex + 1
-                    )
+                    scrollToPhoto(currentPhotoIndex + 1)
                   }
                   className="absolute right-3 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg backdrop-blur transition hover:bg-black/80"
                 >
@@ -1327,14 +1724,15 @@ export default function Profile() {
                 </button>
               )}
             </div>
+
+
+            {/* Album Photo Indicators */}
             <div className="flex justify-center border-t border-slate-800 bg-slate-950 py-3">
               <div className="flex gap-1.5">
                 {activeAlbum.photos.map((_, idx) => (
                   <button
                     key={idx}
-                    onClick={() =>
-                      scrollToPhoto(idx)
-                    }
+                    onClick={() => scrollToPhoto(idx)}
                     className={`h-1.5 rounded-full transition-all ${
                       idx === currentPhotoIndex
                         ? "w-4 bg-sky-500"
@@ -1347,18 +1745,27 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+
+      {/* ========================================
+          CAROUSEL MANAGER MODAL
+          ======================================== */}
       {carouselManager && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+            {/* Carousel Manager Header */}
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
               <div>
                 <h2 className="text-xl font-bold text-white">
                   Carousel Manager
                 </h2>
+
                 <p className="mt-0.5 text-xs text-slate-400">
                   Rename albums, manage photos, and update your carousel.
                 </p>
               </div>
+
               <button
                 onClick={() => setCarouselManager(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -1366,6 +1773,9 @@ export default function Profile() {
                 ✕
               </button>
             </div>
+
+
+            {/* Carousel Manager Content */}
             <div className="flex-1 space-y-6 overflow-y-auto p-6">
               {carouselAlbums.map((album, idx) => (
                 <div
@@ -1377,6 +1787,7 @@ export default function Profile() {
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-slate-300">
                         {idx + 1}
                       </span>
+
                       <input
                         type="text"
                         value={album.title}
@@ -1390,11 +1801,13 @@ export default function Profile() {
                         className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white focus:border-sky-500 focus:outline-none sm:max-w-xs"
                       />
                     </div>
+
                     <div className="flex items-center gap-2">
+
+                      {/* Add Photos */}
                       <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-sky-400 hover:bg-slate-800">
-                        <span>
-                          + Add Photos
-                        </span>
+                        <span>+ Add Photos</span>
+
                         <input
                           type="file"
                           accept="image/*"
@@ -1408,6 +1821,9 @@ export default function Profile() {
                           }
                         />
                       </label>
+
+
+                      {/* Delete Album */}
                       <button
                         onClick={() =>
                           deleteCarouselCard(
@@ -1421,6 +1837,9 @@ export default function Profile() {
                       </button>
                     </div>
                   </div>
+
+
+                  {/* Album Photos Grid */}
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6">
                     {album.photos.map((photo) => (
                       <div
@@ -1432,6 +1851,7 @@ export default function Profile() {
                           alt={photo.title}
                           className="h-full w-full object-cover"
                         />
+
                         <button
                           onClick={() =>
                             deletePhotoFromAlbum(
@@ -1448,13 +1868,20 @@ export default function Profile() {
                   </div>
                 </div>
               ))}
+
+
+              {/* ========================================
+                  CREATE NEW ALBUM SLOT
+                  ======================================== */}
               <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 bg-slate-950/40 py-6 text-center transition hover:border-sky-500 hover:bg-slate-950">
                 <span className="mb-1 flex h-8 w-8 items-center justify-center rounded-full border border-slate-600 text-base text-slate-300">
                   +
                 </span>
+
                 <span className="text-sm font-semibold text-slate-200">
                   Create New Album Slot
                 </span>
+
                 <input
                   type="file"
                   accept="image/*"
@@ -1464,6 +1891,9 @@ export default function Profile() {
                 />
               </label>
             </div>
+
+
+            {/* Carousel Manager Done Button */}
             <div className="flex justify-end border-t border-slate-800 bg-slate-950 px-6 py-4">
               <button
                 onClick={() => setCarouselManager(false)}
@@ -1475,27 +1905,37 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+
+      {/* ========================================
+          FEATURED PHOTOS MANAGER MODAL
+          ======================================== */}
       {featuredManager && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+            {/* Featured Manager Header */}
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
               <div>
                 <h2 className="text-xl font-bold text-white">
                   Featured Photos Manager
                 </h2>
+
                 <p className="mt-0.5 text-xs text-slate-400">
                   Rename or delete your featured photos.
                 </p>
               </div>
+
               <button
-                onClick={() =>
-                  setFeaturedManager(false)
-                }
+                onClick={() => setFeaturedManager(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
               >
                 ✕
               </button>
             </div>
+
+
+            {/* Featured Manager Content */}
             <div className="flex-1 space-y-4 overflow-y-auto p-6">
               {featuredPhotos.map((photo) => (
                 <FeaturedManagerItem
@@ -1506,11 +1946,12 @@ export default function Profile() {
                 />
               ))}
             </div>
+
+
+            {/* Featured Manager Done Button */}
             <div className="flex justify-end border-t border-slate-800 bg-slate-950 px-6 py-4">
               <button
-                onClick={() =>
-                  setFeaturedManager(false)
-                }
+                onClick={() => setFeaturedManager(false)}
                 className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-400"
               >
                 Done
@@ -1519,15 +1960,22 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+
+      {/* ========================================
+          DELETE CONFIRMATION MODAL
+          ======================================== */}
       {confirmModal.isOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
           <div className="relative flex w-full max-w-sm flex-col rounded-2xl border border-slate-800 bg-slate-900 p-6 text-center shadow-2xl">
             <h3 className="mb-2 text-lg font-bold text-white">
               {confirmModal.title}
             </h3>
+
             <p className="mb-6 text-xs leading-relaxed text-slate-400">
               {confirmModal.message}
             </p>
+
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={() =>
@@ -1540,6 +1988,7 @@ export default function Profile() {
               >
                 Cancel
               </button>
+
               <button
                 onClick={confirmModal.onConfirm}
                 className="flex-1 rounded-xl bg-red-600 py-2.5 text-xs font-semibold text-white shadow-lg transition hover:bg-red-500"
@@ -1553,16 +2002,23 @@ export default function Profile() {
     </div>
   );
 }
+
+
+// ========================================
+// DETAIL ROW COMPONENT
+// ========================================
 function DetailRow({ icon, label, value }) {
   return (
     <div className="flex items-center gap-4">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-lg">
         {icon}
       </span>
+
       <div className="min-w-0">
         <p className="text-xs text-slate-500">
           {label}
         </p>
+
         <p className="break-words text-sm text-slate-200">
           {value}
         </p>
@@ -1570,6 +2026,11 @@ function DetailRow({ icon, label, value }) {
     </div>
   );
 }
+
+
+// ========================================
+// DETAIL EDITOR COMPONENT
+// ========================================
 function DetailEditor({
   type,
   details,
@@ -1577,6 +2038,9 @@ function DetailEditor({
   onClose,
   onSave,
 }) {
+  // ========================================
+  // DETAIL EDITOR TITLES
+  // ========================================
   const titleMap = {
     personal: "Edit Personal Details",
     work: "Edit Work",
@@ -1584,32 +2048,45 @@ function DetailEditor({
     location: "Edit Location",
     contact: "Edit Contact Info",
   };
+
+
+  // ========================================
+  // DETAIL EDITOR OPTIONS
+  // ========================================
   const nicheOptions = [
-  "Wedding",
-  "Prenup",
-  "Portrait",
-  "Corporate",
-  "Birthday",
-];
+    "Wedding",
+    "Prenup",
+    "Portrait",
+    "Corporate",
+    "Birthday",
+  ];
 
   const workOptions = [
     "Photographer",
     "Videographer",
     "Photographer and Videographer",
   ];
+
   const genderOptions = [
     "Male",
     "Female",
     "Prefer not to say",
   ];
+
   const relationshipOptions = [
     "Single",
     "In a relationship",
     "Married",
     "Prefer not to say",
   ];
+
+
+  // ========================================
+  // TOGGLE NICHE
+  // ========================================
   const toggleNiche = (niche) => {
     const current = details.niches || [];
+
     if (current.includes(niche)) {
       setDetails({
         ...details,
@@ -1624,18 +2101,29 @@ function DetailEditor({
       });
     }
   };
+
+
+  // ========================================
+  // DETAIL EDITOR UI
+  // ========================================
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
       <div className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+        {/* ========================================
+            DETAIL EDITOR HEADER
+            ======================================== */}
         <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
           <div>
             <h2 className="text-xl font-bold">
               {titleMap[type]}
             </h2>
+
             <p className="mt-1 text-xs text-slate-400">
               Update this section of your profile.
             </p>
           </div>
+
           <button
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -1643,7 +2131,16 @@ function DetailEditor({
             ✕
           </button>
         </div>
+
+
+        {/* ========================================
+            DETAIL EDITOR CONTENT
+            ======================================== */}
         <div className="flex-1 space-y-5 overflow-y-auto p-6">
+
+          {/* ========================================
+              PERSONAL DETAILS EDITOR
+              ======================================== */}
           {type === "personal" && (
             <>
               <EditField
@@ -1657,10 +2154,12 @@ function DetailEditor({
                 }
                 placeholder="July 19, 2005"
               />
+
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Gender
                 </label>
+
                 <select
                   value={details.gender}
                   onChange={(e) =>
@@ -1681,6 +2180,7 @@ function DetailEditor({
                   ))}
                 </select>
               </div>
+
               <EditField
                 label="Pronouns"
                 value={details.pronouns}
@@ -1692,10 +2192,12 @@ function DetailEditor({
                 }
                 placeholder="They/Them"
               />
+
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Relationship
                 </label>
+
                 <select
                   value={details.relationship}
                   onChange={(e) =>
@@ -1720,11 +2222,17 @@ function DetailEditor({
               </div>
             </>
           )}
+
+
+          {/* ========================================
+              WORK EDITOR
+              ======================================== */}
           {type === "work" && (
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Work
               </label>
+
               <div className="space-y-2">
                 {workOptions.map((option) => (
                   <button
@@ -1747,55 +2255,56 @@ function DetailEditor({
                         ? "●"
                         : "○"}
                     </span>
+
                     {option}
                   </button>
                 ))}
               </div>
             </div>
           )}
+
+
+          {/* ========================================
+              NICHES EDITOR
+              ======================================== */}
           {type === "niches" && (
             <>
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Select Niche
                 </label>
+
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {nicheOptions.map(
-                    (niche) => {
-                      const selected =
-                        (
-                          details.niches || []
-                        ).includes(niche);
-                      return (
-                        <button
-                          key={niche}
-                          type="button"
-                          onClick={() =>
-                            toggleNiche(
-                              niche
-                            )
-                          }
-                          className={`rounded-xl border px-3 py-2.5 text-left text-sm transition ${
-                            selected
-                              ? "border-sky-500 bg-sky-500/10 text-sky-400"
-                              : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-600"
-                          }`}
-                        >
-                          {selected
-                            ? "✓ "
-                            : ""}
-                          {niche}
-                        </button>
+                  {nicheOptions.map((niche) => {
+                    const selected =
+                      (details.niches || []).includes(
+                        niche
                       );
-                    }
-                  )}
+
+                    return (
+                      <button
+                        key={niche}
+                        type="button"
+                        onClick={() =>
+                          toggleNiche(niche)
+                        }
+                        className={`rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                          selected
+                            ? "border-sky-500 bg-sky-500/10 text-sky-400"
+                            : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-600"
+                        }`}
+                      >
+                        {selected ? "✓ " : ""}
+                        {niche}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+
               <EditField
                 label="Custom Niche"
-                value={
-                  details.customNiche || ""
-                }
+                value={details.customNiche || ""}
                 onChange={(value) =>
                   setDetails({
                     ...details,
@@ -1806,6 +2315,11 @@ function DetailEditor({
               />
             </>
           )}
+
+
+          {/* ========================================
+              LOCATION EDITOR
+              ======================================== */}
           {type === "location" && (
             <>
               <EditField
@@ -1819,6 +2333,7 @@ function DetailEditor({
                 }
                 placeholder="Pagsanjan, Laguna"
               />
+
               <EditField
                 label="Hometown"
                 value={details.hometown || ""}
@@ -1832,13 +2347,16 @@ function DetailEditor({
               />
             </>
           )}
+
+
+          {/* ========================================
+              CONTACT INFORMATION EDITOR
+              ======================================== */}
           {type === "contact" && (
             <>
               <EditField
                 label="Personal Email"
-                value={
-                  details.personalEmail
-                }
+                value={details.personalEmail}
                 onChange={(value) =>
                   setDetails({
                     ...details,
@@ -1848,11 +2366,10 @@ function DetailEditor({
                 placeholder="juan@email.com"
                 type="email"
               />
+
               <EditField
                 label="Personal Number"
-                value={
-                  details.personalNumber
-                }
+                value={details.personalNumber}
                 onChange={(value) =>
                   setDetails({
                     ...details,
@@ -1861,11 +2378,10 @@ function DetailEditor({
                 }
                 placeholder="09XX-XXX-XXXX"
               />
+
               <EditField
                 label="Studio Email"
-                value={
-                  details.studioEmail || ""
-                }
+                value={details.studioEmail || ""}
                 onChange={(value) =>
                   setDetails({
                     ...details,
@@ -1875,11 +2391,10 @@ function DetailEditor({
                 placeholder="Optional"
                 type="email"
               />
+
               <EditField
                 label="Studio Number"
-                value={
-                  details.studioNumber || ""
-                }
+                value={details.studioNumber || ""}
                 onChange={(value) =>
                   setDetails({
                     ...details,
@@ -1891,6 +2406,11 @@ function DetailEditor({
             </>
           )}
         </div>
+
+
+        {/* ========================================
+            DETAIL EDITOR BUTTONS
+            ======================================== */}
         <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-950 px-6 py-4">
           <button
             onClick={onClose}
@@ -1898,6 +2418,7 @@ function DetailEditor({
           >
             Cancel
           </button>
+
           <button
             onClick={onSave}
             className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-400"
@@ -1909,6 +2430,11 @@ function DetailEditor({
     </div>
   );
 }
+
+
+// ========================================
+// EDIT FIELD COMPONENT
+// ========================================
 function EditField({
   label,
   value,
@@ -1921,6 +2447,7 @@ function EditField({
       <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
         {label}
       </label>
+
       <input
         type={type}
         value={value || ""}
@@ -1933,19 +2460,35 @@ function EditField({
     </div>
   );
 }
+
+
+// ========================================
+// FEATURED MANAGER ITEM COMPONENT
+// ========================================
 function FeaturedManagerItem({
   photo,
   onUpdate,
   onDelete,
 }) {
+  // ========================================
+  // FEATURED TITLE EDIT STATE
+  // ========================================
   const [titleInput, setTitleInput] = useState(
     photo.title
   );
+
   const isChanged =
     titleInput !== photo.title;
+
+
+  // ========================================
+  // FEATURED MANAGER ITEM UI
+  // ========================================
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-3 sm:flex-row sm:items-center">
       <div className="flex flex-1 items-center gap-3">
+
+        {/* Featured Photo Preview */}
         <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
           <img
             src={photo.src}
@@ -1953,6 +2496,9 @@ function FeaturedManagerItem({
             className="h-full w-full object-cover"
           />
         </div>
+
+
+        {/* Featured Photo Title */}
         <input
           type="text"
           value={titleInput}
@@ -1962,7 +2508,14 @@ function FeaturedManagerItem({
           className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-white focus:border-sky-500 focus:outline-none"
         />
       </div>
+
+
+      {/* ========================================
+          FEATURED PHOTO ACTION BUTTONS
+          ======================================== */}
       <div className="flex items-center justify-end gap-2">
+
+        {/* Confirm Title */}
         {isChanged && (
           <button
             onClick={() =>
@@ -1977,12 +2530,11 @@ function FeaturedManagerItem({
             Confirm
           </button>
         )}
+
+        {/* Delete Photo */}
         <button
           onClick={() =>
-            onDelete(
-              photo.id,
-              photo.title
-            )
+            onDelete(photo.id, photo.title)
           }
           className="rounded-xl border border-red-900/50 bg-red-950/30 px-3 py-2 text-xs font-semibold text-red-400 transition hover:bg-red-900/40"
         >

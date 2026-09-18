@@ -9,7 +9,7 @@ import {
 } from "../components/Workflow/workflowStages";
 import { CATEGORY_KEYS, CATEGORY_LABELS } from "../components/Schedule/eventCategory";
 import ProjectCard from "../components/Workflow/ProjectCard";
-import AddProjectModal from "../components/Workflow/AddProjectModal";
+import AddProjectModal from "../components/Workflow/Addprojectmodal";
 
 function WorkflowPage() {
   const [projects, setProjects] = useState([]);

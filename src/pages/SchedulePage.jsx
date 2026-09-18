@@ -229,6 +229,7 @@ function SchedulePage() {
       return;
     }
 
+    const talentFee = Number(form.talentFee) || 0;
     let clientId = form.clientId;
 
     if (!clientId) {
@@ -258,7 +259,7 @@ function SchedulePage() {
             category: form.category,
             project_status: "Ongoing",
             initials,
-            talent_fee: 0,
+            talent_fee: talentFee,
           },
         ])
         .select()
@@ -281,6 +282,20 @@ function SchedulePage() {
           name: newClient.name,
         },
       ]);
+    }
+
+    const { error: clientFeeError } = await supabase
+      .from("clients")
+      .update({ talent_fee: talentFee })
+      .eq("id", clientId)
+      .eq("user_id", user.id);
+
+    if (clientFeeError) {
+      console.error(
+        "Failed to update client talent fee:",
+        clientFeeError.message
+      );
+      return;
     }
 
     const payload = {

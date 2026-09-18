@@ -23,6 +23,10 @@ import {
 
 import { FaFilter } from "react-icons/fa6";
 
+// Key used to remember the client list's view type (grid/list) across
+// page navigations and reloads.
+const VIEW_TYPE_STORAGE_KEY = "clients:viewType";
+
 
 function ClientPage() {
 
@@ -38,7 +42,29 @@ function ClientPage() {
 
   // "grid" = card/block view
   // "list" = table/list view
-  const [viewType, setViewType] = useState("grid");
+  //
+  // Initialized from localStorage so navigating away and back (or
+  // reloading the page) keeps whatever view the user last picked,
+  // instead of always resetting to "grid".
+  const [viewType, setViewType] = useState(() => {
+    if (typeof window === "undefined") return "grid";
+
+    try {
+      return localStorage.getItem(VIEW_TYPE_STORAGE_KEY) || "grid";
+    } catch (error) {
+      console.error("Failed to read saved view type:", error);
+      return "grid";
+    }
+  });
+
+  // Persist whenever it changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_TYPE_STORAGE_KEY, viewType);
+    } catch (error) {
+      console.error("Failed to save view type:", error);
+    }
+  }, [viewType]);
 
   const [clients, setClients] = useState([]);
 
@@ -202,6 +228,24 @@ function ClientPage() {
 
     if (!user) {
       console.error("No authenticated user found.");
+      return;
+    }
+
+    // Delete every schedule event tied to this client first. If this
+    // fails we bail out before touching the client row, so we never
+    // end up with a deleted client but orphaned events still on the
+    // calendar.
+    const { error: eventsDeleteError } = await supabase
+      .from("schedule_events")
+      .delete()
+      .eq("client_id", clientToDelete)
+      .eq("user_id", user.id);
+
+    if (eventsDeleteError) {
+      console.error(
+        "Failed to delete client's schedule events:",
+        eventsDeleteError.message
+      );
       return;
     }
 
@@ -573,7 +617,7 @@ const handleEditClient = async (updatedClient) => {
       <ConfirmModal
         open={Boolean(clientToDelete)}
         title="Delete Client"
-        message="Are you sure you want to delete this client? This action cannot be undone."
+        message="This will permanently delete this client and all of their scheduled events. This action cannot be undone."
         onCancel={() => setClientToDelete(null)}
         onConfirm={confirmDeleteClient}
       />

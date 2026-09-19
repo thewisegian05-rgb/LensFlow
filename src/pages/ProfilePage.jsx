@@ -1,25 +1,16 @@
-// ========================================
-// IMPORTS
-// ========================================
 import React, { useState, useRef, useEffect } from "react";
 
 
-// ========================================
 // DEFAULT CAROUSEL ALBUMS
-// ========================================
 const carouselStart = [];
 
-// ========================================
-// DEFAULT FEATURED PHOTOS
-// ========================================
-const featuredStart = [];
 
+// DEFAULT FEATURED PHOTOS
+const featuredStart = [];
 
 export default function Profile() {
 
-  // ========================================
   // PROFILE INFORMATION STATES
-  // ========================================
   const [username, setUsername] = useState("LENSFLOW");
   const [bio, setBio] = useState("Gian and Friends");
 
@@ -39,18 +30,12 @@ export default function Profile() {
     studioNumber: "",
   });
 
-
-  // ========================================
   // PROFILE PICTURE & PHOTO STATES
-  // ========================================
   const [profilePicture, setProfilePicture] = useState("");
   const [carouselAlbums, setCarouselAlbums] = useState(carouselStart);
   const [featuredPhotos, setFeaturedPhotos] = useState(featuredStart);
 
-
-  // ========================================
   // MODAL & EDITING STATES
-  // ========================================
   const [editProfile, setEditProfile] = useState(false);
   const [viewDetails, setViewDetails] = useState(false);
   const [carouselManager, setCarouselManager] = useState(false);
@@ -61,21 +46,16 @@ export default function Profile() {
   const [profilePreview, setProfilePreview] = useState(false);
   const [featuredPreview, setFeaturedPreview] = useState(null);
   const [detailEditor, setDetailEditor] = useState(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
-
-  // ========================================
   // TEMPORARY EDITING STATES
-  // ========================================
   const [tempUsername, setTempUsername] = useState(username);
   const [tempBio, setTempBio] = useState(bio);
   const [tempDetails, setTempDetails] = useState(profileInfo);
   const [carouselSetup, setCarouselSetup] = useState(null);
   const [featuredSetup, setFeaturedSetup] = useState([]);
 
-
-  // ========================================
   // DELETE CONFIRMATION MODAL STATE
-  // ========================================
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: "Delete Item?",
@@ -83,18 +63,13 @@ export default function Profile() {
       "Are you sure you want to delete this item? This action cannot be undone.",
     onConfirm: () => {},
   });
-
-
-  // ========================================
+  
   // REFS
-  // ========================================
   const scrollContainerRef = useRef(null);
   const profileContainerRef = useRef(null);
 
 
-  // ========================================
   // LOCAL STORAGE - SAVE PROFILE DATA
-  // ========================================
   const saveProfileData = (updates = {}) => {
     const saved = localStorage.getItem("lensflow_profile");
     const current = saved ? JSON.parse(saved) : {};
@@ -115,9 +90,7 @@ export default function Profile() {
   };
 
 
-  // ========================================
   // LOAD SAVED PROFILE DATA
-  // ========================================
   useEffect(() => {
     const savedProfile = localStorage.getItem("lensflow_profile");
 
@@ -134,9 +107,8 @@ export default function Profile() {
   }, []);
 
 
-  // ========================================
+
   // CLOSE PROFILE MENU WHEN CLICKING OUTSIDE
-  // ========================================
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -157,9 +129,8 @@ export default function Profile() {
   }, [profileMenu]);
 
 
-  // ========================================
+ 
   // AUTO-SAVE PROFILE CHANGES
-  // ========================================
   useEffect(() => {
     saveProfileData();
   }, [
@@ -171,20 +142,14 @@ export default function Profile() {
     featuredPhotos,
   ]);
 
-
-  // ========================================
   // OPEN EDIT PROFILE
-  // ========================================
   const openEditProfile = () => {
     setTempUsername(username);
     setTempBio(bio);
     setEditProfile(true);
   };
 
-
-  // ========================================
   // SAVE EDIT PROFILE
-  // ========================================
   const saveProfile = () => {
     const updated = {
       username: tempUsername,
@@ -205,19 +170,13 @@ export default function Profile() {
     setEditProfile(false);
   };
 
-
-  // ========================================
   // OPEN DETAIL EDITOR
-  // ========================================
   const openDetailEditor = (type) => {
     setTempDetails({ ...profileInfo });
     setDetailEditor(type);
   };
 
-
-  // ========================================
   // SAVE DETAIL CHANGES
-  // ========================================
   const saveDetailEditor = () => {
     const updated = { ...tempDetails };
 
@@ -238,14 +197,9 @@ export default function Profile() {
         featuredPhotos,
       })
     );
+    setDetailEditor(null); };
 
-    setDetailEditor(null);
-  };
-
-
-  // ========================================
   // CHANGE PROFILE PICTURE
-  // ========================================
   const changeProfilePictureDirect = (e) => {
     const file = e.target.files?.[0];
 
@@ -283,10 +237,7 @@ export default function Profile() {
     e.target.value = "";
   };
 
-
-  // ========================================
   // ADD NEW CAROUSEL ALBUM
-  // ========================================
   const addNewAlbumCard = (e) => {
     const files = Array.from(e.target.files || []);
 
@@ -305,10 +256,7 @@ export default function Profile() {
     e.target.value = "";
   };
 
-
-  // ========================================
   // CONFIRM NEW CAROUSEL ALBUM
-  // ========================================
   const confirmCarouselSetup = () => {
     if (!carouselSetup) return;
 
@@ -323,14 +271,9 @@ export default function Profile() {
         title,
       },
     ]);
+    setCarouselSetup(null);};
 
-    setCarouselSetup(null);
-  };
-
-
-  // ========================================
   // UPDATE CAROUSEL ALBUM TITLE
-  // ========================================
   const updateAlbumTitle = (albumId, newTitle) => {
     setCarouselAlbums((albums) =>
       albums.map((album) =>
@@ -344,10 +287,7 @@ export default function Profile() {
     );
   };
 
-
-  // ========================================
   // ADD PHOTOS TO CAROUSEL ALBUM
-  // ========================================
   const addPhotosToAlbum = (albumId, e) => {
     const files = Array.from(e.target.files || []);
 

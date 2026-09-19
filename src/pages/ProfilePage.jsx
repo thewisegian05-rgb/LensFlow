@@ -7,104 +7,12 @@ import React, { useState, useRef, useEffect } from "react";
 // ========================================
 // DEFAULT CAROUSEL ALBUMS
 // ========================================
-const carouselStart = [
-  {
-    id: 1,
-    title: "Classic White Tee",
-    photos: [
-      {
-        id: 101,
-        src: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800",
-        title: "Front View",
-      },
-      {
-        id: 102,
-        src: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=800",
-        title: "Detail View",
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: "Streetwear",
-    photos: [
-      {
-        id: 201,
-        src: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=800",
-        title: "Outfit 1",
-      },
-      {
-        id: 202,
-        src: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=800",
-        title: "Outfit 2",
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: "Minimal Look",
-    photos: [
-      {
-        id: 301,
-        src: "https://images.unsplash.com/photo-1485968579580-b6d095142e6e?w=800",
-        title: "Look 1",
-      },
-    ],
-  },
-  {
-    id: 4,
-    title: "Modern Style",
-    photos: [
-      {
-        id: 401,
-        src: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=800",
-        title: "Studio Shot",
-      },
-      {
-        id: 402,
-        src: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800",
-        title: "Studio Shot 2",
-      },
-      {
-        id: 403,
-        src: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=800",
-        title: "Studio Shot 3",
-      },
-    ],
-  },
-];
-
+const carouselStart = [];
 
 // ========================================
 // DEFAULT FEATURED PHOTOS
 // ========================================
-const featuredStart = [
-  {
-    id: 1,
-    src: "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=1000",
-    title: "Main Collection",
-  },
-  {
-    id: 2,
-    src: "https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=800",
-    title: "Street Style",
-  },
-  {
-    id: 3,
-    src: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800",
-    title: "Minimal Look",
-  },
-  {
-    id: 4,
-    src: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1000",
-    title: "New Collection",
-  },
-  {
-    id: 5,
-    src: "https://images.unsplash.com/photo-1485230895905-ec40ba36b9bc?w=800",
-    title: "Lifestyle",
-  },
-];
+const featuredStart = [];
 
 
 export default function Profile() {
@@ -116,17 +24,17 @@ export default function Profile() {
   const [bio, setBio] = useState("Gian and Friends");
 
   const [profileInfo, setProfileInfo] = useState({
-    birthday: "July 19, 2005",
-    gender: "Male",
+    birthday: "",
+    gender: "",
     pronouns: "They/Them",
-    relationship: "Single",
-    work: "Photographer",
-    niches: ["Portrait Photography", "Event Photography"],
+    relationship: "",
+    work: "",
+    niches: [],
     customNiche: "",
-    location: "Pagsanjan, Laguna",
+    location: "",
     hometown: "",
-    personalEmail: "juan@email.com",
-    personalNumber: "09XX-XXX-XXXX",
+    personalEmail: "",
+    personalNumber: "",
     studioEmail: "",
     studioNumber: "",
   });
@@ -1133,47 +1041,74 @@ export default function Profile() {
                   NICHES
                   ======================================== */}
               <section className="border-t border-slate-800 pt-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-white">
-                    Niches
-                  </h3>
+  <div className="mb-4 flex items-center justify-between">
+    <h3 className="text-lg font-bold text-white">
+      Niches
+    </h3>
 
-                  <button
-                    type="button"
-                    onClick={() => openDetailEditor("niches")}
-                    className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
-                    title="Edit Niches"
-                  >
-                    ✏️
-                  </button>
-                </div>
+    <button
+      type="button"
+      onClick={() => openDetailEditor("niches")}
+      className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
+      title="Edit Niches"
+    >
+      ✏️
+    </button>
+  </div>
 
-                {profileInfo.niches?.length > 0 ||
-                profileInfo.customNiche ? (
-                  <div className="flex flex-wrap gap-2">
-                    {(profileInfo.niches || []).map(
-                      (niche, index) => (
-                        <span
-                          key={`${niche}-${index}`}
-                          className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200"
-                        >
-                          {niche}
-                        </span>
-                      )
-                    )}
+  {profileInfo.niches?.length > 0 || profileInfo.customNiche ? (
+    <div className="flex flex-wrap gap-2">
+      {(profileInfo.niches || []).map((niche, index) => (
+        <span
+          key={`${niche}-${index}`}
+          className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200"
+        >
+          <span>{niche}</span>
 
-                    {profileInfo.customNiche && (
-                      <span className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200">
-                        {profileInfo.customNiche}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500">
-                    No niches added yet.
-                  </p>
-                )}
-              </section>
+          <button
+            type="button"
+            onClick={() => {
+              setProfileInfo((prev) => ({
+                ...prev,
+                niches: (prev.niches || []).filter(
+                  (_, i) => i !== index
+                ),
+              }));
+            }}
+            className="text-slate-400 transition hover:text-red-400"
+            title={`Remove ${niche}`}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+
+      {profileInfo.customNiche && (
+        <span className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200">
+          <span>{profileInfo.customNiche}</span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setProfileInfo((prev) => ({
+                ...prev,
+                customNiche: "",
+              }));
+            }}
+            className="text-slate-400 transition hover:text-red-400"
+            title={`Remove ${profileInfo.customNiche}`}
+          >
+            ×
+          </button>
+        </span>
+      )}
+    </div>
+  ) : (
+    <p className="text-sm text-slate-500">
+      No niches added yet.
+    </p>
+  )}
+</section>
 
 
               {/* ========================================

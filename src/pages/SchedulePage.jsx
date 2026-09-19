@@ -47,9 +47,12 @@ function SchedulePage() {
 
     if (!user) return;
 
+    // Also pull talent_fee so AddEventModal can pre-fill the fee
+    // field when an existing client is picked, instead of always
+    // starting blank.
     const { data, error } = await supabase
       .from("clients")
-      .select("id, name")
+      .select("id, name, talent_fee")
       .eq("user_id", user.id)
       .order("name", { ascending: true });
 
@@ -58,7 +61,13 @@ function SchedulePage() {
       return;
     }
 
-    setClients(data || []);
+    const mapped = (data || []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      talentFee: row.talent_fee,
+    }));
+
+    setClients(mapped);
   };
 
   // =========================================================
@@ -183,6 +192,7 @@ function SchedulePage() {
         id: row.id,
         title: row.title,
         client: row.client,
+        clientId: row.client_id,
         category: row.category,
         photographer: row.photographer,
         location: row.location,
@@ -201,6 +211,9 @@ function SchedulePage() {
         }),
         project_id: row.project_id,
         status: row.status,
+        // Per-event fee, now actually persisted (see addOrUpdateEvent
+        // below) instead of only living on the client record.
+        talentFee: Number(row.talent_fee) || 0,
       };
     });
 
@@ -213,6 +226,66 @@ function SchedulePage() {
     fetchClients();
   }, []);
 
+
+  // =========================================================
+  // RESYNC A CLIENT'S CACHED PROJECT SNAPSHOT
+  // =========================================================
+  //
+  // `clients.project` / `venue` / `category` are a snapshot written
+  // whenever an event is saved (see addOrUpdateEvent below) — they're
+  // what ClientPage falls back to display when a client has no
+  // *current* events. That snapshot is never touched on delete, so
+  // deleting a client's last remaining event left stale data behind
+  // and made it look like the event was never actually removed.
+  // Call this after any schedule_events delete that could affect a
+  // client, so their snapshot always reflects what's really left.
+
+  const syncClientProjectSnapshot = async (clientId) => {
+    if (!clientId) return;
+
+    const { data: remainingEvents, error } = await supabase
+      .from("schedule_events")
+      .select("title, location, category, start_time")
+      .eq("client_id", clientId)
+      .order("start_time", { ascending: true });
+
+    if (error) {
+      console.error(
+        "Failed to resync client project snapshot:",
+        error.message
+      );
+      return;
+    }
+
+    const now = new Date();
+    const upcoming = (remainingEvents || []).filter(
+      (event) => new Date(event.start_time) >= now
+    );
+
+    // Prefer the nearest upcoming event, same as ClientPage's own
+    // "activeProject" logic; otherwise fall back to the most recent
+    // past one; otherwise there's genuinely nothing left, so clear it.
+    const active =
+      upcoming[0] ||
+      (remainingEvents && remainingEvents[remainingEvents.length - 1]) ||
+      null;
+
+    const { error: updateError } = await supabase
+      .from("clients")
+      .update({
+        project: active?.title || null,
+        venue: active?.location || null,
+        category: active?.category || null,
+      })
+      .eq("id", clientId);
+
+    if (updateError) {
+      console.error(
+        "Failed to update client project snapshot:",
+        updateError.message
+      );
+    }
+  };
 
   // =========================================================
   // ADD / UPDATE EVENT
@@ -280,6 +353,7 @@ function SchedulePage() {
         {
           id: newClient.id,
           name: newClient.name,
+          talentFee,
         },
       ]);
     }
@@ -310,6 +384,10 @@ function SchedulePage() {
       start_time: new Date(`${form.date}T${form.start}`).toISOString(),
       end_time: new Date(`${form.date}T${form.end}`).toISOString(),
       project_id: form.projectId || null,
+      // This was being computed above and synced onto the client, but
+      // never actually saved onto the event row itself — added here
+      // so each event keeps its own fee going forward.
+      talent_fee: talentFee,
     };
 
     if (form.id) {
@@ -335,6 +413,7 @@ function SchedulePage() {
     }
 
     await fetchEvents();
+    await fetchClients();
 
     setModalOpen(false);
     setSelectedEvent(null);
@@ -404,6 +483,24 @@ function SchedulePage() {
       return;
     }
 
+    // If this event was promoted into (or linked to) a real project in
+    // Workflow, delete that project too so it disappears from there as
+    // well, not just here.
+    if (eventToDelete.project_id) {
+      const { error: projectDeleteError } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", eventToDelete.project_id);
+
+      if (projectDeleteError) {
+        console.error(
+          "Failed to delete linked project:",
+          projectDeleteError.message
+        );
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from("schedule_events")
       .delete()
@@ -413,6 +510,8 @@ function SchedulePage() {
       console.error("Failed to delete event:", error.message);
       return;
     }
+
+    await syncClientProjectSnapshot(eventToDelete.clientId);
 
     await fetchEvents();
 

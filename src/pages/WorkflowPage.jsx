@@ -50,6 +50,7 @@ function WorkflowPage() {
     return data.map((ev) => ({
       id: `event-${ev.id}`,
       eventId: ev.id,
+      clientId: ev.client_id,
       client: ev.client || ev.title,
       category: ev.category,
       date: new Date(ev.start_time).toLocaleDateString(undefined, {
@@ -193,7 +194,130 @@ function WorkflowPage() {
     setModalOpen(true);
   };
 
+  // =========================================================
+  // RESYNC A CLIENT'S CACHED PROJECT SNAPSHOT
+  // =========================================================
+  //
+  // `clients.project` / `venue` / `category` are a snapshot written
+  // from the Schedule tab whenever an event is saved — it's what
+  // ClientPage falls back to display when a client has no *current*
+  // events. That snapshot is never touched on delete, so deleting a
+  // client's last remaining event left stale data behind and made it
+  // look like the event was never actually removed. Call this after
+  // any schedule_events delete that could affect a client, so their
+  // snapshot always reflects what's really left.
+
+  const syncClientProjectSnapshot = async (clientId) => {
+    if (!clientId) return;
+
+    const { data: remainingEvents, error } = await supabase
+      .from("schedule_events")
+      .select("title, location, category, start_time")
+      .eq("client_id", clientId)
+      .order("start_time", { ascending: true });
+
+    if (error) {
+      console.error(
+        "Failed to resync client project snapshot:",
+        error.message
+      );
+      return;
+    }
+
+    const now = new Date();
+    const upcoming = (remainingEvents || []).filter(
+      (event) => new Date(event.start_time) >= now
+    );
+
+    const active =
+      upcoming[0] ||
+      (remainingEvents && remainingEvents[remainingEvents.length - 1]) ||
+      null;
+
+    const { error: updateError } = await supabase
+      .from("clients")
+      .update({
+        project: active?.title || null,
+        venue: active?.location || null,
+        category: active?.category || null,
+      })
+      .eq("id", clientId);
+
+    if (updateError) {
+      console.error(
+        "Failed to update client project snapshot:",
+        updateError.message
+      );
+    }
+  };
+
   const handleDeleteProject = async (id) => {
+    const project = projects.find((p) => p.id === id);
+
+    if (!project) return;
+
+    // "Coming Events" cards aren't real project rows — they're just
+    // unlinked schedule_events surfaced here (see fetchUpcomingEvents
+    // above). There's nothing in the `projects` table to delete; the
+    // thing to delete is the schedule_events row itself, which is
+    // also what makes it disappear from the Schedule tab.
+    if (project.isScheduleEvent) {
+      const { error } = await supabase
+        .from("schedule_events")
+        .delete()
+        .eq("id", project.eventId);
+
+      if (error) {
+        console.error("Failed to delete schedule event:", error.message);
+        return;
+      }
+
+      await syncClientProjectSnapshot(project.clientId);
+      await fetchProjects();
+      return;
+    }
+
+    // Real project row. Find every client whose event links to this
+    // project before we delete those events, so we know who to
+    // resync afterward.
+    const { data: linkedEvents, error: linkedFetchError } = await supabase
+      .from("schedule_events")
+      .select("client_id")
+      .eq("project_id", id);
+
+    if (linkedFetchError) {
+      console.error(
+        "Failed to look up events linked to this project:",
+        linkedFetchError.message
+      );
+      return;
+    }
+
+    // If it was promoted from a schedule event (see handleMoveStage
+    // below), that event still points project_id at this project —
+    // delete it too so it disappears from Schedule as well, not just
+    // here.
+    const { error: eventsDeleteError } = await supabase
+      .from("schedule_events")
+      .delete()
+      .eq("project_id", id);
+
+    if (eventsDeleteError) {
+      console.error(
+        "Failed to delete schedule events linked to this project:",
+        eventsDeleteError.message
+      );
+      return;
+    }
+
+    const affectedClientIds = [
+      ...new Set((linkedEvents || []).map((e) => e.client_id).filter(Boolean)),
+    ];
+
+    for (const clientId of affectedClientIds) {
+      await syncClientProjectSnapshot(clientId);
+    }
+
     const { error } = await supabase.from("projects").delete().eq("id", id);
 
     if (error) {

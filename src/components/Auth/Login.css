@@ -275,3 +275,20 @@
     border:1px solid #7f1d1d;
     color:#fca5a5;
 }
+.signup-prompt {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #64748b; /* slate-500-ish */
+}
+
+.signup-link {
+  color: #0ea5e9; /* sky-500-ish */
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.signup-link:hover {
+  color: #38bdf8; /* sky-400-ish */
+  text-decoration: underline;
+}

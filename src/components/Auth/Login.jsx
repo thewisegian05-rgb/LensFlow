@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import "./Login.css";
 
@@ -139,6 +139,13 @@ function Login() {
             </button>
 
           </form>
+
+          <p className="signup-prompt">
+            Don't have an account?{" "}
+            <Link to="/signup" className="signup-link">
+              Create one
+            </Link>
+          </p>
         </div>
 
         <div className="login-footer">

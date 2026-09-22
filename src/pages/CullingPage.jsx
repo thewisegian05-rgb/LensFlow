@@ -681,26 +681,37 @@ function CullingPage() {
       </div>
 
       {/* Mode tabs */}
-      <div className="flex items-center gap-2 mb-6 border-b border-slate-800">
+      <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-800">
         <button
+          type="button"
           onClick={() => setMode("cull")}
-          className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 ${
-            mode === "cull"
-              ? "border-sky-500 text-white"
-              : "border-transparent text-slate-500 hover:text-slate-300"
-          }`}
+          className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors
+            ${
+              mode === "cull"
+                ? "border-sky-500 text-slate-900 dark:text-white"
+                : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
+            }
+            bg-transparent shadow-none outline-none
+          `}
         >
-          <FaThLarge className="text-xs" /> Culling
+          <FaThLarge className="text-xs" />
+          Culling
         </button>
+
         <button
+          type="button"
           onClick={() => setMode("duplicates")}
-          className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 ${
-            mode === "duplicates"
-              ? "border-sky-500 text-white"
-              : "border-transparent text-slate-500 hover:text-slate-300"
-          }`}
+          className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors
+            ${
+              mode === "duplicates"
+                ? "border-sky-500 text-slate-900 dark:text-white"
+                : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
+            }
+            bg-transparent shadow-none outline-none
+          `}
         >
-          <FaClone className="text-xs" /> Duplicates
+          <FaClone className="text-xs" />
+          Duplicates
         </button>
       </div>
 

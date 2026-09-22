@@ -362,8 +362,16 @@ function AddEventModal({
                 name="category"
                 value={form.category}
                 onChange={handleChange}
-                className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                style={{ borderLeft: `4px solid ${activeColor}` }}
+                className="
+                  category-select
+                  w-full rounded-lg border p-3 outline-none transition
+                  border-slate-300 bg-white text-slate-900
+                  focus:border-sky-500
+                  dark:border-slate-700 dark:bg-slate-800 dark:text-white
+                "
+                style={{
+                  "--category-color": activeColor,
+                }}
               >
                 {CATEGORY_KEYS.map((key) => (
                   <option key={key} value={key}>

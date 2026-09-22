@@ -42,13 +42,17 @@ html:not(.dark) #root {
   color: var(--text-main);
 }
 
+html:not(.dark) .bg-slate-950,
+html:not(.dark) .bg-slate-950\/80,
+html:not(.dark) .bg-slate-950\/40,
 html:not(.dark) .bg-slate-900,
+html:not(.dark) .bg-slate-900\/80,
+html:not(.dark) .bg-slate-900\/70,
+html:not(.dark) .bg-slate-900\/60,
 html:not(.dark) .bg-slate-800,
 html:not(.dark) .bg-slate-800\/50,
-html:not(.dark) .bg-slate-800\/30,
-html:not(.dark) .bg-slate-900\/80,
 html:not(.dark) .bg-slate-100 {
-  background-color: var(--card-bg) !important;
+  background-color: #f1f5f9 !important;
 }
 
 html:not(.dark) .border-slate-700,
@@ -59,21 +63,20 @@ html:not(.dark) .border-slate-200 {
 }
 
 html:not(.dark) .text-white,
-html:not(.dark) .text-slate-300,
-html:not(.dark) .text-slate-400,
-html:not(.dark) .text-slate-500,
-html:not(.dark) .text-slate-600,
-html:not(.dark) .text-slate-700,
-html:not(.dark) .text-slate-800,
-html:not(.dark) .text-slate-900 {
+html:not(.dark) .text-slate-900,
+html:not(.dark) .text-slate-800 {
   color: var(--text-main) !important;
+}
+
+html:not(.dark) .text-slate-700,
+html:not(.dark) .text-slate-600 {
+  color: var(--text-muted) !important;
 }
 
 html:not(.dark) .text-slate-500,
 html:not(.dark) .text-slate-400,
-html:not(.dark) .text-slate-600,
-html:not(.dark) .text-slate-700 {
-  color: var(--text-muted) !important;
+html:not(.dark) .text-slate-300 {
+  color: var(--text-soft) !important;
 }
 
 html:not(.dark) .placeholder-slate-500::placeholder,

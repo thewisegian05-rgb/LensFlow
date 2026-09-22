@@ -195,19 +195,20 @@ function WorkflowPage() {
   };
 
   // =========================================================
-  // RESYNC A CLIENT'S CACHED PROJECT SNAPSHOT
+  // RESYNC OR REMOVE A CLIENT AFTER THEIR EVENTS CHANGE
   // =========================================================
   //
   // `clients.project` / `venue` / `category` are a snapshot written
   // from the Schedule tab whenever an event is saved — it's what
   // ClientPage falls back to display when a client has no *current*
-  // events. That snapshot is never touched on delete, so deleting a
-  // client's last remaining event left stale data behind and made it
-  // look like the event was never actually removed. Call this after
-  // any schedule_events delete that could affect a client, so their
-  // snapshot always reflects what's really left.
+  // events. If the client still has other events left, we just
+  // refresh that snapshot to the next one. If they have none at all,
+  // the client record itself is deleted — including any manually
+  // entered contact info, email, or notes — rather than left behind
+  // as an empty shell. This is a deliberate, confirmed choice: there
+  // is no "keep the client but empty" middle ground here.
 
-  const syncClientProjectSnapshot = async (clientId) => {
+  const syncOrRemoveClient = async (clientId) => {
     if (!clientId) return;
 
     const { data: remainingEvents, error } = await supabase
@@ -218,21 +219,34 @@ function WorkflowPage() {
 
     if (error) {
       console.error(
-        "Failed to resync client project snapshot:",
+        "Failed to check remaining events for client:",
         error.message
       );
       return;
     }
 
+    if (!remainingEvents || remainingEvents.length === 0) {
+      const { error: deleteError } = await supabase
+        .from("clients")
+        .delete()
+        .eq("id", clientId);
+
+      if (deleteError) {
+        console.error(
+          "Failed to delete client with no remaining events:",
+          deleteError.message
+        );
+      }
+
+      return;
+    }
+
     const now = new Date();
-    const upcoming = (remainingEvents || []).filter(
+    const upcoming = remainingEvents.filter(
       (event) => new Date(event.start_time) >= now
     );
 
-    const active =
-      upcoming[0] ||
-      (remainingEvents && remainingEvents[remainingEvents.length - 1]) ||
-      null;
+    const active = upcoming[0] || remainingEvents[remainingEvents.length - 1];
 
     const { error: updateError } = await supabase
       .from("clients")
@@ -272,7 +286,7 @@ function WorkflowPage() {
         return;
       }
 
-      await syncClientProjectSnapshot(project.clientId);
+      await syncOrRemoveClient(project.clientId);
       await fetchProjects();
       return;
     }
@@ -315,7 +329,7 @@ function WorkflowPage() {
     ];
 
     for (const clientId of affectedClientIds) {
-      await syncClientProjectSnapshot(clientId);
+      await syncOrRemoveClient(clientId);
     }
 
     const { error } = await supabase.from("projects").delete().eq("id", id);

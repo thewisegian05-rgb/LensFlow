@@ -118,6 +118,44 @@ html:not(.dark) .workflow-card-action[title="Delete Client"]:hover {
   color: #dc2626 !important;
 }
 
+html:not(.dark) .profile-page {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+html:not(.dark) .profile-page [class~="bg-slate-950"],
+html:not(.dark) .profile-page [class~="bg-slate-950/40"],
+html:not(.dark) .profile-page [class~="bg-slate-900"],
+html:not(.dark) .profile-page [class~="bg-slate-900/70"],
+html:not(.dark) .profile-page [class~="bg-slate-800"] {
+  background-color: #ffffff !important;
+}
+
+html:not(.dark) .profile-page [class~="bg-slate-800"] {
+  background-color: #f1f5f9 !important;
+}
+
+html:not(.dark) .profile-page [class~="border-slate-700"],
+html:not(.dark) .profile-page [class~="border-slate-800"] {
+  border-color: #dbe4ee !important;
+}
+
+html:not(.dark) .profile-page [class~="text-slate-200"] {
+  color: #334155 !important;
+}
+
+html:not(.dark) .profile-page [class~="text-slate-300"] {
+  color: #475569 !important;
+}
+
+html:not(.dark) .profile-page [class~="text-slate-400"] {
+  color: #64748b !important;
+}
+
+html:not(.dark) .profile-page [class~="text-slate-500"] {
+  color: #64748b !important;
+}
+
 @layer base {
   * {
     @apply transition-colors duration-200;

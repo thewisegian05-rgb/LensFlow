@@ -526,7 +526,7 @@ export default function Profile() {
   // PROFILE PAGE UI
   // ========================================
   return (
-    <div className="min-h-screen bg-slate-950 px-4 py-8 text-white md:px-8">
+    <div className="profile-page min-h-screen bg-slate-950 px-4 py-8 text-white md:px-8">
 
       {/* ========================================
           CAROUSEL ANIMATION
@@ -723,9 +723,9 @@ export default function Profile() {
           </div>
 
           <div className="relative overflow-hidden rounded-xl py-4">
-            <div className="pointer-events-none absolute left-0 top-0 z-20 h-full w-16 bg-gradient-to-r from-slate-900 to-transparent" />
+            <div className="pointer-events-none absolute left-0 top-0 z-20 h-full w-16 bg-gradient-to-r from-white to-transparent dark:from-slate-900" />
 
-            <div className="pointer-events-none absolute right-0 top-0 z-20 h-full w-16 bg-gradient-to-l from-slate-900 to-transparent" />
+            <div className="pointer-events-none absolute right-0 top-0 z-20 h-full w-16 bg-gradient-to-l from-white to-transparent dark:from-slate-900" />
 
             <div className="animate-parade gap-4">
               {infiniteCarousel.map((album, i) => {

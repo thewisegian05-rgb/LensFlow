@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+supabase
+python-dotenv
+opencv-contrib-python-headless
+numpy
+mediapipe
+torch
+torchvision
+open_clip_torch
+pillow
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.5.2

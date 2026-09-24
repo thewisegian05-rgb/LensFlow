@@ -25,11 +25,33 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import ConfirmModal from "../components/Common/ConfirmModal";
 
+//Test Culling
+const handleRunCulling = async () => {
+  try {
+    const response = await fetch("http://127.0.0.1:8000/cull", {
+      method: "POST",
+    });
+
+    const data = await response.json();
+
+    console.log("Backend response:", data);
+  } catch (error) {
+    console.error("Failed to reach backend:", error);
+  }
+};
+
 const FILTERS = [
   { key: "all", label: "All" },
+
+  // Photographer decisions
   { key: "star", label: "Starred" },
   { key: "reject", label: "Rejected" },
   { key: "unrated", label: "Unrated" },
+
+  // LensFlow AI decisions
+  { key: "ai_keep", label: "Keep" },
+  { key: "ai_review", label: "Review" },
+  { key: "ai_reject", label: "Reject" },
 ];
 
 const ACCEPTED_ATTR = "image/*,.cr3,.nef,.arw,.dng,.raw,.rw2,.orf";
@@ -211,6 +233,13 @@ function CullingPage() {
   const [folders, setFolders] = useState([]); // [{ id, name, parentId }]
   const [photos, setPhotos] = useState([]); // [{ id, folderId, fileName, ... }]
   const [culls, setCulls] = useState({});
+
+  // Latest LensFlow AI result per photo.
+  // This stays separate from `culls`, which represents the photographer's manual rating.
+  const [aiResults, setAiResults] = useState({});
+  const [cullingLoading, setCullingLoading] = useState(false);
+  const [cullingError, setCullingError] = useState("");
+
   const [path, setPath] = useState([]);
   const [filter, setFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
@@ -225,6 +254,91 @@ function CullingPage() {
   const fileInputRef = useRef(null);
 
   const currentFolderId = path.length ? path[path.length - 1] : null;
+
+  
+  // Run the FastAPI culling pipeline for the currently opened folder.
+  const handleRunCulling = async () => {
+    try {
+      if (!currentFolderId) {
+        setCullingError("Open a folder first before running LensFlow.");
+        return;
+      }
+
+      setCullingLoading(true);
+      setCullingError("");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        setCullingError("No active Supabase session.");
+        return;
+      }
+
+      const response = await fetch("http://127.0.0.1:8000/cull", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          "X-Refresh-Token": session.refresh_token,
+        },
+        body: JSON.stringify({
+          folder_id: currentFolderId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.detail || "LensFlow culling failed.");
+      }
+
+      const resultMap = {};
+
+      (data.results || []).forEach((result) => {
+        resultMap[result.photo_id] = {
+          photo_id: result.photo_id,
+          similarity_group: result.similarity_group,
+          group_rank: result.group_rank,
+          base_quality_score: result.base_quality_score,
+          ai_decision: result.lensflow_decision,
+          decision_reason: result.decision_reason,
+          metrics: {
+            sharpness: result.sharpness,
+            brightness: result.brightness,
+            dark_pixels_percent: result.dark_pixels_percent,
+            bright_pixels_percent: result.bright_pixels_percent,
+            contrast: result.contrast,
+            face_count: result.face_count,
+            average_face_sharpness: result.average_face_sharpness,
+            minimum_face_sharpness: result.minimum_face_sharpness,
+            maximum_blink_score: result.maximum_blink_score,
+            blink_asymmetry: result.blink_asymmetry,
+            aesthetic_score: result.aesthetic_score,
+            technical_score: result.technical_score,
+            face_quality_score: result.face_quality_score,
+            eye_quality_score: result.eye_quality_score,
+            aesthetic_quality_score: result.aesthetic_quality_score,
+            defects: result.defects || [],
+          },
+        };
+      });
+
+      // Merge instead of replacing so results from other folders remain visible.
+      setAiResults((prev) => ({
+        ...prev,
+        ...resultMap,
+      }));
+
+      console.log("LensFlow results:", data.results);
+    } catch (error) {
+      console.error("Failed to run LensFlow:", error);
+      setCullingError(error.message || "Failed to run LensFlow.");
+    } finally {
+      setCullingLoading(false);
+    }
+  };
 
   /* ---- load folders + photos for the signed-in user ---- */
   const loadData = useCallback(async (userId) => {
@@ -254,6 +368,26 @@ function CullingPage() {
       return;
     }
 
+    // Load any previously saved LensFlow AI results for these photos.
+    let cullingRows = [];
+
+    if (photoRows.length > 0) {
+      const photoIds = photoRows.map((photo) => photo.id);
+
+      const { data: savedResults, error: cullingErr } = await supabase
+        .from("culling_results")
+        .select(
+          "photo_id, similarity_group, group_rank, base_quality_score, ai_decision, decision_reason, metrics, analyzed_at"
+        )
+        .in("photo_id", photoIds);
+
+      if (cullingErr) {
+        console.error("Culling result load failed:", cullingErr);
+      } else {
+        cullingRows = savedResults || [];
+      }
+    }
+
     const signedUrls = await Promise.all(
       photoRows.map((p) => (p.previewable ? getSignedUrl(p.storage_path) : Promise.resolve(null)))
     );
@@ -280,9 +414,15 @@ function CullingPage() {
       if (p.rating) ratingsMap[p.id] = p.rating;
     });
 
+    const aiResultMap = {};
+    cullingRows.forEach((result) => {
+      aiResultMap[result.photo_id] = result;
+    });
+
     setFolders(folderState);
     setPhotos(photoState);
     setCulls(ratingsMap);
+    setAiResults(aiResultMap);
     setDataLoading(false);
   }, []);
 
@@ -293,6 +433,7 @@ function CullingPage() {
       setFolders([]);
       setPhotos([]);
       setCulls({});
+      setAiResults({});
       setPath([]);
     }
   }, [user, loadData]);
@@ -553,9 +694,37 @@ function CullingPage() {
   const openFolder = folders.find((f) => f.id === currentFolderId) || null;
 
   const visibleImages = folderImages.filter((img) => {
+    const aiDecision = aiResults[img.id]?.ai_decision;
+
     if (filter === "all") return true;
-    if (filter === "unrated") return !culls[img.id];
-    return culls[img.id] === filter;
+
+    // Photographer filters
+    if (filter === "star") {
+      return culls[img.id] === "star";
+    }
+
+    if (filter === "reject") {
+      return culls[img.id] === "reject";
+    }
+
+    if (filter === "unrated") {
+      return !culls[img.id];
+    }
+
+    // LensFlow AI filters
+    if (filter === "ai_keep") {
+      return aiDecision === "KEEP";
+    }
+
+    if (filter === "ai_review") {
+      return aiDecision === "REVIEW";
+    }
+
+    if (filter === "ai_reject") {
+      return aiDecision === "REJECT";
+    }
+
+    return true;
   });
 
   const folderTotal = folderImages.length;
@@ -564,8 +733,30 @@ function CullingPage() {
   const folderReviewed = folderStarred + folderRejected;
   const folderUnrated = folderTotal - folderReviewed;
 
+  // LensFlow AI decision counts for the currently opened folder
+  const folderAiKeep = folderImages.filter(
+    (img) => aiResults[img.id]?.ai_decision === "KEEP"
+  ).length;
+
+  const folderAiReview = folderImages.filter(
+    (img) => aiResults[img.id]?.ai_decision === "REVIEW"
+  ).length;
+
+  const folderAiReject = folderImages.filter(
+    (img) => aiResults[img.id]?.ai_decision === "REJECT"
+  ).length;
+
+  const folderAiAnalyzed =
+    folderAiKeep + folderAiReview + folderAiReject;
+
+  const folderAiRemaining = Math.max(
+    folderTotal - folderAiAnalyzed,
+    0
+  );
+
   const lightboxIndex = visibleImages.findIndex((img) => img.id === lightboxId);
   const lightboxImage = lightboxIndex >= 0 ? visibleImages[lightboxIndex] : null;
+  const lightboxAiResult = lightboxImage ? aiResults[lightboxImage.id] : null;
 
   const goToOffset = useCallback(
     (offset) => {
@@ -608,16 +799,48 @@ function CullingPage() {
     return items;
   }, [path, folders]);
 
-  /* ============ DUPLICATE REVIEW ============ */
-  const [duplicateSets] = useState([]);
+  /* ============ DUPLICATE / SIMILAR PHOTO REVIEW ============ */
+
+  // Build the Duplicates tab directly from LensFlow's saved DINOv2 groups.
+  // Only photos in the currently opened folder are included.
+  const duplicateSets = useMemo(() => {
+    const groups = {};
+
+    folderImages.forEach((image) => {
+      const result = aiResults[image.id];
+      const groupId = result?.similarity_group;
+
+      if (!groupId) return;
+
+      if (!groups[groupId]) {
+        groups[groupId] = [];
+      }
+
+      groups[groupId].push({
+        ...image,
+        aiResult: result,
+      });
+    });
+
+    return Object.entries(groups)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([groupId, images]) => ({
+        id: groupId,
+        label: `Similar group ${groupId}`,
+        images: images.sort(
+          (a, b) =>
+            (a.aiResult?.group_rank ?? Number.MAX_SAFE_INTEGER) -
+            (b.aiResult?.group_rank ?? Number.MAX_SAFE_INTEGER)
+        ),
+      }));
+  }, [folderImages, aiResults]);
+
   const [bestPicks, setBestPicks] = useState({});
   const [dupLightbox, setDupLightbox] = useState(null);
 
   function pickBest(setId, imageId) {
     setBestPicks((prev) => ({ ...prev, [setId]: imageId }));
   }
-
-  const resolvedCount = duplicateSets.filter((s) => bestPicks[s.id]).length;
 
   const dupLightboxSet = dupLightbox
     ? duplicateSets.find((s) => s.id === dupLightbox.setId)
@@ -851,61 +1074,233 @@ function CullingPage() {
               {/* Photos in the currently open folder */}
               {path.length > 0 && (
                 <div>
-                  <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 sm:p-6 mb-6">
-                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="flex items-center gap-1.5 bg-sky-500/10 text-sky-400 px-2.5 py-1 rounded-full font-medium">
-                          <FaStar className="text-[10px]" /> {folderStarred} Starred
-                        </span>
-                        <span className="flex items-center gap-1.5 bg-red-500/10 text-red-400 px-2.5 py-1 rounded-full font-medium">
-                          <FaBan className="text-[10px]" /> {folderRejected} Rejected
-                        </span>
-                        <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-full font-medium">
-                          {folderUnrated} Remaining
+                  <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 sm:p-6 mb-6 space-y-5">
+                    {/* Photographer's manual progress */}
+                    <div>
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-slate-500 font-medium mr-1">
+                            Photographer
+                          </span>
+
+                          <span className="flex items-center gap-1.5 bg-sky-500/10 text-sky-400 px-2.5 py-1 rounded-full font-medium">
+                            <FaStar className="text-[10px]" />
+                            {folderStarred} Starred
+                          </span>
+
+                          <span className="flex items-center gap-1.5 bg-red-500/10 text-red-400 px-2.5 py-1 rounded-full font-medium">
+                            <FaBan className="text-[10px]" />
+                            {folderRejected} Rejected
+                          </span>
+
+                          <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-full font-medium">
+                            {folderUnrated} Remaining
+                          </span>
+                        </div>
+
+                        <span className="text-xs text-slate-500">
+                          {folderReviewed} / {folderTotal} reviewed
                         </span>
                       </div>
-                      <span className="text-xs text-slate-500">
-                        {folderReviewed} / {folderTotal} reviewed
-                      </span>
+
+                      <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden flex">
+                        <div
+                          className="bg-sky-500 h-full transition-all duration-300"
+                          style={{
+                            width: folderTotal
+                              ? `${(folderStarred / folderTotal) * 100}%`
+                              : "0%",
+                          }}
+                        />
+
+                        <div
+                          className="bg-red-500 h-full transition-all duration-300"
+                          style={{
+                            width: folderTotal
+                              ? `${(folderRejected / folderTotal) * 100}%`
+                              : "0%",
+                          }}
+                        />
+                      </div>
                     </div>
 
-                    <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden flex">
-                      <div
-                        className="bg-sky-500 h-full transition-all duration-300"
-                        style={{ width: folderTotal ? `${(folderStarred / folderTotal) * 100}%` : "0%" }}
-                      />
-                      <div
-                        className="bg-red-500 h-full transition-all duration-300"
-                        style={{ width: folderTotal ? `${(folderRejected / folderTotal) * 100}%` : "0%" }}
-                      />
+                    {/* LensFlow AI progress */}
+                    <div className="pt-4 border-t border-slate-700/70">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-slate-500 font-medium mr-1">
+                            LensFlow AI
+                          </span>
+
+                          <span className="flex items-center gap-1.5 bg-green-500/10 text-green-400 px-2.5 py-1 rounded-full font-medium">
+                            <FaCheckCircle className="text-[10px]" />
+                            {folderAiKeep} Keep
+                          </span>
+
+                          <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full font-medium">
+                            <FaExclamationCircle className="text-[10px]" />
+                            {folderAiReview} Review
+                          </span>
+
+                          <span className="flex items-center gap-1.5 bg-red-500/10 text-red-400 px-2.5 py-1 rounded-full font-medium">
+                            <FaBan className="text-[10px]" />
+                            {folderAiReject} Reject
+                          </span>
+
+                          {folderAiRemaining > 0 && (
+                            <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-full font-medium">
+                              {folderAiRemaining} Not analyzed
+                            </span>
+                          )}
+                        </div>
+
+                        <span className="text-xs text-slate-500">
+                          {folderAiAnalyzed} / {folderTotal} analyzed
+                        </span>
+                      </div>
+
+                      <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden flex">
+                        <div
+                          className="bg-green-500 h-full transition-all duration-300"
+                          style={{
+                            width: folderTotal
+                              ? `${(folderAiKeep / folderTotal) * 100}%`
+                              : "0%",
+                          }}
+                        />
+
+                        <div
+                          className="bg-amber-500 h-full transition-all duration-300"
+                          style={{
+                            width: folderTotal
+                              ? `${(folderAiReview / folderTotal) * 100}%`
+                              : "0%",
+                          }}
+                        />
+
+                        <div
+                          className="bg-red-500 h-full transition-all duration-300"
+                          style={{
+                            width: folderTotal
+                              ? `${(folderAiReject / folderTotal) * 100}%`
+                              : "0%",
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
-                    {FILTERS.map((f) => {
-                      const count =
-                        f.key === "all"
-                          ? folderTotal
-                          : f.key === "unrated"
-                          ? folderUnrated
-                          : f.key === "star"
-                          ? folderStarred
-                          : folderRejected;
-                      const active = filter === f.key;
-                      return (
-                        <button
-                          key={f.key}
-                          onClick={() => setFilter(f.key)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                            active
-                              ? "bg-sky-500 text-slate-900"
-                              : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
-                          }`}
-                        >
-                          {f.label} <span className="opacity-70">({count})</span>
-                        </button>
-                      );
-                    })}
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={handleRunCulling}
+                        disabled={cullingLoading || folderTotal === 0}
+                        className="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+                      >
+                        {cullingLoading ? "Analyzing photos..." : "Run LensFlow Culling"}
+                      </button>
+
+                      {cullingError && (
+                        <p className="text-xs text-red-400 mt-2">{cullingError}</p>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-500">
+                      AI recommendations stay separate from your manual Star / Reject choices.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-3 mb-4">
+                    {/* Photographer filters */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium text-slate-500 mr-1">
+                        Photographer
+                      </span>
+
+                      {FILTERS
+                        .filter((f) =>
+                          ["all", "star", "reject", "unrated"].includes(f.key)
+                        )
+                        .map((f) => {
+                          let count = 0;
+
+                          if (f.key === "all") {
+                            count = folderTotal;
+                          } else if (f.key === "star") {
+                            count = folderStarred;
+                          } else if (f.key === "reject") {
+                            count = folderRejected;
+                          } else if (f.key === "unrated") {
+                            count = folderUnrated;
+                          }
+
+                          const active = filter === f.key;
+
+                          return (
+                            <button
+                              key={f.key}
+                              onClick={() => setFilter(f.key)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                                active
+                                  ? "bg-sky-500 text-slate-900"
+                                  : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+                              }`}
+                            >
+                              {f.label}{" "}
+                              <span className="opacity-70">
+                                ({count})
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
+
+                    {/* LensFlow AI filters */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium text-slate-500 mr-1">
+                        LensFlow AI
+                      </span>
+
+                      {FILTERS
+                        .filter((f) =>
+                          ["ai_keep", "ai_review", "ai_reject"].includes(f.key)
+                        )
+                        .map((f) => {
+                          let count = 0;
+
+                          if (f.key === "ai_keep") {
+                            count = folderAiKeep;
+                          } else if (f.key === "ai_review") {
+                            count = folderAiReview;
+                          } else if (f.key === "ai_reject") {
+                            count = folderAiReject;
+                          }
+
+                          const active = filter === f.key;
+
+                          return (
+                            <button
+                              key={f.key}
+                              onClick={() => setFilter(f.key)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                                active
+                                  ? f.key === "ai_keep"
+                                    ? "bg-green-500 text-white"
+                                    : f.key === "ai_review"
+                                    ? "bg-amber-500 text-slate-950"
+                                    : "bg-red-500 text-white"
+                                  : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+                              }`}
+                            >
+                              {f.label}{" "}
+                              <span className="opacity-70">
+                                ({count})
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
                   </div>
 
                   {visibleImages.length === 0 ? (
@@ -916,11 +1311,17 @@ function CullingPage() {
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                       {visibleImages.map((img) => {
                         const state = culls[img.id];
+                        const aiResult = aiResults[img.id];
+
                         const stateClasses =
                           state === "star"
                             ? "outline outline-[3px] outline-sky-500 -outline-offset-[3px] border-transparent"
-                            : state === "reject"
+                            : state === "reject" || aiResult?.ai_decision === "REJECT"
                             ? "outline outline-[3px] outline-red-500 -outline-offset-[3px] border-transparent opacity-50"
+                            : aiResult?.ai_decision === "KEEP"
+                            ? "outline outline-2 outline-green-500/70 -outline-offset-2 border-transparent"
+                            : aiResult?.ai_decision === "REVIEW"
+                            ? "outline outline-2 outline-amber-500/70 -outline-offset-2 border-transparent"
                             : "border-slate-700 hover:border-slate-500";
 
                         return (
@@ -979,6 +1380,38 @@ function CullingPage() {
                                 <FaBan />
                               </span>
                             )}
+
+                            {state !== "reject" &&
+                            aiResult?.ai_decision === "REJECT" && (
+                              <span
+                                className="absolute top-2 right-2 text-red-400 drop-shadow"
+                                title="LensFlow recommends reject"
+                              >
+                                <FaBan />
+                              </span>
+                            )}
+
+                            {aiResult && (
+                              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 pointer-events-none">
+                                <span
+                                  className={`text-[10px] font-semibold px-2 py-1 rounded-full backdrop-blur-sm ${
+                                    aiResult.ai_decision === "KEEP"
+                                      ? "bg-green-500/90 text-white"
+                                      : aiResult.ai_decision === "REJECT"
+                                      ? "bg-red-500/90 text-white"
+                                      : "bg-amber-500/90 text-slate-950"
+                                  }`}
+                                >
+                                  AI: {aiResult.ai_decision}
+                                </span>
+
+                                {aiResult.base_quality_score != null && (
+                                  <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-black/70 text-white">
+                                    {Math.round(aiResult.base_quality_score * 100)}%
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -995,7 +1428,6 @@ function CullingPage() {
           )}
         </div>
       )}
-
       {/* ============ DUPLICATE REVIEW TAB ============ */}
       {mode === "duplicates" && (
         <div>
@@ -1005,7 +1437,7 @@ function CullingPage() {
 
           {duplicateSets.length === 0 ? (
             <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-700 rounded-xl">
-              No duplicate sets yet — this needs a similarity-detection pass over your photos, which isn't wired up yet.
+              No similar-photo groups yet. Open a folder and run LensFlow Culling first.
             </div>
           ) : (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
@@ -1020,10 +1452,13 @@ function CullingPage() {
                 </thead>
                 <tbody>
                   {duplicateSets.map((set) => {
-                    const bestId = bestPicks[set.id];
+                    const manualBestId = bestPicks[set.id];
+                    const suggestedBestId =
+                      set.images.find((img) => img.aiResult?.group_rank === 1)?.id || null;
+
+                    const bestId = manualBestId || suggestedBestId;
                     const bestImage = set.images.find((img) => img.id === bestId);
-                    const isSingle = set.images.length === 1;
-                    const resolved = Boolean(bestId);
+                    const resolved = Boolean(manualBestId);
 
                     return (
                       <tr key={set.id} className="border-b border-slate-800 last:border-b-0 align-top">
@@ -1061,6 +1496,12 @@ function CullingPage() {
                                       <FaCrown className="text-[9px]" />
                                     </span>
                                   )}
+
+                                  {img.aiResult?.group_rank && (
+                                    <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded">
+                                      Rank {img.aiResult.group_rank}
+                                    </span>
+                                  )}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1095,17 +1536,13 @@ function CullingPage() {
                         </td>
 
                         <td className="p-4">
-                          {isSingle ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 bg-slate-700/40 px-2.5 py-1 rounded-full">
-                              <FaCheckCircle className="text-slate-500" /> Auto-kept
-                            </span>
-                          ) : resolved ? (
+                          {resolved ? (
                             <span className="inline-flex items-center gap-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
-                              <FaCheckCircle /> Best selected
+                              <FaCheckCircle /> Photographer selected
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
-                              <FaExclamationCircle /> Needs review
+                            <span className="inline-flex items-center gap-1.5 text-xs text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-full">
+                              <FaCrown /> LensFlow suggestion
                             </span>
                           )}
                         </td>
@@ -1229,6 +1666,22 @@ function CullingPage() {
                   <FaBan /> Rejected
                 </span>
               )}
+
+              {lightboxAiResult && (
+                <span
+                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full flex-shrink-0 ${
+                    lightboxAiResult.ai_decision === "KEEP"
+                      ? "text-green-300 bg-green-500/10"
+                      : lightboxAiResult.ai_decision === "REJECT"
+                      ? "text-red-300 bg-red-500/10"
+                      : "text-amber-300 bg-amber-500/10"
+                  }`}
+                >
+                  LensFlow: {lightboxAiResult.ai_decision}
+                  {lightboxAiResult.base_quality_score != null &&
+                    ` · ${Math.round(lightboxAiResult.base_quality_score * 100)}%`}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               <span className="text-xs text-slate-400">
@@ -1278,6 +1731,33 @@ function CullingPage() {
               <FaChevronRight />
             </button>
           </div>
+
+          {lightboxAiResult && (
+            <div
+              className="mx-auto w-full max-w-3xl px-4 pb-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                  {lightboxAiResult.similarity_group && (
+                    <span className="text-slate-400">
+                      Group: <span className="text-white">{lightboxAiResult.similarity_group}</span>
+                    </span>
+                  )}
+
+                  {lightboxAiResult.group_rank && (
+                    <span className="text-slate-400">
+                      Rank: <span className="text-white">{lightboxAiResult.group_rank}</span>
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs text-slate-300 mt-2">
+                  {lightboxAiResult.decision_reason}
+                </p>
+              </div>
+            </div>
+          )}
 
           <div
             className="flex items-center justify-center gap-4 py-6"

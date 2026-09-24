@@ -20,7 +20,7 @@ const STAGE_ICONS = {
   "coming-events": <FaCalendarCheck />,
   "shoot-completed": <FaCamera />,
   editing: <FaEdit />,
-  completed: <FaEye />,
+  "edit-complete": <FaEye />,
   delivered: <FaCheckCircle />,
   "paid-completed": <FaMoneyBillWave />,
 };

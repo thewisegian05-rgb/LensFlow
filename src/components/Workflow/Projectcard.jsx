@@ -104,7 +104,7 @@ function ProjectCard({
               </button>
 
               <span
-                className={`text-xs flex-1 ${task.done ? "text-slate-500 line-through" : "text-slate-200"}`}
+                className={`text-xs flex-1 ${task.done ? "text-slate-400 line-through dark:text-slate-500" : "text-slate-700 dark:text-slate-200"}`}
               >
                 {task.text}
               </span>
@@ -124,7 +124,7 @@ function ProjectCard({
         )}
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2 min-w-0">
         <input
           type="text"
           value={taskInput}
@@ -136,12 +136,28 @@ function ProjectCard({
             }
           }}
           placeholder="Add task"
-          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-sky-500"
+          className="
+            min-w-0 flex-1
+            bg-white border border-slate-300
+            rounded-lg px-2.5 py-1.5
+            text-xs text-slate-700
+            placeholder-slate-400
+            outline-none focus:border-sky-500
+            dark:bg-slate-900 dark:border-slate-700
+            dark:text-white dark:placeholder-slate-500
+          "
         />
+
         <button
           type="button"
           onClick={handleAddTask}
-          className="inline-flex items-center justify-center rounded-lg bg-sky-500 p-2 text-slate-900 hover:bg-sky-400 transition"
+          className="
+            flex-shrink-0
+            inline-flex items-center justify-center
+            rounded-lg bg-sky-500 p-2
+            text-slate-900 hover:bg-sky-400
+            transition
+          "
           aria-label="Add task"
         >
           <FaPlus className="text-[10px]" />

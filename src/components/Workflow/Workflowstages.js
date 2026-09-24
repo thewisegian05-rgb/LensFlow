@@ -12,7 +12,7 @@ export const STAGE_KEYS = [
   "coming-events",
   "shoot-completed",
   "editing",
-  "completed",
+  "edit-complete",
   "delivered",
   "paid-completed",
 ];
@@ -21,7 +21,7 @@ export const STAGE_LABELS = {
   "coming-events": "Coming Events",
   "shoot-completed": "Shoot Completed",
   editing: "Editing",
-  completed: "Completed",
+  "edit-complete": "Edit Complete",
   delivered: "Delivered",
   "paid-completed": "Completed",
 };
@@ -31,7 +31,7 @@ export const STAGE_ACTION_LABEL = {
   "coming-events": "Event Finished",
   "shoot-completed": "Continue to Edit?",
   editing: "Done Editing?",
-  completed: "Album Delivered?",
+  "edit-complete": "Album Delivered?",
   delivered: "Have You Been Paid?",
   "paid-completed": null,
 };
@@ -40,8 +40,8 @@ export const STAGE_ACTION_LABEL = {
 export const STAGE_NEXT = {
   "coming-events": "shoot-completed",
   "shoot-completed": "editing",
-  editing: "completed",
-  completed: "delivered",
+  editing: "edit-complete",
+  "edit-complete": "delivered",
   delivered: "paid-completed",
   "paid-completed": null,
 };
@@ -50,7 +50,7 @@ export const STAGE_BADGE_CLASSES = {
   "coming-events": "bg-sky-500",
   "shoot-completed": "bg-violet-500",
   editing: "bg-amber-500",
-  completed: "bg-teal-500",
+  "edit-complete": "bg-teal-500",
   delivered: "bg-emerald-500",
   "paid-completed": "bg-slate-500",
 };
@@ -59,7 +59,7 @@ export const STAGE_SOFT_CLASSES = {
   "coming-events": "bg-sky-500/15 text-sky-400",
   "shoot-completed": "bg-violet-500/15 text-violet-400",
   editing: "bg-amber-500/15 text-amber-400",
-  completed: "bg-teal-500/15 text-teal-400",
+  "edit-complete": "bg-teal-500/15 text-teal-400",
   delivered: "bg-emerald-500/15 text-emerald-400",
   "paid-completed": "bg-slate-500/15 text-slate-300",
 };
@@ -68,7 +68,7 @@ export const STAGE_COLUMN_BORDER = {
   "coming-events": "border-t-sky-500",
   "shoot-completed": "border-t-violet-500",
   editing: "border-t-amber-500",
-  completed: "border-t-teal-500",
+  "edit-complete": "border-t-teal-500",
   delivered: "border-t-emerald-500",
   "paid-completed": "border-t-slate-500",
 };

@@ -6,7 +6,7 @@ const STAGE_COLORS = {
   "coming-events": "bg-sky-500",
   "shoot-completed": "bg-violet-500",
   editing: "bg-amber-500",
-  completed: "bg-teal-500",
+  "edit-complete": "bg-teal-500",
   delivered: "bg-emerald-500",
   "paid-completed": "bg-slate-500",
 };

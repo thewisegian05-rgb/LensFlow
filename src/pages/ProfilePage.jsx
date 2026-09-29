@@ -1,4 +1,21 @@
 import React, { useState, useRef, useEffect } from "react";
+import {
+  FaEye,
+  FaCamera,
+  FaMapMarkerAlt,
+  FaEnvelope,
+  FaMobileAlt,
+  FaBirthdayCake,
+  FaVenusMars,
+  FaUser,
+  FaHeart,
+  FaHome,
+  FaPencilAlt,
+  FaTimes,
+  FaImages,
+  FaPlus,
+  FaMinus,
+} from "react-icons/fa";
 
 
 // DEFAULT CAROUSEL ALBUMS
@@ -526,7 +543,7 @@ export default function Profile() {
   // PROFILE PAGE UI
   // ========================================
   return (
-    <div className="profile-page min-h-screen bg-slate-950 px-4 py-8 text-white md:px-8">
+    <div className="profile-page min-h-screen bg-slate-50 px-4 py-8 text-slate-900 dark:bg-slate-950 dark:text-white md:px-8">
 
       {/* ========================================
           CAROUSEL ANIMATION
@@ -572,7 +589,7 @@ export default function Profile() {
             <button
               type="button"
               onClick={() => setProfileMenu(!profileMenu)}
-              className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-slate-700 bg-slate-800 shadow-lg transition hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-slate-300 bg-slate-100 shadow-lg transition hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-700 dark:bg-slate-800"
             >
               <img
                 src={profilePicture}
@@ -586,24 +603,24 @@ export default function Profile() {
                 PROFILE PICTURE MENU
                 ======================================== */}
             {profileMenu && (
-              <div className="absolute left-1/2 top-full z-50 mt-3 w-56 -translate-x-1/2 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
+              <div className="absolute left-1/2 top-full z-50 mt-3 w-56 -translate-x-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                 <button
                   type="button"
                   onClick={() => {
                     setProfileMenu(false);
                     setProfilePreview(true);
                   }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-800 hover:text-sky-400"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:hover:bg-slate-800 dark:hover:text-sky-400"
                 >
-                  👁️
+                  <FaEye className="text-slate-500 dark:text-slate-400" />
                   <span>View Profile Picture</span>
                 </button>
 
                 <label
                   htmlFor="profile-picture-upload-menu"
-                  className="flex cursor-pointer items-center gap-3 border-t border-slate-800 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-sky-400"
+                  className="flex cursor-pointer items-center gap-3 border-t border-slate-200 px-4 py-3 text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:border-slate-800 dark:hover:bg-slate-800 dark:hover:text-sky-400"
                 >
-                  📷
+                  <FaCamera className="text-slate-500 dark:text-slate-400" />
                   <span>Change Profile Picture</span>
                 </label>
               </div>
@@ -631,14 +648,14 @@ export default function Profile() {
               ].map(([number, label]) => (
                 <div key={label}>
                   <p className="text-xl font-bold">{number}</p>
-                  <p className="text-sm text-slate-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     {label}
                   </p>
                 </div>
               ))}
             </div>
 
-            <p className="mt-1 max-w-md whitespace-pre-line text-sm leading-6 text-slate-400">
+            <p className="mt-1 max-w-md whitespace-pre-line text-sm leading-6 text-slate-600 dark:text-slate-400">
               {bio}
             </p>
           </div>
@@ -650,7 +667,7 @@ export default function Profile() {
             ======================================== */}
         <button
           onClick={openEditProfile}
-          className="mt-7 w-full rounded-xl border border-slate-700 bg-slate-900 py-3 text-sm font-semibold transition hover:border-sky-500 hover:bg-slate-800"
+          className="mt-7 w-full rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold transition hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
         >
           Edit Profile
         </button>
@@ -659,7 +676,7 @@ export default function Profile() {
         {/* ========================================
             ABOUT SECTION
             ======================================== */}
-        <section className="mt-8 border-t border-slate-800 pt-6">
+        <section className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold">
@@ -674,7 +691,7 @@ export default function Profile() {
             <button
               type="button"
               onClick={() => setViewDetails(true)}
-              className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-sky-400 transition hover:border-sky-500 hover:bg-slate-800 hover:text-white"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-sky-500 transition hover:border-sky-500 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-sky-400 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               See more
             </button>
@@ -682,25 +699,25 @@ export default function Profile() {
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <DetailRow
-              icon="📷"
+              icon={<FaCamera />}
               label="Work"
               value={profileInfo.work || "Not set"}
             />
 
             <DetailRow
-              icon="📍"
+              icon={<FaMapMarkerAlt />}
               label="Location"
               value={profileInfo.location || "Not set"}
             />
 
             <DetailRow
-              icon="✉️"
+              icon={<FaEnvelope />}
               label="Personal Email"
               value={profileInfo.personalEmail || "Not set"}
             />
 
             <DetailRow
-              icon="📱"
+              icon={<FaMobileAlt />}
               label="Personal Number"
               value={profileInfo.personalNumber || "Not set"}
             />
@@ -711,7 +728,7 @@ export default function Profile() {
         {/* ========================================
             CAROUSEL SECTION
             ======================================== */}
-        <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl">
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900/70">
           <div className="mb-5">
             <h2 className="text-lg font-bold">
               Carousel
@@ -740,7 +757,7 @@ export default function Profile() {
                       setActiveAlbum(album);
                       setCurrentPhotoIndex(0);
                     }}
-                    className="group relative h-32 w-44 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-slate-700 bg-slate-800 text-left transition-all duration-300 hover:z-50 hover:scale-125 hover:border-sky-400 hover:shadow-2xl"
+                    className="group relative h-32 w-44 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left transition-all duration-300 hover:z-50 hover:scale-125 hover:border-sky-400 hover:shadow-2xl dark:border-slate-700 dark:bg-slate-800"
                   >
                     <img
                       src={coverPhoto}
@@ -751,12 +768,12 @@ export default function Profile() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
 
                     {album.photos.length > 1 && (
-                      <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm shadow">
-                        🎞️
+                      <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white text-xs backdrop-blur-sm shadow">
+                        <FaImages />
                       </div>
                     )}
 
-                    <p className="absolute bottom-2 left-3 right-3 truncate text-xs font-semibold">
+                    <p className="absolute bottom-2 left-3 right-3 truncate text-xs font-semibold text-white">
                       {album.title}
                     </p>
                   </div>
@@ -771,7 +788,7 @@ export default function Profile() {
               ======================================== */}
           <button
             onClick={() => setCarouselManager(true)}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-950 py-3 text-sm font-semibold text-slate-300 transition hover:border-sky-500 hover:text-white"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 transition hover:border-sky-500 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:text-white"
           >
             Update Carousel
           </button>
@@ -781,7 +798,7 @@ export default function Profile() {
         {/* ========================================
             FEATURED PHOTOS SECTION
             ======================================== */}
-        <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl">
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900/70">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold">
@@ -800,9 +817,10 @@ export default function Profile() {
                   ======================================== */}
               <label
                 htmlFor="featured-upload"
-                className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-sky-400 transition hover:border-sky-500 hover:bg-slate-800"
+                className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-sky-500 transition hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-sky-400 dark:hover:bg-slate-800"
               >
-                <span>+ Add Features</span>
+                <FaPlus className="text-[10px]" />
+                <span>Add Features</span>
               </label>
 
               {/* ========================================
@@ -810,7 +828,7 @@ export default function Profile() {
                   ======================================== */}
               <button
                 onClick={() => setFeaturedManager(true)}
-                className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:border-sky-500 hover:text-white"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-sky-500 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
               >
                 Manage
               </button>
@@ -839,7 +857,7 @@ export default function Profile() {
                 <button
                   type="button"
                   onClick={() => setFeaturedPreview(photo)}
-                  className="relative block aspect-square w-full overflow-visible rounded-2xl border border-slate-800 bg-slate-900 text-left transition-all duration-300 hover:z-[35] hover:-translate-y-1 hover:scale-[1.08] hover:border-sky-400 hover:shadow-2xl focus:outline-none"
+                  className="relative block aspect-square w-full overflow-visible rounded-2xl border border-slate-200 bg-white text-left transition-all duration-300 hover:z-[35] hover:-translate-y-1 hover:scale-[1.08] hover:border-sky-400 hover:shadow-2xl focus:outline-none dark:border-slate-800 dark:bg-slate-900"
                 >
                   <img
                     src={photo.src}
@@ -852,7 +870,7 @@ export default function Profile() {
                     FEATURED PHOTO NAME
                     ======================================== */}
                 <div className="mt-2 px-1">
-                  <p className="truncate text-sm font-semibold text-white">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
                     {photo.title}
                   </p>
 
@@ -872,18 +890,18 @@ export default function Profile() {
           ======================================== */}
       {viewDetails && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+          <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* ========================================
                 ABOUT MODAL HEADER
                 ======================================== */}
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <div>
                 <h2 className="text-xl font-bold">
                   About
                 </h2>
 
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   Personal information and account details
                 </p>
               </div>
@@ -891,9 +909,9 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => setViewDetails(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                ✕
+                <FaTimes />
               </button>
             </div>
 
@@ -908,41 +926,41 @@ export default function Profile() {
                   ======================================== */}
               <section>
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-white">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     Personal Details
                   </h3>
 
                   <button
                     type="button"
                     onClick={() => openDetailEditor("personal")}
-                    className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
+                    className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-sky-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-sky-400"
                     title="Edit Personal Details"
                   >
-                    ✏️
+                    <FaPencilAlt className="text-xs" />
                   </button>
                 </div>
 
                 <div className="space-y-4">
                   <DetailRow
-                    icon="🎂"
+                    icon={<FaBirthdayCake />}
                     label="Birthday"
                     value={profileInfo.birthday || "Not set"}
                   />
 
                   <DetailRow
-                    icon="⚧"
+                    icon={<FaVenusMars />}
                     label="Gender"
                     value={profileInfo.gender || "Not set"}
                   />
 
                   <DetailRow
-                    icon="👤"
+                    icon={<FaUser />}
                     label="Pronouns"
                     value={profileInfo.pronouns || "Not set"}
                   />
 
                   <DetailRow
-                    icon="❤️"
+                    icon={<FaHeart />}
                     label="Relationship"
                     value={profileInfo.relationship || "Not set"}
                   />
@@ -953,24 +971,24 @@ export default function Profile() {
               {/* ========================================
                   WORK DETAILS
                   ======================================== */}
-              <section className="border-t border-slate-800 pt-6">
+              <section className="border-t border-slate-200 pt-6 dark:border-slate-800">
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-white">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     Work
                   </h3>
 
                   <button
                     type="button"
                     onClick={() => openDetailEditor("work")}
-                    className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
+                    className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-sky-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-sky-400"
                     title="Edit Work"
                   >
-                    ✏️
+                    <FaPencilAlt className="text-xs" />
                   </button>
                 </div>
 
                 <DetailRow
-                  icon="📷"
+                  icon={<FaCamera />}
                   label="Profession"
                   value={profileInfo.work || "Not set"}
                 />
@@ -980,19 +998,19 @@ export default function Profile() {
               {/* ========================================
                   NICHES
                   ======================================== */}
-              <section className="border-t border-slate-800 pt-6">
+              <section className="border-t border-slate-200 pt-6 dark:border-slate-800">
   <div className="mb-4 flex items-center justify-between">
-    <h3 className="text-lg font-bold text-white">
+    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
       Niches
     </h3>
 
     <button
       type="button"
       onClick={() => openDetailEditor("niches")}
-      className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
+      className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-sky-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-sky-400"
       title="Edit Niches"
     >
-      ✏️
+      <FaPencilAlt className="text-xs" />
     </button>
   </div>
 
@@ -1001,7 +1019,7 @@ export default function Profile() {
       {(profileInfo.niches || []).map((niche, index) => (
         <span
           key={`${niche}-${index}`}
-          className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200"
+          className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
         >
           <span>{niche}</span>
 
@@ -1015,16 +1033,16 @@ export default function Profile() {
                 ),
               }));
             }}
-            className="text-slate-400 transition hover:text-red-400"
+            className="text-slate-500 transition hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400"
             title={`Remove ${niche}`}
           >
-            ×
+            <FaTimes className="text-[10px]" />
           </button>
         </span>
       ))}
 
       {profileInfo.customNiche && (
-        <span className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200">
+        <span className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
           <span>{profileInfo.customNiche}</span>
 
           <button
@@ -1035,10 +1053,10 @@ export default function Profile() {
                 customNiche: "",
               }));
             }}
-            className="text-slate-400 transition hover:text-red-400"
+            className="text-slate-500 transition hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400"
             title={`Remove ${profileInfo.customNiche}`}
           >
-            ×
+            <FaTimes className="text-[10px]" />
           </button>
         </span>
       )}
@@ -1054,31 +1072,31 @@ export default function Profile() {
               {/* ========================================
                   LOCATION
                   ======================================== */}
-              <section className="border-t border-slate-800 pt-6">
+              <section className="border-t border-slate-200 pt-6 dark:border-slate-800">
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-white">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     Location
                   </h3>
 
                   <button
                     type="button"
                     onClick={() => openDetailEditor("location")}
-                    className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
+                    className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-sky-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-sky-400"
                     title="Edit Location"
                   >
-                    ✏️
+                    <FaPencilAlt className="text-xs" />
                   </button>
                 </div>
 
                 <div className="space-y-4">
                   <DetailRow
-                    icon="📍"
+                    icon={<FaMapMarkerAlt />}
                     label="Location"
                     value={profileInfo.location || "Not set"}
                   />
 
                   <DetailRow
-                    icon="🏠"
+                    icon={<FaHome />}
                     label="Hometown"
                     value={profileInfo.hometown || "Not set"}
                   />
@@ -1089,43 +1107,43 @@ export default function Profile() {
               {/* ========================================
                   CONTACT INFORMATION
                   ======================================== */}
-              <section className="border-t border-slate-800 pt-6">
+              <section className="border-t border-slate-200 pt-6 dark:border-slate-800">
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-white">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     Contact Info
                   </h3>
 
                   <button
                     type="button"
                     onClick={() => openDetailEditor("contact")}
-                    className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
+                    className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-sky-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-sky-400"
                     title="Edit Contact Info"
                   >
-                    ✏️
+                    <FaPencilAlt className="text-xs" />
                   </button>
                 </div>
 
                 <div className="space-y-4">
                   <DetailRow
-                    icon="✉️"
+                    icon={<FaEnvelope />}
                     label="Personal Email"
                     value={profileInfo.personalEmail || "Not set"}
                   />
 
                   <DetailRow
-                    icon="📱"
+                    icon={<FaMobileAlt />}
                     label="Personal Number"
                     value={profileInfo.personalNumber || "Not set"}
                   />
 
                   <DetailRow
-                    icon="✉️"
+                    icon={<FaEnvelope />}
                     label="Studio Email"
                     value={profileInfo.studioEmail || "Not set"}
                   />
 
                   <DetailRow
-                    icon="📱"
+                    icon={<FaMobileAlt />}
                     label="Studio Number"
                     value={profileInfo.studioNumber || "Not set"}
                   />
@@ -1137,11 +1155,11 @@ export default function Profile() {
             {/* ========================================
                 ABOUT MODAL SAVE BUTTON
                 ======================================== */}
-            <div className="flex justify-end border-t border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <button
                 type="button"
                 onClick={() => setViewDetails(false)}
-                className="rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Save
               </button>
@@ -1178,7 +1196,7 @@ export default function Profile() {
             className="relative max-w-lg overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
-              <p className="text-sm font-bold">
+              <p className="text-sm font-bold text-white">
                 Profile Picture
               </p>
 
@@ -1186,7 +1204,7 @@ export default function Profile() {
                 onClick={() => setProfilePreview(false)}
                 className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300 hover:text-white"
               >
-                ✕
+                <FaTimes />
               </button>
             </div>
 
@@ -1221,9 +1239,10 @@ export default function Profile() {
 
               <button
                 onClick={() => setFeaturedPreview(null)}
-                className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-sky-500 hover:text-white"
+                className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-sky-500 hover:text-white"
               >
-                − Minimize
+                <FaMinus className="text-[10px]" />
+                Minimize
               </button>
             </div>
 
@@ -1244,27 +1263,27 @@ export default function Profile() {
           ======================================== */}
       {editProfile && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+          <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* ========================================
                 EDIT PROFILE MODAL HEADER
                 ======================================== */}
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <div>
                 <h2 className="text-xl font-bold">
                   Edit Profile
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   Update your account information.
                 </p>
               </div>
 
               <button
                 onClick={() => setEditProfile(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                ✕
+                <FaTimes />
               </button>
             </div>
 
@@ -1276,7 +1295,7 @@ export default function Profile() {
 
               {/* Username */}
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Username
                 </label>
 
@@ -1286,14 +1305,14 @@ export default function Profile() {
                   onChange={(e) =>
                     setTempUsername(e.target.value)
                   }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
               </div>
 
 
               {/* Bio */}
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Bio
                 </label>
 
@@ -1303,7 +1322,7 @@ export default function Profile() {
                   onChange={(e) =>
                     setTempBio(e.target.value)
                   }
-                  className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+                  className="w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
               </div>
             </div>
@@ -1312,10 +1331,10 @@ export default function Profile() {
             {/* ========================================
                 EDIT PROFILE ACTION BUTTONS
                 ======================================== */}
-            <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <button
                 onClick={() => setEditProfile(false)}
-                className="rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
@@ -1337,25 +1356,25 @@ export default function Profile() {
           ======================================== */}
       {carouselSetup && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-          <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+          <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* Carousel Setup Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <div>
                 <h2 className="text-xl font-bold">
                   Carousel Setup
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   Edit the album name before adding it.
                 </p>
               </div>
 
               <button
                 onClick={() => setCarouselSetup(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                ✕
+                <FaTimes />
               </button>
             </div>
 
@@ -1363,7 +1382,7 @@ export default function Profile() {
             {/* Carousel Setup Content */}
             <div className="flex-1 space-y-5 overflow-y-auto p-6">
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Album Name
                 </label>
 
@@ -1376,7 +1395,7 @@ export default function Profile() {
                       title: e.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   placeholder="Album Name"
                 />
               </div>
@@ -1385,7 +1404,7 @@ export default function Profile() {
                 {carouselSetup.photos.map((photo) => (
                   <div
                     key={photo.id}
-                    className="relative aspect-square overflow-hidden rounded-xl border border-slate-800 bg-slate-950"
+                    className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950"
                   >
                     <img
                       src={photo.src}
@@ -1399,10 +1418,10 @@ export default function Profile() {
 
 
             {/* Carousel Setup Buttons */}
-            <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <button
                 onClick={() => setCarouselSetup(null)}
-                className="rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
@@ -1424,25 +1443,25 @@ export default function Profile() {
           ======================================== */}
       {featuredSetup.length > 0 && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* Featured Setup Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <div>
                 <h2 className="text-xl font-bold">
                   Featured Setup
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   Edit the name of each featured photo before posting.
                 </p>
               </div>
 
               <button
                 onClick={() => setFeaturedSetup([])}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                ✕
+                <FaTimes />
               </button>
             </div>
 
@@ -1452,9 +1471,9 @@ export default function Profile() {
               {featuredSetup.map((photo) => (
                 <div
                   key={photo.id}
-                  className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950 p-4 sm:flex-row"
+                  className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950 sm:flex-row"
                 >
-                  <div className="h-28 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+                  <div className="h-28 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                     <img
                       src={photo.src}
                       alt={photo.title}
@@ -1463,7 +1482,7 @@ export default function Profile() {
                   </div>
 
                   <div className="flex flex-1 flex-col justify-center gap-3">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Featured Name
                     </label>
 
@@ -1476,7 +1495,7 @@ export default function Profile() {
                           e.target.value
                         )
                       }
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       placeholder="Featured Name"
                     />
 
@@ -1484,7 +1503,7 @@ export default function Profile() {
                       onClick={() =>
                         removePendingFeatured(photo.id)
                       }
-                      className="self-start rounded-xl border border-red-900/50 bg-red-950/30 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-900/40"
+                      className="self-start rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/40"
                     >
                       Remove
                     </button>
@@ -1495,10 +1514,10 @@ export default function Profile() {
 
 
             {/* Featured Setup Buttons */}
-            <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <button
                 onClick={() => setFeaturedSetup([])}
-                className="rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
@@ -1538,7 +1557,7 @@ export default function Profile() {
                 onClick={() => setActiveAlbum(null)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
               >
-                ✕
+                <FaTimes />
               </button>
             </div>
 
@@ -1627,25 +1646,25 @@ export default function Profile() {
           ======================================== */}
       {carouselManager && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+          <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* Carousel Manager Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <div>
-                <h2 className="text-xl font-bold text-white">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                   Carousel Manager
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   Rename albums, manage photos, and update your carousel.
                 </p>
               </div>
 
               <button
                 onClick={() => setCarouselManager(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                ✕
+                <FaTimes />
               </button>
             </div>
 
@@ -1655,11 +1674,11 @@ export default function Profile() {
               {carouselAlbums.map((album, idx) => (
                 <div
                   key={album.id}
-                  className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-4"
+                  className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950"
                 >
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                     <div className="flex flex-1 items-center gap-3">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-slate-300">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                         {idx + 1}
                       </span>
 
@@ -1673,15 +1692,16 @@ export default function Profile() {
                           )
                         }
                         placeholder="Album Name"
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white focus:border-sky-500 focus:outline-none sm:max-w-xs"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white sm:max-w-xs"
                       />
                     </div>
 
                     <div className="flex items-center gap-2">
 
                       {/* Add Photos */}
-                      <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-sky-400 hover:bg-slate-800">
-                        <span>+ Add Photos</span>
+                      <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-sky-400 dark:hover:bg-slate-800">
+                        <FaPlus className="text-[10px]" />
+                        <span>Add Photos</span>
 
                         <input
                           type="file"
@@ -1706,7 +1726,7 @@ export default function Profile() {
                             album.title
                           )
                         }
-                        className="rounded-xl border border-red-900/50 bg-red-950/30 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-900/40"
+                        className="rounded-xl border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/40"
                       >
                         Delete Album
                       </button>
@@ -1719,7 +1739,7 @@ export default function Profile() {
                     {album.photos.map((photo) => (
                       <div
                         key={photo.id}
-                        className="group relative aspect-square overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
+                        className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
                       >
                         <img
                           src={photo.src}
@@ -1736,7 +1756,7 @@ export default function Profile() {
                           }
                           className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white opacity-0 shadow transition group-hover:opacity-100"
                         >
-                          ✕
+                          <FaTimes className="text-[10px]" />
                         </button>
                       </div>
                     ))}
@@ -1748,12 +1768,12 @@ export default function Profile() {
               {/* ========================================
                   CREATE NEW ALBUM SLOT
                   ======================================== */}
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 bg-slate-950/40 py-6 text-center transition hover:border-sky-500 hover:bg-slate-950">
-                <span className="mb-1 flex h-8 w-8 items-center justify-center rounded-full border border-slate-600 text-base text-slate-300">
-                  +
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 py-6 text-center transition hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950/40 dark:hover:bg-slate-950">
+                <span className="mb-1 flex h-8 w-8 items-center justify-center rounded-full border border-slate-400 text-slate-600 dark:border-slate-600 dark:text-slate-300">
+                  <FaPlus className="text-xs" />
                 </span>
 
-                <span className="text-sm font-semibold text-slate-200">
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                   Create New Album Slot
                 </span>
 
@@ -1769,7 +1789,7 @@ export default function Profile() {
 
 
             {/* Carousel Manager Done Button */}
-            <div className="flex justify-end border-t border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <button
                 onClick={() => setCarouselManager(false)}
                 className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-400"
@@ -1787,25 +1807,25 @@ export default function Profile() {
           ======================================== */}
       {featuredManager && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* Featured Manager Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <div>
-                <h2 className="text-xl font-bold text-white">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                   Featured Photos Manager
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   Rename or delete your featured photos.
                 </p>
               </div>
 
               <button
                 onClick={() => setFeaturedManager(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                ✕
+                <FaTimes />
               </button>
             </div>
 
@@ -1824,7 +1844,7 @@ export default function Profile() {
 
 
             {/* Featured Manager Done Button */}
-            <div className="flex justify-end border-t border-slate-800 bg-slate-950 px-6 py-4">
+            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <button
                 onClick={() => setFeaturedManager(false)}
                 className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-400"
@@ -1842,12 +1862,12 @@ export default function Profile() {
           ======================================== */}
       {confirmModal.isOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-          <div className="relative flex w-full max-w-sm flex-col rounded-2xl border border-slate-800 bg-slate-900 p-6 text-center shadow-2xl">
-            <h3 className="mb-2 text-lg font-bold text-white">
+          <div className="relative flex w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">
               {confirmModal.title}
             </h3>
 
-            <p className="mb-6 text-xs leading-relaxed text-slate-400">
+            <p className="mb-6 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
               {confirmModal.message}
             </p>
 
@@ -1859,7 +1879,7 @@ export default function Profile() {
                     isOpen: false,
                   }))
                 }
-                className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                className="flex-1 rounded-xl border border-slate-300 bg-slate-100 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
                 Cancel
               </button>
@@ -1885,7 +1905,7 @@ export default function Profile() {
 function DetailRow({ icon, label, value }) {
   return (
     <div className="flex items-center gap-4">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-lg">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
         {icon}
       </span>
 
@@ -1894,7 +1914,7 @@ function DetailRow({ icon, label, value }) {
           {label}
         </p>
 
-        <p className="break-words text-sm text-slate-200">
+        <p className="break-words text-sm text-slate-700 dark:text-slate-200">
           {value}
         </p>
       </div>
@@ -1983,27 +2003,27 @@ function DetailEditor({
   // ========================================
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+      <div className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
         {/* ========================================
             DETAIL EDITOR HEADER
             ======================================== */}
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
           <div>
             <h2 className="text-xl font-bold">
               {titleMap[type]}
             </h2>
 
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Update this section of your profile.
             </p>
           </div>
 
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
           >
-            ✕
+            <FaTimes />
           </button>
         </div>
 
@@ -2031,7 +2051,7 @@ function DetailEditor({
               />
 
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Gender
                 </label>
 
@@ -2043,7 +2063,7 @@ function DetailEditor({
                       gender: e.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 >
                   {genderOptions.map((option) => (
                     <option
@@ -2069,7 +2089,7 @@ function DetailEditor({
               />
 
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Relationship
                 </label>
 
@@ -2081,7 +2101,7 @@ function DetailEditor({
                       relationship: e.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 >
                   {relationshipOptions.map(
                     (option) => (
@@ -2104,7 +2124,7 @@ function DetailEditor({
               ======================================== */}
           {type === "work" && (
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Work
               </label>
 
@@ -2121,8 +2141,8 @@ function DetailEditor({
                     }
                     className={`flex w-full items-center rounded-xl border px-4 py-3 text-left text-sm transition ${
                       details.work === option
-                        ? "border-sky-500 bg-sky-500/10 text-sky-400"
-                        : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-600"
+                        ? "border-sky-500 bg-sky-500/10 text-sky-500 dark:text-sky-400"
+                        : "border-slate-300 bg-slate-50 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-600"
                     }`}
                   >
                     <span className="mr-3">
@@ -2145,7 +2165,7 @@ function DetailEditor({
           {type === "niches" && (
             <>
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Select Niche
                 </label>
 
@@ -2165,8 +2185,8 @@ function DetailEditor({
                         }
                         className={`rounded-xl border px-3 py-2.5 text-left text-sm transition ${
                           selected
-                            ? "border-sky-500 bg-sky-500/10 text-sky-400"
-                            : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-600"
+                            ? "border-sky-500 bg-sky-500/10 text-sky-500 dark:text-sky-400"
+                            : "border-slate-300 bg-slate-50 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-600"
                         }`}
                       >
                         {selected ? "✓ " : ""}
@@ -2286,10 +2306,10 @@ function DetailEditor({
         {/* ========================================
             DETAIL EDITOR BUTTONS
             ======================================== */}
-        <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-950 px-6 py-4">
+        <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
           <button
             onClick={onClose}
-            className="rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+            className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Cancel
           </button>
@@ -2319,7 +2339,7 @@ function EditField({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+      <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
         {label}
       </label>
 
@@ -2330,7 +2350,7 @@ function EditField({
           onChange(e.target.value)
         }
         placeholder={placeholder}
-        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+        className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
       />
     </div>
   );
@@ -2360,11 +2380,11 @@ function FeaturedManagerItem({
   // FEATURED MANAGER ITEM UI
   // ========================================
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-3 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950 sm:flex-row sm:items-center">
       <div className="flex flex-1 items-center gap-3">
 
         {/* Featured Photo Preview */}
-        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <img
             src={photo.src}
             alt={photo.title}
@@ -2380,7 +2400,7 @@ function FeaturedManagerItem({
           onChange={(e) =>
             setTitleInput(e.target.value)
           }
-          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-white focus:border-sky-500 focus:outline-none"
+          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
         />
       </div>
 
@@ -2411,7 +2431,7 @@ function FeaturedManagerItem({
           onClick={() =>
             onDelete(photo.id, photo.title)
           }
-          className="rounded-xl border border-red-900/50 bg-red-950/30 px-3 py-2 text-xs font-semibold text-red-400 transition hover:bg-red-900/40"
+          className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/40"
         >
           Delete
         </button>

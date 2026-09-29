@@ -28,7 +28,7 @@ import ConfirmModal from "../components/Common/ConfirmModal";
 //Test Culling
 const handleRunCulling = async () => {
   try {
-    const response = await fetch("http://127.0.0.1:8000/cull", {
+    const response = await fetch("http://127.0.0.1:8001/cull", {
       method: "POST",
     });
 
@@ -276,7 +276,7 @@ function CullingPage() {
         return;
       }
 
-      const response = await fetch("http://127.0.0.1:8000/cull", {
+      const response = await fetch("http://127.0.0.1:8001/cull", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

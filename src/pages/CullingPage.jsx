@@ -28,7 +28,7 @@ import ConfirmModal from "../components/Common/ConfirmModal";
 //Test Culling
 const handleRunCulling = async () => {
   try {
-    const response = await fetch("http://127.0.0.1:8001/cull", {
+    const response = await fetch("http://127.0.0.1:8000/cull", {
       method: "POST",
     });
 
@@ -41,17 +41,13 @@ const handleRunCulling = async () => {
 };
 
 const FILTERS = [
-  { key: "all", label: "All" },
-
-  // Photographer decisions
-  { key: "star", label: "Starred" },
-  { key: "reject", label: "Rejected" },
-  { key: "unrated", label: "Unrated" },
-
-  // LensFlow AI decisions
-  { key: "ai_keep", label: "Keep" },
-  { key: "ai_review", label: "Review" },
-  { key: "ai_reject", label: "Reject" },
+  { key: "all", label: "All", group: "photographer" },
+  { key: "star", label: "Starred", group: "photographer" },
+  { key: "reject", label: "Rejected", group: "photographer" },
+  { key: "unrated", label: "Unrated", group: "photographer" },
+  { key: "ai_keep", label: "Keep", group: "ai" },
+  { key: "ai_review", label: "Review", group: "ai" },
+  { key: "ai_reject", label: "Reject", group: "ai" },
 ];
 
 const ACCEPTED_ATTR = "image/*,.cr3,.nef,.arw,.dng,.raw,.rw2,.orf";
@@ -70,6 +66,20 @@ function formatBytes(bytes) {
     i++;
   }
   return `${n.toFixed(1)} ${units[i]}`;
+}
+
+function formatPercent(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "N/A";
+  }
+  return `${Math.round(Number(value) * 100)}%`;
+}
+
+function formatMetric(value, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "N/A";
+  }
+  return Number(value).toFixed(digits);
 }
 
 async function getSignedUrl(path) {
@@ -243,6 +253,24 @@ function CullingPage() {
   const [path, setPath] = useState([]);
   const [filter, setFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  // UI-only switches for the redesigned Analysis Settings card.
+  // These do not change the backend pipeline yet.
+  const [analysisOptions, setAnalysisOptions] = useState({
+    technical: true,
+    subject: true,
+    aesthetic: true,
+    similarity: true,
+  });
+
+  const toggleAnalysisOption = (key) => {
+    setAnalysisOptions((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
   const [isDragging, setIsDragging] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
@@ -276,7 +304,7 @@ function CullingPage() {
         return;
       }
 
-      const response = await fetch("http://127.0.0.1:8001/cull", {
+      const response = await fetch("http://127.0.0.1:8000/cull", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -697,32 +725,12 @@ function CullingPage() {
     const aiDecision = aiResults[img.id]?.ai_decision;
 
     if (filter === "all") return true;
-
-    // Photographer filters
-    if (filter === "star") {
-      return culls[img.id] === "star";
-    }
-
-    if (filter === "reject") {
-      return culls[img.id] === "reject";
-    }
-
-    if (filter === "unrated") {
-      return !culls[img.id];
-    }
-
-    // LensFlow AI filters
-    if (filter === "ai_keep") {
-      return aiDecision === "KEEP";
-    }
-
-    if (filter === "ai_review") {
-      return aiDecision === "REVIEW";
-    }
-
-    if (filter === "ai_reject") {
-      return aiDecision === "REJECT";
-    }
+    if (filter === "star") return culls[img.id] === "star";
+    if (filter === "reject") return culls[img.id] === "reject";
+    if (filter === "unrated") return !culls[img.id];
+    if (filter === "ai_keep") return aiDecision === "KEEP";
+    if (filter === "ai_review") return aiDecision === "REVIEW";
+    if (filter === "ai_reject") return aiDecision === "REJECT";
 
     return true;
   });
@@ -733,26 +741,17 @@ function CullingPage() {
   const folderReviewed = folderStarred + folderRejected;
   const folderUnrated = folderTotal - folderReviewed;
 
-  // LensFlow AI decision counts for the currently opened folder
   const folderAiKeep = folderImages.filter(
     (img) => aiResults[img.id]?.ai_decision === "KEEP"
   ).length;
-
   const folderAiReview = folderImages.filter(
     (img) => aiResults[img.id]?.ai_decision === "REVIEW"
   ).length;
-
   const folderAiReject = folderImages.filter(
     (img) => aiResults[img.id]?.ai_decision === "REJECT"
   ).length;
-
-  const folderAiAnalyzed =
-    folderAiKeep + folderAiReview + folderAiReject;
-
-  const folderAiRemaining = Math.max(
-    folderTotal - folderAiAnalyzed,
-    0
-  );
+  const folderAiAnalyzed = folderAiKeep + folderAiReview + folderAiReject;
+  const folderAiRemaining = Math.max(folderTotal - folderAiAnalyzed, 0);
 
   const lightboxIndex = visibleImages.findIndex((img) => img.id === lightboxId);
   const lightboxImage = lightboxIndex >= 0 ? visibleImages[lightboxIndex] : null;
@@ -772,7 +771,10 @@ function CullingPage() {
     if (!lightboxImage || mode !== "cull") return;
 
     function handleKeyDown(e) {
-      if (e.key === "Escape") setLightboxId(null);
+      if (e.key === "Escape") {
+        if (previewOpen) setPreviewOpen(false);
+        else setLightboxId(null);
+      }
       else if (e.key === "ArrowRight") goToOffset(1);
       else if (e.key === "ArrowLeft") goToOffset(-1);
       else if (e.key.toLowerCase() === "s") setRating(lightboxImage.id, "star");
@@ -784,7 +786,7 @@ function CullingPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lightboxImage, goToOffset, mode, culls]);
+  }, [lightboxImage, goToOffset, mode, culls, previewOpen]);
 
   /* ---- breadcrumb ---- */
   const breadcrumb = useMemo(() => {
@@ -938,47 +940,6 @@ function CullingPage() {
         </button>
       </div>
 
-      {/* Dropzone */}
-      {mode === "cull" && (
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={`mb-6 border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all duration-200 ease-out hover:scale-[1.01] hover:shadow-lg hover:shadow-sky-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
-            isDragging
-              ? "border-sky-500 bg-sky-500/10 shadow-lg shadow-sky-500/10"
-              : "border-slate-300 bg-slate-50/80 hover:border-sky-400 hover:bg-slate-100/90 dark:border-slate-700 dark:bg-slate-800/30 dark:hover:bg-slate-800/60"
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={ACCEPTED_ATTR}
-            className="hidden"
-            onChange={(e) => {
-              handleFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <FaCloudUploadAlt
-            className={`mx-auto text-3xl mb-2 ${
-              isDragging ? "text-sky-400" : "text-slate-500"
-            }`}
-          />
-          <p className="text-md text-slate-700 font-medium dark:text-slate-300">
-            {isDragging ? "Drop to add these files" : "Drag & drop photos here, or click to browse"}
-          </p>
-          <p className="text-sm text-slate-500 mt-1 dark:text-slate-500">
-            JPG, PNG, WEBP get thumbnails right away &middot; RAW formats (CR3, NEF, ARW, DNG) are added but can't be previewed in-browser
-            {currentFolderId
-              ? " · Uploads go into the folder you have open."
-              : " · Uploading here drops files into \"Unsorted\"."}
-          </p>
-        </div>
-      )}
-
       {/* ============ CULL MODE ============ */}
       {mode === "cull" && (
         <div>
@@ -991,7 +952,10 @@ function CullingPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2 flex-wrap text-sm">
                     <button
-                      onClick={() => setPath(path.slice(0, -1))}
+                      onClick={() => {
+                        setPath(path.slice(0, -1));
+                        setLightboxId(null);
+                      }}
                       className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors mr-2"
                     >
                       <FaArrowLeft className="text-xs" /> Back
@@ -1003,7 +967,11 @@ function CullingPage() {
                         <span key={`${crumb.id}-${index}`} className="flex items-center gap-2">
                           {index > 0 && <span className="text-slate-600">/</span>}
                           <button
-                            onClick={() => setPath(path.slice(0, index))}
+                            onClick={() => {
+                              setPath(path.slice(0, index));
+                              setPreviewOpen(false);
+                              setLightboxId(null);
+                            }}
                             disabled={isLast}
                             className={
                               isLast
@@ -1043,6 +1011,8 @@ function CullingPage() {
                         onOpen={() => {
                           setPath([...path, folder.id]);
                           setFilter("all");
+                          setPreviewOpen(false);
+                          setLightboxId(null);
                         }}
                         onContextMenu={(e) => handleFolderContextMenu(e, folder.id)}
                       />
@@ -1073,355 +1043,662 @@ function CullingPage() {
 
               {/* Photos in the currently open folder */}
               {path.length > 0 && (
-                <div>
-                  <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 sm:p-6 mb-6 space-y-5">
-                    {/* Photographer's manual progress */}
-                    <div>
-                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="text-slate-500 font-medium mr-1">
-                            Photographer
-                          </span>
+                <div className="space-y-5">
+                  {/* Main culling workspace. The right details panel only exists after a photo is selected. */}
+                  <div
+                    className={`grid gap-5 items-start transition-all duration-300 ${
+                      lightboxImage
+                        ? "xl:grid-cols-[minmax(0,1fr)_360px]"
+                        : "grid-cols-1"
+                    }`}
+                  >
+                    <div className="min-w-0 space-y-5">
+                      {/* Top controls: upload, analysis settings, culling summary */}
+                      <div
+                        className={`grid gap-3 transition-all duration-300 ${
+                          lightboxImage
+                            ? "md:grid-cols-3"
+                            : "md:grid-cols-2 xl:grid-cols-[1.15fr_1fr_0.9fr]"
+                        }`}
+                      >
+                        {/* Upload */}
+                        <div
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`group cursor-pointer rounded-2xl border border-dashed transition-all ${
+                            lightboxImage ? "p-4" : "p-5"
+                          } ${
+                            isDragging
+                              ? "border-sky-400 bg-sky-500/10"
+                              : "border-slate-300 bg-white hover:border-sky-400 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-sky-500/70"
+                          }`}
+                        >
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            accept={ACCEPTED_ATTR}
+                            className="hidden"
+                            onChange={(e) => {
+                              handleFiles(e.target.files);
+                              e.target.value = "";
+                            }}
+                          />
 
-                          <span className="flex items-center gap-1.5 bg-sky-500/10 text-sky-400 px-2.5 py-1 rounded-full font-medium">
-                            <FaStar className="text-[10px]" />
-                            {folderStarred} Starred
-                          </span>
-
-                          <span className="flex items-center gap-1.5 bg-red-500/10 text-red-400 px-2.5 py-1 rounded-full font-medium">
-                            <FaBan className="text-[10px]" />
-                            {folderRejected} Rejected
-                          </span>
-
-                          <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-full font-medium">
-                            {folderUnrated} Remaining
-                          </span>
+                          <div className={`flex ${lightboxImage ? "items-center gap-3" : "flex-col items-center text-center"}`}>
+                            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400">
+                              <FaCloudUploadAlt className="text-xl" />
+                            </div>
+                            <div className={lightboxImage ? "min-w-0" : "mt-3"}>
+                              <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                                {isDragging ? "Drop photos here" : "Drag & drop photos here, or click to browse"}
+                              </p>
+                              <p className={`text-slate-500 ${lightboxImage ? "text-[10px] truncate" : "mt-1 text-sm"}`}>
+                                JPG, PNG, WEBP and supported RAW files (CR3, NEF, ARW, DNG)
+                              </p>
+                            </div>
+                          </div>
                         </div>
 
-                        <span className="text-xs text-slate-500">
-                          {folderReviewed} / {folderTotal} reviewed
-                        </span>
-                      </div>
-
-                      <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden flex">
-                        <div
-                          className="bg-sky-500 h-full transition-all duration-300"
-                          style={{
-                            width: folderTotal
-                              ? `${(folderStarred / folderTotal) * 100}%`
-                              : "0%",
-                          }}
-                        />
-
-                        <div
-                          className="bg-red-500 h-full transition-all duration-300"
-                          style={{
-                            width: folderTotal
-                              ? `${(folderRejected / folderTotal) * 100}%`
-                              : "0%",
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* LensFlow AI progress */}
-                    <div className="pt-4 border-t border-slate-700/70">
-                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="text-slate-500 font-medium mr-1">
-                            LensFlow AI
-                          </span>
-
-                          <span className="flex items-center gap-1.5 bg-green-500/10 text-green-400 px-2.5 py-1 rounded-full font-medium">
-                            <FaCheckCircle className="text-[10px]" />
-                            {folderAiKeep} Keep
-                          </span>
-
-                          <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full font-medium">
-                            <FaExclamationCircle className="text-[10px]" />
-                            {folderAiReview} Review
-                          </span>
-
-                          <span className="flex items-center gap-1.5 bg-red-500/10 text-red-400 px-2.5 py-1 rounded-full font-medium">
-                            <FaBan className="text-[10px]" />
-                            {folderAiReject} Reject
-                          </span>
-
-                          {folderAiRemaining > 0 && (
-                            <span className="flex items-center gap-1.5 bg-slate-700/50 text-slate-400 px-2.5 py-1 rounded-full font-medium">
-                              {folderAiRemaining} Not analyzed
+                        {/* Analysis settings / profile */}
+                        <div className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/80 ${lightboxImage ? "p-4" : "p-5"}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className="text-m font-semibold text-slate-900 dark:text-white">
+                                Analysis Settings
+                              </p>
+                              {!lightboxImage && (
+                                <p className="mt-0.5 text-[11px] text-slate-500">
+                                  Current LensFlow analysis profile
+                                </p>
+                              )}
+                            </div>
+                            <span className="rounded-full bg-sky-500/10 px-2 py-1 text-[10px] font-semibold text-sky-500 dark:text-sky-300">
+                              Balanced
                             </span>
+                          </div>
+
+                          <div className={`grid gap-2 ${lightboxImage ? "mt-3 grid-cols-2" : "mt-4 grid-cols-1 sm:grid-cols-2"}`}>
+                            {[
+                              ["technical", "Technical quality"],
+                              ["subject", "Subject quality"],
+                              ["aesthetic", "Aesthetic quality"],
+                              ["similarity", "Visual similarity"],
+                            ].map(([key, label]) => {
+                              const enabled = analysisOptions[key];
+
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => toggleAnalysisOption(key)}
+                                  className={`flex min-w-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-[10px] font-medium transition ${
+                                    enabled
+                                      ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-300"
+                                      : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500"
+                                  }`}
+                                  title="UI preview only — backend currently runs the complete pipeline"
+                                >
+                                  <span className="truncate">{label}</span>
+                                  <span
+                                    className={`relative h-4 w-7 flex-shrink-0 rounded-full transition ${
+                                      enabled ? "bg-sky-500" : "bg-slate-300 dark:bg-slate-700"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${
+                                        enabled ? "left-3.5" : "left-0.5"
+                                      }`}
+                                    />
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {!lightboxImage && (
+                            <p className="mt-2 text-[9px] text-slate-400">
+                              Preview controls only — all analysis stages still run in the current backend.
+                            </p>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={handleRunCulling}
+                            disabled={cullingLoading || folderTotal === 0}
+                            className={`mt-4 w-full rounded-xl bg-sky-600 font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+                              lightboxImage ? "px-3 py-2 text-[11px]" : "px-4 py-2.5 text-xs"
+                            }`}
+                          >
+                            {cullingLoading ? "Analyzing photos..." : "Start Automated Culling"}
+                          </button>
+
+                          {cullingError && (
+                            <p className="mt-2 text-[10px] text-red-400">{cullingError}</p>
                           )}
                         </div>
 
-                        <span className="text-xs text-slate-500">
-                          {folderAiAnalyzed} / {folderTotal} analyzed
-                        </span>
-                      </div>
-
-                      <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden flex">
-                        <div
-                          className="bg-green-500 h-full transition-all duration-300"
-                          style={{
-                            width: folderTotal
-                              ? `${(folderAiKeep / folderTotal) * 100}%`
-                              : "0%",
-                          }}
-                        />
-
-                        <div
-                          className="bg-amber-500 h-full transition-all duration-300"
-                          style={{
-                            width: folderTotal
-                              ? `${(folderAiReview / folderTotal) * 100}%`
-                              : "0%",
-                          }}
-                        />
-
-                        <div
-                          className="bg-red-500 h-full transition-all duration-300"
-                          style={{
-                            width: folderTotal
-                              ? `${(folderAiReject / folderTotal) * 100}%`
-                              : "0%",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <div>
-                      <button
-                        type="button"
-                        onClick={handleRunCulling}
-                        disabled={cullingLoading || folderTotal === 0}
-                        className="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-                      >
-                        {cullingLoading ? "Analyzing photos..." : "Run LensFlow Culling"}
-                      </button>
-
-                      {cullingError && (
-                        <p className="text-xs text-red-400 mt-2">{cullingError}</p>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-slate-500">
-                      AI recommendations stay separate from your manual Star / Reject choices.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col gap-3 mb-4">
-                    {/* Photographer filters */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-medium text-slate-500 mr-1">
-                        Photographer
-                      </span>
-
-                      {FILTERS
-                        .filter((f) =>
-                          ["all", "star", "reject", "unrated"].includes(f.key)
-                        )
-                        .map((f) => {
-                          let count = 0;
-
-                          if (f.key === "all") {
-                            count = folderTotal;
-                          } else if (f.key === "star") {
-                            count = folderStarred;
-                          } else if (f.key === "reject") {
-                            count = folderRejected;
-                          } else if (f.key === "unrated") {
-                            count = folderUnrated;
-                          }
-
-                          const active = filter === f.key;
-
-                          return (
-                            <button
-                              key={f.key}
-                              onClick={() => setFilter(f.key)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                                active
-                                  ? "bg-sky-500 text-slate-900"
-                                  : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
-                              }`}
-                            >
-                              {f.label}{" "}
-                              <span className="opacity-70">
-                                ({count})
-                              </span>
-                            </button>
-                          );
-                        })}
-                    </div>
-
-                    {/* LensFlow AI filters */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-medium text-slate-500 mr-1">
-                        LensFlow AI
-                      </span>
-
-                      {FILTERS
-                        .filter((f) =>
-                          ["ai_keep", "ai_review", "ai_reject"].includes(f.key)
-                        )
-                        .map((f) => {
-                          let count = 0;
-
-                          if (f.key === "ai_keep") {
-                            count = folderAiKeep;
-                          } else if (f.key === "ai_review") {
-                            count = folderAiReview;
-                          } else if (f.key === "ai_reject") {
-                            count = folderAiReject;
-                          }
-
-                          const active = filter === f.key;
-
-                          return (
-                            <button
-                              key={f.key}
-                              onClick={() => setFilter(f.key)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                                active
-                                  ? f.key === "ai_keep"
-                                    ? "bg-green-500 text-white"
-                                    : f.key === "ai_review"
-                                    ? "bg-amber-500 text-slate-950"
-                                    : "bg-red-500 text-white"
-                                  : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
-                              }`}
-                            >
-                              {f.label}{" "}
-                              <span className="opacity-70">
-                                ({count})
-                              </span>
-                            </button>
-                          );
-                        })}
-                    </div>
-                  </div>
-
-                  {visibleImages.length === 0 ? (
-                    <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-700 rounded-xl">
-                      {folderTotal === 0 ? "This folder is empty — drop some photos above." : "Nothing here yet."}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                      {visibleImages.map((img) => {
-                        const state = culls[img.id];
-                        const aiResult = aiResults[img.id];
-
-                        const stateClasses =
-                          state === "star"
-                            ? "outline outline-[3px] outline-sky-500 -outline-offset-[3px] border-transparent"
-                            : state === "reject" || aiResult?.ai_decision === "REJECT"
-                            ? "outline outline-[3px] outline-red-500 -outline-offset-[3px] border-transparent opacity-50"
-                            : aiResult?.ai_decision === "KEEP"
-                            ? "outline outline-2 outline-green-500/70 -outline-offset-2 border-transparent"
-                            : aiResult?.ai_decision === "REVIEW"
-                            ? "outline outline-2 outline-amber-500/70 -outline-offset-2 border-transparent"
-                            : "border-slate-700 hover:border-slate-500";
-
-                        return (
-                          <div
-                            key={img.id}
-                            onClick={() => setLightboxId(img.id)}
-                            className={`relative aspect-square bg-slate-900 rounded-lg overflow-hidden border group transition-all cursor-pointer ${stateClasses}`}
-                          >
-                            {img.previewable && img.thumbUrl ? (
-                              <img
-                                src={img.thumbUrl}
-                                className="w-full h-full object-cover"
-                                alt={img.fileName}
-                              />
-                            ) : (
-                              <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-2 text-center bg-slate-800">
-                                <FaFileImage className="text-2xl text-slate-600" />
-                                <span className="text-[10px] text-slate-500 truncate w-full">No preview</span>
-                              </div>
-                            )}
-
-                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRating(img.id, "reject");
-                                }}
-                                className="bg-red-500/80 hover:bg-red-500 text-white w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-                                title="Reject (X)"
-                              >
-                                <FaTimes className="text-sm" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRating(img.id, "star");
-                                }}
-                                className="bg-sky-500/80 hover:bg-sky-500 text-white w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-                                title="Star (S)"
-                              >
-                                <FaStar className="text-sm" />
-                              </button>
+                        {/* Summary */}
+                        <div className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/80 ${lightboxImage ? "p-4" : "p-5"}`}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-m font-semibold text-slate-900 dark:text-white">
+                                Culling Summary
+                              </p>
+                              {!lightboxImage && (
+                                <p className="mt-0.5 text-[11px] text-slate-500">
+                                  {folderAiAnalyzed} of {folderTotal} analyzed
+                                </p>
+                              )}
                             </div>
-
-                            <span className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded font-mono max-w-[85%] truncate">
-                              {img.fileName}
+                            <span className="text-xl font-bold text-slate-900 dark:text-white">
+                              {folderTotal}
                             </span>
+                          </div>
 
-                            {state === "star" && (
-                              <span className="absolute top-2 right-2 text-sky-400 drop-shadow">
-                                <FaStar />
-                              </span>
-                            )}
-                            {state === "reject" && (
-                              <span className="absolute top-2 right-2 text-red-400 drop-shadow">
-                                <FaBan />
-                              </span>
-                            )}
+                          <div className={`mt-4 ${lightboxImage ? "space-y-1.5" : "space-y-2.5"}`}>
+                            {[
+                              ["Keep", folderAiKeep, "bg-emerald-500", "text-emerald-500"],
+                              ["Review", folderAiReview, "bg-amber-500", "text-amber-500"],
+                              ["Reject", folderAiReject, "bg-rose-500", "text-rose-500"],
+                            ].map(([label, count, dotClass, textClass]) => (
+                              <div key={label} className="flex items-center justify-between text-xs">
+                                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                  <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+                                  {label}
+                                </span>
+                                <span className={`font-semibold ${textClass}`}>{count}</span>
+                              </div>
+                            ))}
+                          </div>
 
-                            {state !== "reject" &&
-                            aiResult?.ai_decision === "REJECT" && (
-                              <span
-                                className="absolute top-2 right-2 text-red-400 drop-shadow"
-                                title="LensFlow recommends reject"
-                              >
-                                <FaBan />
-                              </span>
-                            )}
+                          {!lightboxImage && (
+                            <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                              <div
+                                className="h-full bg-emerald-500 transition-all"
+                                style={{ width: folderTotal ? `${(folderAiKeep / folderTotal) * 100}%` : "0%" }}
+                              />
+                              <div
+                                className="h-full bg-amber-500 transition-all"
+                                style={{ width: folderTotal ? `${(folderAiReview / folderTotal) * 100}%` : "0%" }}
+                              />
+                              <div
+                                className="h-full bg-rose-500 transition-all"
+                                style={{ width: folderTotal ? `${(folderAiReject / folderTotal) * 100}%` : "0%" }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
-                            {aiResult && (
-                              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 pointer-events-none">
-                                <span
-                                  className={`text-[10px] font-semibold px-2 py-1 rounded-full backdrop-blur-sm ${
-                                    aiResult.ai_decision === "KEEP"
-                                      ? "bg-green-500/90 text-white"
-                                      : aiResult.ai_decision === "REJECT"
-                                      ? "bg-red-500/90 text-white"
-                                      : "bg-amber-500/90 text-slate-950"
+                      {/* Filter groups */}
+                      <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/70">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                              Photographer
+                            </span>
+                            {FILTERS.filter((f) => f.group === "photographer").map((f) => {
+                              const count =
+                                f.key === "all"
+                                  ? folderTotal
+                                  : f.key === "star"
+                                  ? folderStarred
+                                  : f.key === "reject"
+                                  ? folderRejected
+                                  : folderUnrated;
+                              const active = filter === f.key;
+
+                              return (
+                                <button
+                                  key={f.key}
+                                  type="button"
+                                  onClick={() => setFilter(f.key)}
+                                  className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition ${
+                                    active
+                                      ? "bg-sky-500 text-slate-950"
+                                      : "bg-slate-100 text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-white"
                                   }`}
                                 >
-                                  AI: {aiResult.ai_decision}
-                                </span>
-
-                                {aiResult.base_quality_score != null && (
-                                  <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-black/70 text-white">
-                                    {Math.round(aiResult.base_quality_score * 100)}%
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                                  {f.label} <span className="opacity-70">({count})</span>
+                                </button>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
 
-                  <p className="text-xs text-slate-600 mt-4 text-center">
-                    Click a photo to inspect it full-screen &middot; S star &middot; X reject &middot; ← →
-                    navigate
-                  </p>
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                              LensFlow AI
+                            </span>
+                            {FILTERS.filter((f) => f.group === "ai").map((f) => {
+                              const count =
+                                f.key === "ai_keep"
+                                  ? folderAiKeep
+                                  : f.key === "ai_review"
+                                  ? folderAiReview
+                                  : folderAiReject;
+                              const active = filter === f.key;
+
+                              return (
+                                <button
+                                  key={f.key}
+                                  type="button"
+                                  onClick={() => setFilter(f.key)}
+                                  className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition ${
+                                    active
+                                      ? f.key === "ai_keep"
+                                        ? "bg-emerald-500 text-white"
+                                        : f.key === "ai_review"
+                                        ? "bg-amber-500 text-slate-950"
+                                        : "bg-rose-500 text-white"
+                                      : "bg-slate-100 text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-white"
+                                  }`}
+                                >
+                                  {f.label} <span className="opacity-70">({count})</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Gallery */}
+                      {visibleImages.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-300 py-16 text-center text-sm text-slate-500 dark:border-slate-700">
+                          {folderTotal === 0
+                            ? "This folder is empty — add some photos above."
+                            : "No photos match this filter."}
+                        </div>
+                      ) : (
+                        <div
+                          className={`grid gap-3 transition-all duration-300 ${
+                            lightboxImage
+                              ? "grid-cols-2 md:grid-cols-3"
+                              : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                          }`}
+                        >
+                          {visibleImages.map((img) => {
+                            const state = culls[img.id];
+                            const aiResult = aiResults[img.id];
+                            const selected = lightboxId === img.id;
+
+                            const stateClasses =
+                              selected
+                                ? "ring-2 ring-sky-500 border-sky-500"
+                                : state === "star"
+                                ? "ring-2 ring-sky-500 border-transparent"
+                                : state === "reject" || aiResult?.ai_decision === "REJECT"
+                                ? "ring-2 ring-rose-500 border-transparent opacity-55"
+                                : aiResult?.ai_decision === "KEEP"
+                                ? "border-emerald-500/70"
+                                : aiResult?.ai_decision === "REVIEW"
+                                ? "border-amber-500/70"
+                                : "border-slate-300 hover:border-sky-400 dark:border-slate-700";
+
+                            return (
+                              <button
+                                key={img.id}
+                                type="button"
+                                onClick={() =>
+                                  setLightboxId((current) => {
+                                    setPreviewOpen(false);
+                                    return current === img.id ? null : img.id;
+                                  })
+                                }
+                                className={`group relative aspect-square overflow-hidden rounded-xl border bg-slate-900 text-left transition-all ${stateClasses}`}
+                              >
+                                {img.previewable && img.thumbUrl ? (
+                                  <img
+                                    src={img.thumbUrl}
+                                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                                    alt={img.fileName}
+                                  />
+                                ) : (
+                                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-800 px-2 text-center">
+                                    <FaFileImage className="text-2xl text-slate-600" />
+                                    <span className="w-full truncate text-[10px] text-slate-500">
+                                      No preview
+                                    </span>
+                                  </div>
+                                )}
+
+                                <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
+                                  <span className="max-w-[75%] truncate rounded-md bg-black/60 px-2 py-1 font-mono text-[9px] text-white backdrop-blur-sm">
+                                    {img.fileName}
+                                  </span>
+
+                                  {state === "star" && (
+                                    <span className="rounded-full bg-black/60 p-1 text-sky-400">
+                                      <FaStar className="text-[10px]" />
+                                    </span>
+                                  )}
+                                  {(state === "reject" || aiResult?.ai_decision === "REJECT") && state !== "star" && (
+                                    <span className="rounded-full bg-black/60 p-1 text-rose-400">
+                                      <FaBan className="text-[10px]" />
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Photographer quick actions — revealed on hover/focus */}
+                                <div className="absolute inset-x-2 bottom-2 z-10 flex translate-y-2 items-center justify-center gap-2 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRating(img.id, "star");
+                                    }}
+                                    className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition ${
+                                      state === "star"
+                                        ? "border-sky-400 bg-sky-500 text-slate-950"
+                                        : "border-white/20 bg-black/65 text-white hover:bg-sky-500 hover:text-slate-950"
+                                    }`}
+                                    aria-label="Star or keep photo"
+                                    title="Star / Keep"
+                                  >
+                                    <FaStar className="text-[11px]" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRating(img.id, "reject");
+                                    }}
+                                    className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition ${
+                                      state === "reject"
+                                        ? "border-rose-400 bg-rose-500 text-white"
+                                        : "border-white/20 bg-black/65 text-white hover:bg-rose-500"
+                                    }`}
+                                    aria-label="Reject photo"
+                                    title="Reject"
+                                  >
+                                    <FaBan className="text-[11px]" />
+                                  </button>
+                                </div>
+
+                                {aiResult && (
+                                  <div className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-2 transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
+                                    <span
+                                      className={`rounded-full px-2 py-1 text-[9px] font-bold shadow ${
+                                        aiResult.ai_decision === "KEEP"
+                                          ? "bg-emerald-500 text-white"
+                                          : aiResult.ai_decision === "REJECT"
+                                          ? "bg-rose-500 text-white"
+                                          : "bg-amber-500 text-slate-950"
+                                      }`}
+                                    >
+                                      {aiResult.ai_decision}
+                                    </span>
+
+                                    {aiResult.base_quality_score != null && (
+                                      <span className="rounded-full bg-black/70 px-2 py-1 text-[9px] font-semibold text-white">
+                                        {formatPercent(aiResult.base_quality_score)}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <p className="text-center text-[11px] text-slate-500">
+                        Select a photo to open its analysis details. Select it again or use the close button to collapse the panel.
+                      </p>
+                    </div>
+
+                    {/* Detail panel */}
+                    {lightboxImage && (
+                      <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 xl:sticky xl:top-4 xl:h-[calc(100vh-7rem)] xl:max-h-[calc(100vh-7rem)] xl:flex xl:flex-col xl:overflow-hidden">
+                        <div className="mb-2 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-mono text-xs font-semibold text-slate-900 dark:text-white">
+                              {lightboxImage.fileName}
+                            </p>
+                            <p className="mt-1 text-[10px] text-slate-500">
+                              {lightboxImage.sizeLabel || "Photo"} · {lightboxIndex + 1} of {visibleImages.length}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewOpen(false);
+                              setLightboxId(null);
+                            }}
+                            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white"
+                            aria-label="Close photo details"
+                          >
+                            <FaTimes />
+                          </button>
+                        </div>
+
+                        {/* Scrollable analysis content.
+                            The final photographer decision stays outside this area
+                            so the buttons remain visible at the bottom of the card. */}
+                        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
+                          <div className="relative overflow-hidden rounded-xl bg-slate-950">
+                          {lightboxImage.previewable && lightboxImage.fullUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewOpen(true)}
+                              className="block w-full cursor-zoom-in"
+                              aria-label="Enlarge photo"
+                              title="Click to enlarge"
+                            >
+                              <img
+                                src={lightboxImage.fullUrl}
+                                alt={lightboxImage.fileName}
+                                className="aspect-[4/3] w-full object-contain"
+                              />
+                            </button>
+                          ) : (
+                            <div className="flex aspect-[4/3] items-center justify-center text-slate-500">
+                              <FaFileImage className="text-4xl" />
+                            </div>
+                          )}
+
+                          {lightboxImage.previewable && lightboxImage.fullUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewOpen(true)}
+                              className="absolute right-2 top-2 flex items-center gap-1.5 rounded-lg bg-black/65 px-2.5 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition hover:bg-sky-500 hover:text-slate-950"
+                              aria-label="Enlarge photo"
+                            >
+                              <FaSearchPlus className="text-[10px]" />
+                              Enlarge
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewOpen(false);
+                              goToOffset(-1);
+                            }}
+                            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white/80 hover:text-white"
+                            aria-label="Previous photo"
+                          >
+                            <FaChevronLeft className="text-xs" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewOpen(false);
+                              goToOffset(1);
+                            }}
+                            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white/80 hover:text-white"
+                            aria-label="Next photo"
+                          >
+                            <FaChevronRight className="text-xs" />
+                          </button>
+                        </div>
+
+                        {/* Recommendation */}
+                        <div className="mt-3">
+                          {lightboxAiResult ? (
+                            <>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span
+                                  className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                                    lightboxAiResult.ai_decision === "KEEP"
+                                      ? "bg-emerald-500/15 text-emerald-500"
+                                      : lightboxAiResult.ai_decision === "REJECT"
+                                      ? "bg-rose-500/15 text-rose-500"
+                                      : "bg-amber-500/15 text-amber-500"
+                                  }`}
+                                >
+                                  Recommended: {lightboxAiResult.ai_decision}
+                                </span>
+                                <span className="text-lg font-bold text-slate-900 dark:text-white">
+                                  {formatPercent(lightboxAiResult.base_quality_score)}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 space-y-2">
+                                {[
+                                  ["Technical Quality", lightboxAiResult.metrics?.technical_score],
+                                  ["Face Quality", lightboxAiResult.metrics?.face_quality_score],
+                                  ["Eye Quality", lightboxAiResult.metrics?.eye_quality_score],
+                                  ["Aesthetic Quality", lightboxAiResult.metrics?.aesthetic_quality_score],
+                                ].map(([label, value]) => (
+                                  <div key={label}>
+                                    <div className="mb-1 flex items-center justify-between gap-2 text-[12px]">
+                                      <span className="text-slate-400">{label}</span>
+                                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                        {formatPercent(value)}
+                                      </span>
+                                    </div>
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                                      <div
+                                        className="h-full rounded-full bg-sky-500 transition-all"
+                                        style={{
+                                          width:
+                                            value === null || value === undefined
+                                              ? "0%"
+                                              : `${Math.max(0, Math.min(100, Number(value) * 100))}%`,
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="mt-4 grid grid-cols-2 gap-2 text-[12px]">
+                                <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
+                                  <p className="text-slate-400">Similarity group</p>
+                                  <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
+                                    {lightboxAiResult.similarity_group || "Independent"}
+                                  </p>
+                                </div>
+                                <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
+                                  <p className="text-slate-500">Group rank</p>
+                                  <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
+                                    {lightboxAiResult.group_rank || "—"}
+                                  </p>
+                                </div>
+                                <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
+                                  <p className="text-slate-500">Sharpness</p>
+                                  <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
+                                    {formatMetric(lightboxAiResult.metrics?.sharpness)}
+                                  </p>
+                                </div>
+                                <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
+                                  <p className="text-slate-500">Aesthetic score</p>
+                                  <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
+                                    {formatMetric(lightboxAiResult.metrics?.aesthetic_score)}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                                <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">
+                                  LensFlow reason
+                                </p>
+                                <p className="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                  {lightboxAiResult.decision_reason || "No decision reason available."}
+                                </p>
+
+                                {Array.isArray(lightboxAiResult.metrics?.defects) &&
+                                  lightboxAiResult.metrics.defects.length > 0 && (
+                                    <div className="mt-3">
+                                      <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-400">
+                                        Detected issues
+                                      </p>
+                                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                        {lightboxAiResult.metrics.defects.map((defect, index) => (
+                                          <span
+                                            key={`${defect?.type || defect}-${index}`}
+                                            className="rounded-full bg-rose-500/10 px-2 py-1 text-[9px] text-rose-400"
+                                          >
+                                            {defect?.message || defect?.type || String(defect)}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center dark:border-slate-700">
+                              <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                No AI analysis yet
+                              </p>
+                              <p className="mt-1 text-[10px] text-slate-500">
+                                Run automated culling to generate quality scores and a recommendation.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                          {/* Photographer controls — part of the scrollable details content */}
+                          <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            Photographer Decision
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setRating(lightboxImage.id, "star")}
+                              className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                                culls[lightboxImage.id] === "star"
+                                  ? "bg-sky-500 text-slate-950"
+                                  : "bg-slate-100 text-slate-600 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white"
+                              }`}
+                            >
+                              <FaStar /> Star / Keep
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setRating(lightboxImage.id, "reject")}
+                              className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                                culls[lightboxImage.id] === "reject"
+                                  ? "bg-rose-500 text-white"
+                                  : "bg-slate-100 text-slate-600 hover:text-rose-500 dark:bg-slate-800 dark:text-slate-300"
+                              }`}
+                            >
+                              <FaBan /> Reject
+                            </button>
+                          </div>
+
+                          {culls[lightboxImage.id] && (
+                            <button
+                              type="button"
+                              onClick={() => clearRating(lightboxImage.id)}
+                              className="mt-2 w-full rounded-lg px-3 py-2 text-[10px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+                            >
+                              Clear photographer decision
+                            </button>
+                          )}
+                          </div>
+                        </div>
+                      </aside>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1641,157 +1918,149 @@ function CullingPage() {
         </div>
       )}
 
-      {/* ============ LIGHTBOX: culling grid ============ */}
-      {mode === "cull" && lightboxImage && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex flex-col"
-          onClick={() => setLightboxId(null)}
-        >
+      {/* ============ FULLSCREEN PHOTO PREVIEW ============ */}
+      {mode === "cull" &&
+        previewOpen &&
+        lightboxImage &&
+        lightboxImage.previewable &&
+        lightboxImage.fullUrl && (
           <div
-            className="flex items-center justify-between px-4 sm:px-6 py-4 text-white"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[70] flex flex-col bg-black/95 backdrop-blur-sm"
+            onClick={() => setPreviewOpen(false)}
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="font-mono text-sm truncate">{lightboxImage.fileName}</span>
-              {lightboxImage.sizeLabel && (
-                <span className="text-xs text-slate-500 flex-shrink-0">{lightboxImage.sizeLabel}</span>
-              )}
-              {culls[lightboxImage.id] === "star" && (
-                <span className="flex items-center gap-1 text-sky-400 text-xs bg-sky-500/10 px-2 py-1 rounded-full flex-shrink-0">
-                  <FaStar /> Starred
-                </span>
-              )}
-              {culls[lightboxImage.id] === "reject" && (
-                <span className="flex items-center gap-1 text-red-400 text-xs bg-red-500/10 px-2 py-1 rounded-full flex-shrink-0">
-                  <FaBan /> Rejected
-                </span>
-              )}
+            <div
+              className="flex items-center justify-between gap-3 px-4 py-3 text-white sm:px-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="min-w-0">
+                <p className="truncate font-mono text-xs font-semibold sm:text-sm">
+                  {lightboxImage.fileName}
+                </p>
+                <p className="mt-0.5 text-[10px] text-slate-400">
+                  {lightboxIndex + 1} of {visibleImages.length}
+                </p>
+              </div>
 
-              {lightboxAiResult && (
-                <span
-                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full flex-shrink-0 ${
-                    lightboxAiResult.ai_decision === "KEEP"
-                      ? "text-green-300 bg-green-500/10"
-                      : lightboxAiResult.ai_decision === "REJECT"
-                      ? "text-red-300 bg-red-500/10"
-                      : "text-amber-300 bg-amber-500/10"
-                  }`}
-                >
-                  LensFlow: {lightboxAiResult.ai_decision}
-                  {lightboxAiResult.base_quality_score != null &&
-                    ` · ${Math.round(lightboxAiResult.base_quality_score * 100)}%`}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <span className="text-xs text-slate-400">
-                {lightboxIndex + 1} / {visibleImages.length}
-              </span>
               <button
-                onClick={() => setLightboxId(null)}
-                className="text-slate-400 hover:text-white transition-colors"
+                type="button"
+                onClick={() => setPreviewOpen(false)}
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-300 transition hover:bg-white/20 hover:text-white"
+                aria-label="Close enlarged photo"
               >
-                <FaTimes className="text-lg" />
+                <FaTimes />
               </button>
             </div>
-          </div>
 
-          <div
-            className="flex-1 flex items-center justify-center relative px-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => goToOffset(-1)}
-              className="absolute left-2 sm:left-6 text-white/60 hover:text-white bg-black/30 hover:bg-black/50 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+            <div
+              className="relative flex min-h-0 flex-1 items-center justify-center p-4 sm:p-6"
+              onClick={(e) => e.stopPropagation()}
             >
-              <FaChevronLeft />
-            </button>
+              <button
+                type="button"
+                onClick={() => goToOffset(-1)}
+                className="absolute left-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white/80 transition hover:bg-black/75 hover:text-white sm:left-6"
+                aria-label="Previous photo"
+              >
+                <FaChevronLeft />
+              </button>
 
-            {lightboxImage.previewable && lightboxImage.fullUrl ? (
               <img
                 src={lightboxImage.fullUrl}
                 alt={lightboxImage.fileName}
-                className="max-h-[70vh] max-w-full object-contain rounded-lg shadow-2xl"
+                className="max-h-full max-w-full select-none object-contain"
               />
-            ) : (
-              <div className="flex flex-col items-center gap-3 text-slate-400 px-8 text-center">
-                <FaFileImage className="text-5xl text-slate-600" />
-                <p className="text-sm">
-                  No in-browser preview for this file type.
-                  <br />
-                  Open it in your RAW editor to inspect it.
-                </p>
-              </div>
-            )}
 
-            <button
-              onClick={() => goToOffset(1)}
-              className="absolute right-2 sm:right-6 text-white/60 hover:text-white bg-black/30 hover:bg-black/50 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-            >
-              <FaChevronRight />
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => goToOffset(1)}
+                className="absolute right-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white/80 transition hover:bg-black/75 hover:text-white sm:right-6"
+                aria-label="Next photo"
+              >
+                <FaChevronRight />
+              </button>
+            </div>
 
-          {lightboxAiResult && (
             <div
-              className="mx-auto w-full max-w-3xl px-4 pb-2"
+              className="border-t border-white/10 bg-black/70 px-4 py-3 backdrop-blur-md sm:px-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  {lightboxAiResult.similarity_group && (
-                    <span className="text-slate-400">
-                      Group: <span className="text-white">{lightboxAiResult.similarity_group}</span>
-                    </span>
-                  )}
+              <div className="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                {/* AI recommendation + reason */}
+                <div className="min-w-0 flex-1">
+                  {lightboxAiResult ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                      <span
+                        className={`inline-flex w-fit flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${
+                          lightboxAiResult.ai_decision === "KEEP"
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : lightboxAiResult.ai_decision === "REJECT"
+                            ? "bg-rose-500/20 text-rose-300"
+                            : "bg-amber-500/20 text-amber-300"
+                        }`}
+                      >
+                        Recommended: {lightboxAiResult.ai_decision}
+                      </span>
 
-                  {lightboxAiResult.group_rank && (
-                    <span className="text-slate-400">
-                      Rank: <span className="text-white">{lightboxAiResult.group_rank}</span>
-                    </span>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          LensFlow reason
+                        </p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-slate-200">
+                          {lightboxAiResult.decision_reason || "No decision reason available."}
+                        </p>
+
+                        {Array.isArray(lightboxAiResult.metrics?.defects) &&
+                          lightboxAiResult.metrics.defects.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {lightboxAiResult.metrics.defects.map((defect, index) => (
+                                <span
+                                  key={`${defect?.type || defect}-${index}`}
+                                  className="rounded-full bg-rose-500/15 px-2 py-1 text-[9px] text-rose-300"
+                                >
+                                  {defect?.message || defect?.type || String(defect)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">
+                      No AI analysis is available for this photo yet.
+                    </p>
                   )}
                 </div>
 
-                <p className="text-xs text-slate-300 mt-2">
-                  {lightboxAiResult.decision_reason}
-                </p>
+                {/* Photographer decision controls */}
+                <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRating(lightboxImage.id, "star")}
+                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition ${
+                      culls[lightboxImage.id] === "star"
+                        ? "bg-sky-500 text-slate-950"
+                        : "bg-white/10 text-white hover:bg-sky-500 hover:text-slate-950"
+                    }`}
+                  >
+                    <FaStar /> Star / Keep
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRating(lightboxImage.id, "reject")}
+                    className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition ${
+                      culls[lightboxImage.id] === "reject"
+                        ? "bg-rose-500 text-white"
+                        : "bg-white/10 text-white hover:bg-rose-500"
+                    }`}
+                  >
+                    <FaBan /> Reject
+                  </button>
+                </div>
               </div>
             </div>
-          )}
-
-          <div
-            className="flex items-center justify-center gap-4 py-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setRating(lightboxImage.id, "reject")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                culls[lightboxImage.id] === "reject"
-                  ? "bg-red-500 text-white"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-              }`}
-            >
-              <FaTimes /> Reject
-            </button>
-            <button
-              onClick={() => clearRating(lightboxImage.id)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors"
-            >
-              <FaRegStar /> Clear
-            </button>
-            <button
-              onClick={() => setRating(lightboxImage.id, "star")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                culls[lightboxImage.id] === "star"
-                  ? "bg-sky-500 text-slate-900"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-              }`}
-            >
-              <FaStar /> Star
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
       {/* ============ LIGHTBOX: duplicate review ============ */}
       {mode === "duplicates" && dupLightboxImage && (

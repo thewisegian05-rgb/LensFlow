@@ -1,18 +1,24 @@
-import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  memo,
+  useSyncExternalStore,
+} from "react";
 import {
   FaTimes,
   FaStar,
   FaCheck,
   FaChevronLeft,
   FaChevronRight,
-  FaRegStar,
   FaBan,
   FaCloudUploadAlt,
   FaFileImage,
   FaCrown,
   FaLayerGroup,
   FaCheckCircle,
-  FaExclamationCircle,
   FaSearchPlus,
   FaThLarge,
   FaClone,
@@ -23,22 +29,21 @@ import {
   FaTrash,
 } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
+import {
+  PHOTOS_BUCKET,
+  formatBytes,
+  getSignedUrl,
+  getSignedUrlMap,
+  getPreviewUrl,
+} from "../lib/photoStorage";
+import {
+  enqueueUploads,
+  onPhotoUploaded,
+  subscribeUploads,
+  getUploadSnapshot,
+  setUploadCardVisible,
+} from "../lib/uploadManager";
 import ConfirmModal from "../components/Common/ConfirmModal";
-
-//Test Culling
-const handleRunCulling = async () => {
-  try {
-    const response = await fetch("http://127.0.0.1:8000/cull", {
-      method: "POST",
-    });
-
-    const data = await response.json();
-
-    console.log("Backend response:", data);
-  } catch (error) {
-    console.error("Failed to reach backend:", error);
-  }
-};
 
 const FILTERS = [
   { key: "all", label: "All", group: "photographer" },
@@ -52,22 +57,7 @@ const FILTERS = [
 
 const ACCEPTED_ATTR = "image/*,.cr3,.nef,.arw,.dng,.raw,.rw2,.orf";
 
-const PHOTOS_BUCKET = "photos";
-const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
-
 /* ============ Helpers ============ */
-function formatBytes(bytes) {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  let i = 0;
-  let n = bytes;
-  while (n >= 1024 && i < units.length - 1) {
-    n /= 1024;
-    i++;
-  }
-  return `${n.toFixed(1)} ${units[i]}`;
-}
-
 function formatPercent(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return "N/A";
@@ -80,43 +70,6 @@ function formatMetric(value, digits = 2) {
     return "N/A";
   }
   return Number(value).toFixed(digits);
-}
-
-const PREVIEW_TRANSFORM = {
-  width: 500,
-  height: 500,
-  resize: "contain",
-  quality: 50,
-};
-
-async function getSignedUrl(path, transform = null) {
-  if (!path) return null;
-
-  const options = transform ? { transform } : undefined;
-
-  const { data, error } = await supabase.storage
-    .from(PHOTOS_BUCKET)
-    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS, options);
-
-  if (error) {
-    console.error("Signed URL error:", error);
-    return null;
-  }
-
-  return data?.signedUrl || null;
-}
-
-async function getPreviewUrl(path) {
-  if (!path) return null;
-
-  // Preferred path: Supabase serves an optimized/resized preview.
-  const transformed = await getSignedUrl(path, PREVIEW_TRANSFORM);
-  if (transformed) return transformed;
-
-  // Fallback: keep the gallery functional if Image Transformations
-  // are disabled/unavailable in the Supabase project.
-  console.warn("Preview transformation unavailable; falling back to original image.");
-  return getSignedUrl(path);
 }
 
 // Walk the flat folder list and collect this folder's id plus every
@@ -138,7 +91,13 @@ function collectDescendantIds(folders, rootId) {
 }
 
 /* ============ Folder card ============ */
-function FolderCard({ folder, reviewed, total, onOpen, onContextMenu }) {
+const FolderCard = memo(function FolderCard({
+  folder,
+  reviewed,
+  total,
+  onOpen,
+  onContextMenu,
+}) {
   return (
     <button
       type="button"
@@ -160,8 +119,9 @@ function FolderCard({ folder, reviewed, total, onOpen, onContextMenu }) {
       </p>
     </button>
   );
-}
+});
 
+/* ============ Photo tile ============ */
 const PhotoTile = memo(function PhotoTile({
   img,
   state,
@@ -170,18 +130,17 @@ const PhotoTile = memo(function PhotoTile({
   onSelect,
   onRate,
 }) {
-  const stateClasses =
-    selected
-      ? "ring-2 ring-sky-500 border-sky-500"
-      : state === "star"
-      ? "ring-2 ring-sky-500 border-transparent"
-      : state === "reject" || aiResult?.ai_decision === "REJECT"
-      ? "ring-2 ring-rose-500 border-transparent opacity-55"
-      : aiResult?.ai_decision === "KEEP"
-      ? "border-emerald-500/70"
-      : aiResult?.ai_decision === "REVIEW"
-      ? "border-amber-500/70"
-      : "border-slate-300 hover:border-sky-400 dark:border-slate-700";
+  const stateClasses = selected
+    ? "ring-2 ring-sky-500 border-sky-500"
+    : state === "star"
+    ? "ring-2 ring-sky-500 border-transparent"
+    : state === "reject" || aiResult?.ai_decision === "REJECT"
+    ? "ring-2 ring-rose-500 border-transparent opacity-55"
+    : aiResult?.ai_decision === "KEEP"
+    ? "border-emerald-500/70"
+    : aiResult?.ai_decision === "REVIEW"
+    ? "border-amber-500/70"
+    : "border-slate-300 hover:border-sky-400 dark:border-slate-700";
 
   return (
     <div
@@ -202,7 +161,7 @@ const PhotoTile = memo(function PhotoTile({
           loading="lazy"
           decoding="async"
           fetchPriority="low"
-          className="h-full w-full object-cover transition-transform duration-300 ease-out will-change-transform group-hover:scale-[1.035]"
+          className="h-full w-full object-cover"
           alt={img.fileName}
         />
       ) : (
@@ -228,17 +187,17 @@ const PhotoTile = memo(function PhotoTile({
         )}
       </div>
 
-      <div className="absolute inset-x-2 bottom-2 z-10 flex translate-y-2 items-center justify-center gap-2 opacity-0 transition-[border-color,opacity,box-shadow] duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+      <div className="absolute inset-x-2 bottom-2 z-10 flex translate-y-2 items-center justify-center gap-2 opacity-0 transition-[opacity,transform] duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
         <button
           type="button"
           onClick={(event) => {
             event.stopPropagation();
             onRate(img.id, "star");
           }}
-          className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition ${
+          className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
             state === "star"
               ? "border-sky-400 bg-sky-500 text-slate-950"
-              : "border-white/20 bg-black/65 text-white hover:bg-sky-500 hover:text-slate-950"
+              : "border-white/20 bg-black/75 text-white hover:bg-sky-500 hover:text-slate-950"
           }`}
           aria-label="Star or keep photo"
           title="Star / Keep"
@@ -251,10 +210,10 @@ const PhotoTile = memo(function PhotoTile({
             event.stopPropagation();
             onRate(img.id, "reject");
           }}
-          className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition ${
+          className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
             state === "reject"
               ? "border-rose-400 bg-rose-500 text-white"
-              : "border-white/20 bg-black/65 text-white hover:bg-rose-500"
+              : "border-white/20 bg-black/75 text-white hover:bg-rose-500"
           }`}
           aria-label="Reject photo"
           title="Reject"
@@ -381,24 +340,103 @@ function VirtualizedPhotoGrid({
       style={{ gridTemplateColumns: `repeat(${range.columns}, minmax(0, 1fr))` }}
     >
       {topSpace > 0 && <div aria-hidden="true" style={{ height: topSpace, gridColumn: "1 / -1" }} />}
-      {images.slice(firstIndex, lastIndex).map((img) => {
-        const state = culls[img.id];
-        const aiResult = aiResults[img.id];
-        const selected = lightboxId === img.id;
-
-        return (
-          <PhotoTile
-            key={img.id}
-            img={img}
-            state={state}
-            aiResult={aiResult}
-            selected={selected}
-            onSelect={onSelect}
-            onRate={onRate}
-          />
-        );
-      })}
+      {images.slice(firstIndex, lastIndex).map((img) => (
+        <PhotoTile
+          key={img.id}
+          img={img}
+          state={culls[img.id]}
+          aiResult={aiResults[img.id]}
+          selected={lightboxId === img.id}
+          onSelect={onSelect}
+          onRate={onRate}
+        />
+      ))}
       {bottomSpace > 0 && <div aria-hidden="true" style={{ height: bottomSpace, gridColumn: "1 / -1" }} />}
+    </div>
+  );
+}
+
+/* ============ Upload progress (shown inside the drop zone) ============ */
+function UploadProgress({ progress, compact }) {
+  const { total, done, failed, bytesDone, bytesTotal, currentName, phase } = progress;
+  const finished = phase === "done";
+  const percent = finished
+    ? 100
+    : bytesTotal > 0
+    ? Math.min(99, Math.round((bytesDone / bytesTotal) * 100))
+    : Math.round((done / Math.max(total, 1)) * 100);
+  const succeeded = done - failed;
+
+  const barColor = finished
+    ? failed > 0
+      ? "bg-amber-500"
+      : "bg-emerald-500"
+    : "bg-sky-500";
+
+  return (
+    <div className="w-full" role="status" aria-live="polite">
+      <div className="flex items-center gap-3">
+        <div
+          className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl ${
+            finished
+              ? failed > 0
+                ? "bg-amber-500/10 text-amber-400"
+                : "bg-emerald-500/10 text-emerald-400"
+              : "bg-sky-500/10 text-sky-400"
+          }`}
+        >
+          {finished ? (
+            <FaCheckCircle className="text-xl" />
+          ) : (
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-sky-400/30 border-t-sky-400" />
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="truncate text-sm font-semibold text-slate-800 dark:text-white">
+              {finished
+                ? failed > 0
+                  ? "Upload finished with issues"
+                  : "Upload complete"
+                : "Uploading photos"}
+            </p>
+            <span className="flex-shrink-0 text-sm font-bold tabular-nums text-slate-800 dark:text-white">
+              {percent}%
+            </span>
+          </div>
+          <p className="mt-0.5 text-[11px] tabular-nums text-slate-500">
+            {finished
+              ? `${succeeded} of ${total} photo${total !== 1 ? "s" : ""} added`
+              : `${done} of ${total} photo${total !== 1 ? "s" : ""}`}
+            {bytesTotal > 0 && ` · ${formatBytes(bytesDone)} of ${formatBytes(bytesTotal)}`}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+        <div
+          className={`h-full rounded-full transition-[width] duration-300 ease-out ${barColor}`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+
+      <div className="mt-2 flex min-h-[16px] items-center justify-between gap-3 text-[10px]">
+        <span className="min-w-0 truncate font-mono text-slate-500">
+          {!finished && currentName ? currentName : ""}
+        </span>
+        {failed > 0 && (
+          <span className="flex-shrink-0 font-medium text-rose-400">
+            {failed} failed
+          </span>
+        )}
+      </div>
+
+      {!compact && !finished && (
+        <p className="mt-1 text-[10px] text-slate-400">
+          Uploads keep running if you switch folders or pages. Drop more photos here to add them to the queue. Keep this tab open until they finish.
+        </p>
+      )}
     </div>
   );
 }
@@ -504,14 +542,11 @@ function CullingPage() {
   const [mode, setMode] = useState("cull"); // 'cull' | 'duplicates'
 
   /* ============ CULLING GRID STATE (Supabase-backed, nested folders) ============ */
-  // Folders are stored flat with a parentId; `path` is the stack of
-  // folder ids you've navigated into (mirrors Media Storage's model).
   const [folders, setFolders] = useState([]); // [{ id, name, parentId }]
   const [photos, setPhotos] = useState([]); // [{ id, folderId, fileName, ... }]
   const [culls, setCulls] = useState({});
 
-  // Latest LensFlow AI result per photo.
-  // This stays separate from `culls`, which represents the photographer's manual rating.
+  // Latest LensFlow AI result per photo (separate from the photographer's manual rating).
   const [aiResults, setAiResults] = useState({});
   const [cullingLoading, setCullingLoading] = useState(false);
   const [cullingError, setCullingError] = useState("");
@@ -522,8 +557,7 @@ function CullingPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [originalLoadingId, setOriginalLoadingId] = useState(null);
 
-  // UI-only switches for the redesigned Analysis Settings card.
-  // These do not change the backend pipeline yet.
+  // UI-only switches for the Analysis Settings card.
   const [analysisOptions, setAnalysisOptions] = useState({
     technical: true,
     subject: true,
@@ -547,10 +581,49 @@ function CullingPage() {
   const [folderToDelete, setFolderToDelete] = useState(null);
 
   const fileInputRef = useRef(null);
+  const [backfill, setBackfill] = useState(null);
+
+  // Uploads run in a shared background manager (src/lib/uploadManager.js),
+  // so they keep going when you switch folders, tabs, or pages.
+  const uploadProgress = useSyncExternalStore(subscribeUploads, getUploadSnapshot).progress;
+
+  // Add finished uploads to the grid in small batches.
+  useEffect(() => {
+    let buffer = [];
+    let timer = null;
+
+    const flush = () => {
+      timer = null;
+      if (buffer.length === 0) return;
+      const batch = buffer;
+      buffer = [];
+      setPhotos((prev) => {
+        const existing = new Set(prev.map((p) => p.id));
+        const fresh = batch.filter((p) => !existing.has(p.id));
+        return fresh.length ? [...fresh.reverse(), ...prev] : prev;
+      });
+    };
+
+    const unsubscribe = onPhotoUploaded((photo) => {
+      buffer.push(photo);
+      if (!timer) timer = setTimeout(flush, 400);
+    });
+
+    return () => {
+      unsubscribe();
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  // Tell the manager whether the in-page progress card is on screen,
+  // so the floating toast only appears when it isn't.
+  useEffect(() => {
+    setUploadCardVisible(mode === "cull" && path.length > 0);
+    return () => setUploadCardVisible(false);
+  }, [mode, path.length]);
 
   const currentFolderId = path.length ? path[path.length - 1] : null;
 
-  
   // Run the FastAPI culling pipeline for the currently opened folder.
   const handleRunCulling = async () => {
     try {
@@ -639,23 +712,30 @@ function CullingPage() {
   const loadData = useCallback(async (userId) => {
     setDataLoading(true);
 
-    const { data: folderRows, error: folderErr } = await supabase
-      .from("folders")
-      .select("id, name, parent_id")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: true });
+    // Folders and photos are independent, so fetch them in parallel.
+    const [
+      { data: folderRows, error: folderErr },
+      { data: photoRows, error: photoErr },
+    ] = await Promise.all([
+      supabase
+        .from("folders")
+        .select("id, name, parent_id")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("photos")
+        .select(
+          "id, folder_id, file_name, storage_path, thumb_path, previewable, size_bytes, rating"
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false }),
+    ]);
 
     if (folderErr) {
       console.error(folderErr);
       setDataLoading(false);
       return;
     }
-
-    const { data: photoRows, error: photoErr } = await supabase
-      .from("photos")
-      .select("id, folder_id, file_name, storage_path, previewable, size_bytes, rating")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
 
     if (photoErr) {
       console.error(photoErr);
@@ -684,18 +764,22 @@ function CullingPage() {
     }
 
     const previewableRows = photoRows.filter((p) => p.previewable);
+    const withThumb = previewableRows.filter((p) => p.thumb_path);
+    const withoutThumb = previewableRows.filter((p) => !p.thumb_path);
 
-    // Only sign optimized preview URLs during initial page load.
-    // Full-resolution URLs are intentionally NOT created here.
-    const previewResults = await Promise.all(
-      previewableRows.map(async (p) => ({
-        id: p.id,
-        url: await getPreviewUrl(p.storage_path),
-      }))
-    );
+    // New photos: sign every stored thumbnail in ONE request.
+    const thumbMap = await getSignedUrlMap(withThumb.map((p) => p.thumb_path));
 
-    const previewUrlMap = Object.fromEntries(
-      previewResults.map((item) => [item.id, item.url])
+    const previewUrlMap = {};
+    withThumb.forEach((p) => {
+      previewUrlMap[p.id] = thumbMap[p.thumb_path] || null;
+    });
+
+    // Older photos without a thumbnail still use the server-side transform.
+    await Promise.all(
+      withoutThumb.map(async (p) => {
+        previewUrlMap[p.id] = await getPreviewUrl(p.storage_path);
+      })
     );
 
     const photoState = photoRows.map((p) => ({
@@ -703,6 +787,7 @@ function CullingPage() {
       folderId: p.folder_id,
       fileName: p.file_name,
       storagePath: p.storage_path,
+      thumbPath: p.thumb_path || null,
       thumbUrl: previewUrlMap[p.id] || null,
       fullUrl: null,
       previewable: p.previewable,
@@ -791,7 +876,7 @@ function CullingPage() {
   }
 
   // Recursively deletes a folder: every subfolder, every photo inside
-  // any of them (storage files + DB rows), then the folder rows
+  // any of them (storage files + thumbnails + DB rows), then the folder rows
   // themselves (subfolder rows cascade automatically via parent_id).
   async function deleteFolder(folderId) {
     if (!user) return;
@@ -800,7 +885,7 @@ function CullingPage() {
 
     const { data: photoRows, error: photoListErr } = await supabase
       .from("photos")
-      .select("id, storage_path")
+      .select("id, storage_path, thumb_path")
       .in("folder_id", idsToDelete)
       .eq("user_id", user.id);
 
@@ -809,7 +894,10 @@ function CullingPage() {
       return;
     }
 
-    const storagePaths = photoRows.map((photo) => photo.storage_path).filter(Boolean);
+    const storagePaths = photoRows
+      .flatMap((photo) => [photo.storage_path, photo.thumb_path])
+      .filter(Boolean);
+
     if (storagePaths.length > 0) {
       const { error: storageErr } = await supabase.storage
         .from(PHOTOS_BUCKET)
@@ -892,83 +980,11 @@ function CullingPage() {
         setPath([targetFolderId]);
       }
 
-      // Upload a few files concurrently instead of waiting for every file
-      // to finish before starting the next one.
-      const CONCURRENCY = 3;
-      let nextIndex = 0;
-
-      const uploadOne = async (file) => {
-        const isPreviewable = file.type.startsWith("image/");
-        const uniqueId =
-          typeof crypto !== "undefined" && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-        const path = `${user.id}/${targetFolderId}/${uniqueId}-${file.name}`;
-
-        const { error: uploadErr } = await supabase.storage
-          .from(PHOTOS_BUCKET)
-          .upload(path, file);
-
-        if (uploadErr) {
-          console.error("Upload failed:", uploadErr);
-          return;
-        }
-
-        const { data: row, error: insertErr } = await supabase
-          .from("photos")
-          .insert({
-            folder_id: targetFolderId,
-            user_id: user.id,
-            file_name: file.name,
-            storage_path: path,
-            size_bytes: file.size,
-            previewable: isPreviewable,
-          })
-          .select()
-          .single();
-
-        if (insertErr) {
-          console.error("Insert failed:", insertErr);
-          return;
-        }
-
-        // The gallery gets a transformed preview. The original is left in
-        // Storage and is fetched only when the photographer asks to inspect it.
-        const thumbUrl = isPreviewable
-          ? await getPreviewUrl(path)
-          : null;
-
-        const newImage = {
-          id: row.id,
-          folderId: targetFolderId,
-          fileName: file.name,
-          storagePath: path,
-          thumbUrl,
-          fullUrl: null,
-          previewable: isPreviewable,
-          sizeLabel: formatBytes(file.size),
-        };
-
-        setPhotos((prev) => [newImage, ...prev]);
-      };
-
-      const worker = async () => {
-        while (true) {
-          const index = nextIndex++;
-          if (index >= files.length) return;
-          await uploadOne(files[index]);
-        }
-      };
-
-      await Promise.all(
-        Array.from(
-          { length: Math.min(CONCURRENCY, files.length) },
-          () => worker()
-        )
-      );
+      // Hand the files to the background manager and return immediately.
+      enqueueUploads(files, { userId: user.id, folderId: targetFolderId });
     },
-    [currentFolderId, user]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentFolderId, user, folders]
   );
 
   const loadOriginalUrl = useCallback(async (image) => {
@@ -984,9 +1000,7 @@ function CullingPage() {
       if (url) {
         setPhotos((prev) =>
           prev.map((photo) =>
-            photo.id === image.id
-              ? { ...photo, fullUrl: url }
-              : photo
+            photo.id === image.id ? { ...photo, fullUrl: url } : photo
           )
         );
       }
@@ -1010,6 +1024,78 @@ function CullingPage() {
     [loadOriginalUrl]
   );
 
+  // Automatic repair: build a small thumbnail for any photo that doesn't
+  // have one yet (older uploads). Runs quietly in the background.
+  const backfillRunningRef = useRef(false);
+  const backfillFailedRef = useRef(new Set());
+
+  async function backfillThumbnails(targets) {
+    if (!user || backfillRunningRef.current || targets.length === 0) return;
+    backfillRunningRef.current = true;
+
+    const total = targets.length;
+    let done = 0;
+    let next = 0;
+
+    setBackfill({ running: true, done, total });
+
+    const worker = async () => {
+      while (true) {
+        const index = next++;
+        if (index >= targets.length) return;
+        const photo = targets[index];
+
+        try {
+          const { data: blob, error: downloadErr } = await supabase.storage
+            .from(PHOTOS_BUCKET)
+            .download(photo.storagePath);
+          if (downloadErr || !blob) throw downloadErr || new Error("Download failed");
+
+          const thumb = await makeThumbnail(blob);
+          if (!thumb) throw new Error("Thumbnail generation failed");
+
+          const thumbPath = `${user.id}/${photo.folderId}/thumbs/${photo.id}.webp`;
+          const { error: uploadErr } = await supabase.storage
+            .from(PHOTOS_BUCKET)
+            .upload(thumbPath, thumb, { contentType: "image/webp", upsert: true });
+          if (uploadErr) throw uploadErr;
+
+          const { error: dbErr } = await supabase
+            .from("photos")
+            .update({ thumb_path: thumbPath })
+            .eq("id", photo.id);
+          if (dbErr) throw dbErr;
+
+          const thumbUrl = await getSignedUrl(thumbPath);
+          setPhotos((prev) =>
+            prev.map((p) => (p.id === photo.id ? { ...p, thumbPath, thumbUrl } : p))
+          );
+        } catch (err) {
+          // Don't retry failed photos again this session.
+          backfillFailedRef.current.add(photo.id);
+          console.error("Thumbnail backfill failed for", photo.fileName, err);
+        }
+
+        done++;
+        setBackfill({ running: true, done, total });
+      }
+    };
+
+    await Promise.all(Array.from({ length: 2 }, () => worker()));
+    backfillRunningRef.current = false;
+    setBackfill({ running: false, done, total });
+  }
+
+  useEffect(() => {
+    if (!user || dataLoading || backfillRunningRef.current) return;
+
+    const targets = photos.filter(
+      (p) => p.previewable && !p.thumbPath && !backfillFailedRef.current.has(p.id)
+    );
+    if (targets.length > 0) backfillThumbnails(targets);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photos, user, dataLoading, backfill?.running]);
+
   function handleDrop(e) {
     e.preventDefault();
     setIsDragging(false);
@@ -1026,8 +1112,12 @@ function CullingPage() {
     setIsDragging(false);
   }
 
-  async function setRating(id, action) {
-    const nextRating = culls[id] === action ? null : action;
+  // Stable callbacks so memoized tiles don't re-render on every state change.
+  const cullsRef = useRef(culls);
+  cullsRef.current = culls;
+
+  const setRating = useCallback(async (id, action) => {
+    const nextRating = cullsRef.current[id] === action ? null : action;
 
     setCulls((prev) => {
       const next = { ...prev };
@@ -1038,9 +1128,9 @@ function CullingPage() {
 
     const { error } = await supabase.from("photos").update({ rating: nextRating }).eq("id", id);
     if (error) console.error("Rating update failed:", error);
-  }
+  }, []);
 
-  async function clearRating(id) {
+  const clearRating = useCallback(async (id) => {
     setCulls((prev) => {
       const next = { ...prev };
       delete next[id];
@@ -1048,7 +1138,12 @@ function CullingPage() {
     });
     const { error } = await supabase.from("photos").update({ rating: null }).eq("id", id);
     if (error) console.error("Rating clear failed:", error);
-  }
+  }, []);
+
+  const handleSelect = useCallback((id) => {
+    setPreviewOpen(false);
+    setLightboxId((current) => (current === id ? null : id));
+  }, []);
 
   /* ---- current level: subfolders + photos in the open folder ---- */
   const currentSubfolders = useMemo(
@@ -1066,41 +1161,86 @@ function CullingPage() {
     [photos, currentFolderId]
   );
 
-  const openFolder = folders.find((f) => f.id === currentFolderId) || null;
+  // Per-folder photo counts, computed once instead of filtering per folder card.
+  const folderStats = useMemo(() => {
+    const m = {};
+    for (const p of photos) {
+      const s = (m[p.folderId] ||= { total: 0, reviewed: 0 });
+      s.total++;
+      if (culls[p.id]) s.reviewed++;
+    }
+    return m;
+  }, [photos, culls]);
 
-  const visibleImages = folderImages.filter((img) => {
-    const aiDecision = aiResults[img.id]?.ai_decision;
+  const visibleImages = useMemo(
+    () =>
+      folderImages.filter((img) => {
+        const aiDecision = aiResults[img.id]?.ai_decision;
+        switch (filter) {
+          case "star":
+            return culls[img.id] === "star";
+          case "reject":
+            return culls[img.id] === "reject";
+          case "unrated":
+            return !culls[img.id];
+          case "ai_keep":
+            return aiDecision === "KEEP";
+          case "ai_review":
+            return aiDecision === "REVIEW";
+          case "ai_reject":
+            return aiDecision === "REJECT";
+          default:
+            return true;
+        }
+      }),
+    [folderImages, filter, culls, aiResults]
+  );
 
-    if (filter === "all") return true;
-    if (filter === "star") return culls[img.id] === "star";
-    if (filter === "reject") return culls[img.id] === "reject";
-    if (filter === "unrated") return !culls[img.id];
-    if (filter === "ai_keep") return aiDecision === "KEEP";
-    if (filter === "ai_review") return aiDecision === "REVIEW";
-    if (filter === "ai_reject") return aiDecision === "REJECT";
+  // All folder counters in a single pass.
+  const {
+    folderTotal,
+    folderStarred,
+    folderRejected,
+    folderUnrated,
+    folderAiKeep,
+    folderAiReview,
+    folderAiReject,
+    folderAiAnalyzed,
+  } = useMemo(() => {
+    let starred = 0,
+      rejected = 0,
+      keep = 0,
+      review = 0,
+      reject = 0;
 
-    return true;
-  });
+    for (const img of folderImages) {
+      const c = culls[img.id];
+      if (c === "star") starred++;
+      else if (c === "reject") rejected++;
 
-  const folderTotal = folderImages.length;
-  const folderStarred = folderImages.filter((img) => culls[img.id] === "star").length;
-  const folderRejected = folderImages.filter((img) => culls[img.id] === "reject").length;
-  const folderReviewed = folderStarred + folderRejected;
-  const folderUnrated = folderTotal - folderReviewed;
+      const d = aiResults[img.id]?.ai_decision;
+      if (d === "KEEP") keep++;
+      else if (d === "REVIEW") review++;
+      else if (d === "REJECT") reject++;
+    }
 
-  const folderAiKeep = folderImages.filter(
-    (img) => aiResults[img.id]?.ai_decision === "KEEP"
-  ).length;
-  const folderAiReview = folderImages.filter(
-    (img) => aiResults[img.id]?.ai_decision === "REVIEW"
-  ).length;
-  const folderAiReject = folderImages.filter(
-    (img) => aiResults[img.id]?.ai_decision === "REJECT"
-  ).length;
-  const folderAiAnalyzed = folderAiKeep + folderAiReview + folderAiReject;
-  const folderAiRemaining = Math.max(folderTotal - folderAiAnalyzed, 0);
+    const total = folderImages.length;
+    return {
+      folderTotal: total,
+      folderStarred: starred,
+      folderRejected: rejected,
+      folderUnrated: total - starred - rejected,
+      folderAiKeep: keep,
+      folderAiReview: review,
+      folderAiReject: reject,
+      folderAiAnalyzed: keep + review + reject,
+    };
+  }, [folderImages, culls, aiResults]);
 
-  const lightboxIndex = visibleImages.findIndex((img) => img.id === lightboxId);
+  const lightboxIndex = useMemo(
+    () => visibleImages.findIndex((img) => img.id === lightboxId),
+    [visibleImages, lightboxId]
+  );
   const lightboxImage = lightboxIndex >= 0 ? visibleImages[lightboxIndex] : null;
   const lightboxAiResult = lightboxImage ? aiResults[lightboxImage.id] : null;
 
@@ -1127,8 +1267,7 @@ function CullingPage() {
       if (e.key === "Escape") {
         if (previewOpen) setPreviewOpen(false);
         else setLightboxId(null);
-      }
-      else if (e.key === "ArrowRight") goToOffset(1);
+      } else if (e.key === "ArrowRight") goToOffset(1);
       else if (e.key === "ArrowLeft") goToOffset(-1);
       else if (e.key.toLowerCase() === "s") setRating(lightboxImage.id, "star");
       else if (e.key.toLowerCase() === "x") setRating(lightboxImage.id, "reject");
@@ -1138,16 +1277,14 @@ function CullingPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lightboxImage, goToOffset, mode, culls, previewOpen]);
+  }, [lightboxImage, goToOffset, mode, previewOpen, setRating, clearRating]);
 
   /* ---- breadcrumb ---- */
   const breadcrumb = useMemo(() => {
     const items = [{ id: null, name: "Folders" }];
-    let lookup = folders;
 
     path.forEach((id) => {
-      const found = lookup.find((f) => f.id === id);
+      const found = folders.find((f) => f.id === id);
       if (found) items.push({ id: found.id, name: found.name });
     });
 
@@ -1352,9 +1489,7 @@ function CullingPage() {
               {(path.length === 0 ? rootFolders : currentSubfolders).length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
                   {(path.length === 0 ? rootFolders : currentSubfolders).map((folder) => {
-                    const folderPhotos = photos.filter((p) => p.folderId === folder.id);
-                    const total = folderPhotos.length;
-                    const reviewed = folderPhotos.filter((img) => culls[img.id]).length;
+                    const { total = 0, reviewed = 0 } = folderStats[folder.id] || {};
                     return (
                       <FolderCard
                         key={folder.id}
@@ -1397,9 +1532,8 @@ function CullingPage() {
               {/* Photos in the currently open folder */}
               {path.length > 0 && (
                 <div className="space-y-5">
-                  {/* Main culling workspace. The right details panel only exists after a photo is selected. */}
                   <div
-                    className={`grid gap-5 items-start transition-all duration-300 ${
+                    className={`grid gap-5 items-start ${
                       lightboxImage
                         ? "xl:grid-cols-[minmax(0,1fr)_360px]"
                         : "grid-cols-1"
@@ -1408,7 +1542,7 @@ function CullingPage() {
                     <div className="min-w-0 space-y-5">
                       {/* Top controls: upload, analysis settings, culling summary */}
                       <div
-                        className={`grid gap-3 transition-all duration-300 ${
+                        className={`grid gap-3 ${
                           lightboxImage
                             ? "md:grid-cols-3"
                             : "md:grid-cols-2 xl:grid-cols-[1.15fr_1fr_0.9fr]"
@@ -1419,11 +1553,15 @@ function CullingPage() {
                           onDragOver={handleDragOver}
                           onDragLeave={handleDragLeave}
                           onDrop={handleDrop}
-                          onClick={() => fileInputRef.current?.click()}
-                          className={`group cursor-pointer rounded-2xl border border-dashed transition-all ${
+                          onClick={() => {
+                            if (!uploadProgress) fileInputRef.current?.click();
+                          }}
+                          className={`group ${uploadProgress ? "cursor-default" : "cursor-pointer"} rounded-2xl border border-dashed transition-all ${
                             lightboxImage ? "p-4" : "p-5"
                           } ${
-                            isDragging
+                            uploadProgress
+                              ? "border-sky-500/50 bg-white dark:bg-slate-900/80"
+                              : isDragging
                               ? "border-sky-400 bg-sky-500/10"
                               : "border-slate-300 bg-white hover:border-sky-400 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-sky-500/70"
                           }`}
@@ -1440,6 +1578,12 @@ function CullingPage() {
                             }}
                           />
 
+                          {uploadProgress ? (
+                            <UploadProgress
+                              progress={uploadProgress}
+                              compact={Boolean(lightboxImage)}
+                            />
+                          ) : (
                           <div className={`flex ${lightboxImage ? "items-center gap-3" : "flex-col items-center text-center"}`}>
                             <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400">
                               <FaCloudUploadAlt className="text-xl" />
@@ -1453,6 +1597,7 @@ function CullingPage() {
                               </p>
                             </div>
                           </div>
+                          )}
                         </div>
 
                         {/* Analysis settings / profile */}
@@ -1657,6 +1802,13 @@ function CullingPage() {
                         </div>
                       </div>
 
+                      {/* Background thumbnail status (no action needed) */}
+                      {backfill?.running && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Preparing previews for older photos... {backfill.done} of {backfill.total}
+                        </p>
+                      )}
+
                       {/* Gallery */}
                       {visibleImages.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-slate-300 py-16 text-center text-sm text-slate-500 dark:border-slate-700">
@@ -1667,7 +1819,7 @@ function CullingPage() {
                       ) : (
                         <>
                           <p className="mb-2 text-[10px] text-slate-500 dark:text-slate-400">
-                            Gallery uses optimized previews (600px). Full-quality originals load only when requested.
+                            Gallery uses lightweight thumbnails. Full-quality originals load only when requested.
                           </p>
 
                           <VirtualizedPhotoGrid
@@ -1676,10 +1828,7 @@ function CullingPage() {
                             aiResults={aiResults}
                             lightboxId={lightboxId}
                             lightboxOpen={Boolean(lightboxImage)}
-                            onSelect={(id) => {
-                              setPreviewOpen(false);
-                              setLightboxId((current) => current === id ? null : id);
-                            }}
+                            onSelect={handleSelect}
                             onRate={setRating}
                           />
                         </>
@@ -1716,230 +1865,227 @@ function CullingPage() {
                           </button>
                         </div>
 
-                        {/* Scrollable analysis content.
-                            The analysis content and final photographer decision stay in this scrollable area
-                            so the buttons remain visible at the bottom of the card. */}
                         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
                           <div className="relative overflow-hidden rounded-xl bg-slate-950">
-                          {lightboxImage.previewable && lightboxImage.thumbUrl ? (
+                            {lightboxImage.previewable && lightboxImage.thumbUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => openFullPreview(lightboxImage)}
+                                className="block w-full cursor-zoom-in"
+                                aria-label="View full quality photo"
+                                title="View full quality"
+                                disabled={originalLoadingId === lightboxImage.id}
+                              >
+                                <img
+                                  src={lightboxImage.thumbUrl}
+                                  alt={lightboxImage.fileName}
+                                  loading="eager"
+                                  decoding="async"
+                                  className="aspect-[4/3] w-full object-contain"
+                                />
+                              </button>
+                            ) : (
+                              <div className="flex aspect-[4/3] items-center justify-center text-slate-500">
+                                <FaFileImage className="text-4xl" />
+                              </div>
+                            )}
+
+                            {lightboxImage.previewable && lightboxImage.thumbUrl && (
+                              <button
+                                type="button"
+                                onClick={() => openFullPreview(lightboxImage)}
+                                disabled={originalLoadingId === lightboxImage.id}
+                                className="absolute right-2 top-2 flex items-center gap-1.5 rounded-lg bg-black/65 px-2.5 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition hover:bg-sky-500 hover:text-slate-950 disabled:cursor-wait disabled:opacity-70"
+                                aria-label="View full quality photo"
+                              >
+                                <FaSearchPlus className="text-[10px]" />
+                                {originalLoadingId === lightboxImage.id
+                                  ? "Loading original..."
+                                  : "View Full Quality"}
+                              </button>
+                            )}
+
                             <button
                               type="button"
-                              onClick={() => openFullPreview(lightboxImage)}
-                              className="block w-full cursor-zoom-in"
-                              aria-label="View full quality photo"
-                              title="View full quality"
-                              disabled={originalLoadingId === lightboxImage.id}
+                              onClick={() => {
+                                setPreviewOpen(false);
+                                goToOffset(-1);
+                              }}
+                              className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/75 text-white/80 hover:text-white"
+                              aria-label="Previous photo"
                             >
-                              <img
-                                src={lightboxImage.thumbUrl}
-                                alt={lightboxImage.fileName}
-                                loading="eager"
-                                decoding="async"
-                                className="aspect-[4/3] w-full object-contain"
-                              />
+                              <FaChevronLeft className="text-xs" />
                             </button>
-                          ) : (
-                            <div className="flex aspect-[4/3] items-center justify-center text-slate-500">
-                              <FaFileImage className="text-4xl" />
-                            </div>
-                          )}
-
-                          {lightboxImage.previewable && lightboxImage.thumbUrl && (
                             <button
                               type="button"
-                              onClick={() => openFullPreview(lightboxImage)}
-                              disabled={originalLoadingId === lightboxImage.id}
-                              className="absolute right-2 top-2 flex items-center gap-1.5 rounded-lg bg-black/65 px-2.5 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition hover:bg-sky-500 hover:text-slate-950 disabled:cursor-wait disabled:opacity-70"
-                              aria-label="View full quality photo"
+                              onClick={() => {
+                                setPreviewOpen(false);
+                                goToOffset(1);
+                              }}
+                              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white/80 hover:text-white"
+                              aria-label="Next photo"
                             >
-                              <FaSearchPlus className="text-[10px]" />
-                              {originalLoadingId === lightboxImage.id
-                                ? "Loading original..."
-                                : "View Full Quality"}
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPreviewOpen(false);
-                              goToOffset(-1);
-                            }}
-                            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/75 text-white/80 hover:text-white"
-                            aria-label="Previous photo"
-                          >
-                            <FaChevronLeft className="text-xs" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPreviewOpen(false);
-                              goToOffset(1);
-                            }}
-                            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white/80 hover:text-white"
-                            aria-label="Next photo"
-                          >
-                            <FaChevronRight className="text-xs" />
-                          </button>
-                        </div>
-
-                        {/* Recommendation */}
-                        <div className="mt-3">
-                          {lightboxAiResult ? (
-                            <>
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span
-                                  className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                                    lightboxAiResult.ai_decision === "KEEP"
-                                      ? "bg-emerald-500/15 text-emerald-500"
-                                      : lightboxAiResult.ai_decision === "REJECT"
-                                      ? "bg-rose-500/15 text-rose-500"
-                                      : "bg-amber-500/15 text-amber-500"
-                                  }`}
-                                >
-                                  Recommended: {lightboxAiResult.ai_decision}
-                                </span>
-                                <span className="text-lg font-bold text-slate-900 dark:text-white">
-                                  {formatPercent(lightboxAiResult.base_quality_score)}
-                                </span>
-                              </div>
-
-                              <div className="mt-3 space-y-2">
-                                {[
-                                  ["Technical Quality", lightboxAiResult.metrics?.technical_score],
-                                  ["Face Quality", lightboxAiResult.metrics?.face_quality_score],
-                                  ["Eye Quality", lightboxAiResult.metrics?.eye_quality_score],
-                                  ["Aesthetic Quality", lightboxAiResult.metrics?.aesthetic_quality_score],
-                                ].map(([label, value]) => (
-                                  <div key={label}>
-                                    <div className="mb-1 flex items-center justify-between gap-2 text-[12px]">
-                                      <span className="text-slate-400">{label}</span>
-                                      <span className="font-semibold text-slate-700 dark:text-slate-200">
-                                        {formatPercent(value)}
-                                      </span>
-                                    </div>
-                                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                                      <div
-                                        className="h-full rounded-full bg-sky-500 transition-all"
-                                        style={{
-                                          width:
-                                            value === null || value === undefined
-                                              ? "0%"
-                                              : `${Math.max(0, Math.min(100, Number(value) * 100))}%`,
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-
-                              <div className="mt-4 grid grid-cols-2 gap-2 text-[12px]">
-                                <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
-                                  <p className="text-slate-400">Similarity group</p>
-                                  <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
-                                    {lightboxAiResult.similarity_group || "Independent"}
-                                  </p>
-                                </div>
-                                <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
-                                  <p className="text-slate-500">Group rank</p>
-                                  <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
-                                    {lightboxAiResult.group_rank || "—"}
-                                  </p>
-                                </div>
-                                <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
-                                  <p className="text-slate-500">Sharpness</p>
-                                  <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
-                                    {formatMetric(lightboxAiResult.metrics?.sharpness)}
-                                  </p>
-                                </div>
-                                <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
-                                  <p className="text-slate-500">Aesthetic score</p>
-                                  <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
-                                    {formatMetric(lightboxAiResult.metrics?.aesthetic_score)}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                                <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">
-                                  LensFlow reason
-                                </p>
-                                <p className="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                                  {lightboxAiResult.decision_reason || "No decision reason available."}
-                                </p>
-
-                                {Array.isArray(lightboxAiResult.metrics?.defects) &&
-                                  lightboxAiResult.metrics.defects.length > 0 && (
-                                    <div className="mt-3">
-                                      <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-400">
-                                        Detected issues
-                                      </p>
-                                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                        {lightboxAiResult.metrics.defects.map((defect, index) => (
-                                          <span
-                                            key={`${defect?.type || defect}-${index}`}
-                                            className="rounded-full bg-rose-500/10 px-2 py-1 text-[9px] text-rose-400"
-                                          >
-                                            {defect?.message || defect?.type || String(defect)}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                              </div>
-                            </>
-                          ) : (
-                            <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center dark:border-slate-700">
-                              <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                                No AI analysis yet
-                              </p>
-                              <p className="mt-1 text-[10px] text-slate-500">
-                                Run automated culling to generate quality scores and a recommendation.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                          {/* Photographer controls — part of the scrollable details content */}
-                          <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
-                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                            Photographer Decision
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setRating(lightboxImage.id, "star")}
-                              className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                                culls[lightboxImage.id] === "star"
-                                  ? "bg-sky-500 text-slate-950"
-                                  : "bg-slate-100 text-slate-600 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white"
-                              }`}
-                            >
-                              <FaStar /> Star / Keep
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setRating(lightboxImage.id, "reject")}
-                              className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                                culls[lightboxImage.id] === "reject"
-                                  ? "bg-rose-500 text-white"
-                                  : "bg-slate-100 text-slate-600 hover:text-rose-500 dark:bg-slate-800 dark:text-slate-300"
-                              }`}
-                            >
-                              <FaBan /> Reject
+                              <FaChevronRight className="text-xs" />
                             </button>
                           </div>
 
-                          {culls[lightboxImage.id] && (
-                            <button
-                              type="button"
-                              onClick={() => clearRating(lightboxImage.id)}
-                              className="mt-2 w-full rounded-lg px-3 py-2 text-[10px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
-                            >
-                              Clear photographer decision
-                            </button>
-                          )}
+                          {/* Recommendation */}
+                          <div className="mt-3">
+                            {lightboxAiResult ? (
+                              <>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span
+                                    className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                                      lightboxAiResult.ai_decision === "KEEP"
+                                        ? "bg-emerald-500/15 text-emerald-500"
+                                        : lightboxAiResult.ai_decision === "REJECT"
+                                        ? "bg-rose-500/15 text-rose-500"
+                                        : "bg-amber-500/15 text-amber-500"
+                                    }`}
+                                  >
+                                    Recommended: {lightboxAiResult.ai_decision}
+                                  </span>
+                                  <span className="text-lg font-bold text-slate-900 dark:text-white">
+                                    {formatPercent(lightboxAiResult.base_quality_score)}
+                                  </span>
+                                </div>
+
+                                <div className="mt-3 space-y-2">
+                                  {[
+                                    ["Technical Quality", lightboxAiResult.metrics?.technical_score],
+                                    ["Face Quality", lightboxAiResult.metrics?.face_quality_score],
+                                    ["Eye Quality", lightboxAiResult.metrics?.eye_quality_score],
+                                    ["Aesthetic Quality", lightboxAiResult.metrics?.aesthetic_quality_score],
+                                  ].map(([label, value]) => (
+                                    <div key={label}>
+                                      <div className="mb-1 flex items-center justify-between gap-2 text-[12px]">
+                                        <span className="text-slate-400">{label}</span>
+                                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                          {formatPercent(value)}
+                                        </span>
+                                      </div>
+                                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                                        <div
+                                          className="h-full rounded-full bg-sky-500 transition-all"
+                                          style={{
+                                            width:
+                                              value === null || value === undefined
+                                                ? "0%"
+                                                : `${Math.max(0, Math.min(100, Number(value) * 100))}%`,
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-2 gap-2 text-[12px]">
+                                  <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
+                                    <p className="text-slate-400">Similarity group</p>
+                                    <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
+                                      {lightboxAiResult.similarity_group || "Independent"}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
+                                    <p className="text-slate-500">Group rank</p>
+                                    <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
+                                      {lightboxAiResult.group_rank || "—"}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
+                                    <p className="text-slate-500">Sharpness</p>
+                                    <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
+                                      {formatMetric(lightboxAiResult.metrics?.sharpness)}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800/70">
+                                    <p className="text-slate-500">Aesthetic score</p>
+                                    <p className="mt-0.5 font-semibold text-slate-800 dark:text-white">
+                                      {formatMetric(lightboxAiResult.metrics?.aesthetic_score)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                                  <p className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">
+                                    LensFlow reason
+                                  </p>
+                                  <p className="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                    {lightboxAiResult.decision_reason || "No decision reason available."}
+                                  </p>
+
+                                  {Array.isArray(lightboxAiResult.metrics?.defects) &&
+                                    lightboxAiResult.metrics.defects.length > 0 && (
+                                      <div className="mt-3">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-400">
+                                          Detected issues
+                                        </p>
+                                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                          {lightboxAiResult.metrics.defects.map((defect, index) => (
+                                            <span
+                                              key={`${defect?.type || defect}-${index}`}
+                                              className="rounded-full bg-rose-500/10 px-2 py-1 text-[9px] text-rose-400"
+                                            >
+                                              {defect?.message || defect?.type || String(defect)}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center dark:border-slate-700">
+                                <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                  No AI analysis yet
+                                </p>
+                                <p className="mt-1 text-[10px] text-slate-500">
+                                  Run automated culling to generate quality scores and a recommendation.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Photographer controls */}
+                          <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
+                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                              Photographer Decision
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setRating(lightboxImage.id, "star")}
+                                className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                                  culls[lightboxImage.id] === "star"
+                                    ? "bg-sky-500 text-slate-950"
+                                    : "bg-slate-100 text-slate-600 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white"
+                                }`}
+                              >
+                                <FaStar /> Star / Keep
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setRating(lightboxImage.id, "reject")}
+                                className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                                  culls[lightboxImage.id] === "reject"
+                                    ? "bg-rose-500 text-white"
+                                    : "bg-slate-100 text-slate-600 hover:text-rose-500 dark:bg-slate-800 dark:text-slate-300"
+                                }`}
+                              >
+                                <FaBan /> Reject
+                              </button>
+                            </div>
+
+                            {culls[lightboxImage.id] && (
+                              <button
+                                type="button"
+                                onClick={() => clearRating(lightboxImage.id)}
+                                className="mt-2 w-full rounded-lg px-3 py-2 text-[10px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+                              >
+                                Clear photographer decision
+                              </button>
+                            )}
                           </div>
                         </div>
                       </aside>
@@ -1951,6 +2097,7 @@ function CullingPage() {
           )}
         </div>
       )}
+
       {/* ============ DUPLICATE REVIEW TAB ============ */}
       {mode === "duplicates" && (
         <div>
@@ -2012,6 +2159,8 @@ function CullingPage() {
                                   <img
                                     src={img.thumbUrl}
                                     alt={img.fileName}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-cover"
                                   />
                                   {isBest && (
@@ -2081,7 +2230,7 @@ function CullingPage() {
 
       {folderContextMenu && (
         <div
-          className="fixed z-50 min-w-[160px] rounded-lg border border-slate-700 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-sm"
+          className="fixed z-50 min-w-[160px] rounded-lg border border-slate-700 bg-slate-900/95 p-2 shadow-2xl"
           style={{ left: folderContextMenu.x, top: folderContextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import {
   FaTimes,
   FaStar,
@@ -82,16 +82,41 @@ function formatMetric(value, digits = 2) {
   return Number(value).toFixed(digits);
 }
 
-async function getSignedUrl(path) {
+const PREVIEW_TRANSFORM = {
+  width: 500,
+  height: 500,
+  resize: "contain",
+  quality: 50,
+};
+
+async function getSignedUrl(path, transform = null) {
   if (!path) return null;
+
+  const options = transform ? { transform } : undefined;
+
   const { data, error } = await supabase.storage
     .from(PHOTOS_BUCKET)
-    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS, options);
+
   if (error) {
     console.error("Signed URL error:", error);
     return null;
   }
-  return data.signedUrl;
+
+  return data?.signedUrl || null;
+}
+
+async function getPreviewUrl(path) {
+  if (!path) return null;
+
+  // Preferred path: Supabase serves an optimized/resized preview.
+  const transformed = await getSignedUrl(path, PREVIEW_TRANSFORM);
+  if (transformed) return transformed;
+
+  // Fallback: keep the gallery functional if Image Transformations
+  // are disabled/unavailable in the Supabase project.
+  console.warn("Preview transformation unavailable; falling back to original image.");
+  return getSignedUrl(path);
 }
 
 // Walk the flat folder list and collect this folder's id plus every
@@ -134,6 +159,247 @@ function FolderCard({ folder, reviewed, total, onOpen, onContextMenu }) {
         Culling {reviewed}/{total}
       </p>
     </button>
+  );
+}
+
+const PhotoTile = memo(function PhotoTile({
+  img,
+  state,
+  aiResult,
+  selected,
+  onSelect,
+  onRate,
+}) {
+  const stateClasses =
+    selected
+      ? "ring-2 ring-sky-500 border-sky-500"
+      : state === "star"
+      ? "ring-2 ring-sky-500 border-transparent"
+      : state === "reject" || aiResult?.ai_decision === "REJECT"
+      ? "ring-2 ring-rose-500 border-transparent opacity-55"
+      : aiResult?.ai_decision === "KEEP"
+      ? "border-emerald-500/70"
+      : aiResult?.ai_decision === "REVIEW"
+      ? "border-amber-500/70"
+      : "border-slate-300 hover:border-sky-400 dark:border-slate-700";
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(img.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(img.id);
+        }
+      }}
+      className={`group relative aspect-square overflow-hidden rounded-xl border bg-slate-900 text-left transition-[border-color,box-shadow] duration-200 hover:shadow-lg hover:shadow-black/20 focus:outline-none focus:ring-2 focus:ring-sky-500 ${stateClasses}`}
+    >
+      {img.previewable && img.thumbUrl ? (
+        <img
+          src={img.thumbUrl}
+          loading="lazy"
+          decoding="async"
+          fetchPriority="low"
+          className="h-full w-full object-cover transition-transform duration-300 ease-out will-change-transform group-hover:scale-[1.035]"
+          alt={img.fileName}
+        />
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-800 px-2 text-center">
+          <FaFileImage className="text-2xl text-slate-600" />
+          <span className="w-full truncate text-[10px] text-slate-500">No preview</span>
+        </div>
+      )}
+
+      <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
+        <span className="max-w-[75%] truncate rounded-md bg-black/75 px-2 py-1 font-mono text-[9px] text-white">
+          {img.fileName}
+        </span>
+        {state === "star" && (
+          <span className="rounded-full bg-black/60 p-1 text-sky-400">
+            <FaStar className="text-[10px]" />
+          </span>
+        )}
+        {(state === "reject" || aiResult?.ai_decision === "REJECT") && state !== "star" && (
+          <span className="rounded-full bg-black/60 p-1 text-rose-400">
+            <FaBan className="text-[10px]" />
+          </span>
+        )}
+      </div>
+
+      <div className="absolute inset-x-2 bottom-2 z-10 flex translate-y-2 items-center justify-center gap-2 opacity-0 transition-[border-color,opacity,box-shadow] duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRate(img.id, "star");
+          }}
+          className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition ${
+            state === "star"
+              ? "border-sky-400 bg-sky-500 text-slate-950"
+              : "border-white/20 bg-black/65 text-white hover:bg-sky-500 hover:text-slate-950"
+          }`}
+          aria-label="Star or keep photo"
+          title="Star / Keep"
+        >
+          <FaStar className="text-[11px]" />
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRate(img.id, "reject");
+          }}
+          className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition ${
+            state === "reject"
+              ? "border-rose-400 bg-rose-500 text-white"
+              : "border-white/20 bg-black/65 text-white hover:bg-rose-500"
+          }`}
+          aria-label="Reject photo"
+          title="Reject"
+        >
+          <FaBan className="text-[11px]" />
+        </button>
+      </div>
+
+      {aiResult && (
+        <div className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-2 transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
+          <span
+            className={`rounded-full px-2 py-1 text-[9px] font-bold shadow ${
+              aiResult.ai_decision === "KEEP"
+                ? "bg-emerald-500 text-white"
+                : aiResult.ai_decision === "REJECT"
+                ? "bg-rose-500 text-white"
+                : "bg-amber-500 text-slate-950"
+            }`}
+          >
+            {aiResult.ai_decision}
+          </span>
+          {aiResult.base_quality_score != null && (
+            <span className="rounded-full bg-black/70 px-2 py-1 text-[9px] font-semibold text-white">
+              {formatPercent(aiResult.base_quality_score)}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+function VirtualizedPhotoGrid({
+  images,
+  culls,
+  aiResults,
+  lightboxId,
+  lightboxOpen,
+  onSelect,
+  onRate,
+}) {
+  const gridRef = useRef(null);
+  const [range, setRange] = useState({ startRow: 0, endRow: 8, columns: 5, width: 0 });
+
+  useEffect(() => {
+    let frameId = null;
+    const scrollElement = gridRef.current?.closest("main") || window;
+
+    const updateRange = () => {
+      frameId = null;
+      const grid = gridRef.current;
+      if (!grid) return;
+
+      const width = grid.getBoundingClientRect().width;
+      const isWindowScroller = scrollElement === window;
+      const scrollTop = isWindowScroller ? window.scrollY : scrollElement.scrollTop;
+      const viewportHeight = isWindowScroller
+        ? window.innerHeight
+        : scrollElement.clientHeight;
+      const columns = lightboxOpen
+        ? window.innerWidth >= 768 ? 3 : 2
+        : window.innerWidth >= 1280 ? 5
+        : window.innerWidth >= 1024 ? 4
+        : window.innerWidth >= 768 ? 3
+        : 2;
+      const rowHeight = (width - (columns - 1) * 12) / columns + 12;
+      const gridTop = isWindowScroller
+        ? grid.getBoundingClientRect().top + window.scrollY
+        : grid.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top + scrollTop;
+      const totalRows = Math.ceil(images.length / columns);
+      const overscan = 2;
+      const startRow = Math.max(
+        0,
+        Math.floor((scrollTop - gridTop) / rowHeight) - overscan
+      );
+      const endRow = Math.min(
+        totalRows,
+        Math.ceil((scrollTop + viewportHeight - gridTop) / rowHeight) + overscan
+      );
+
+      setRange((current) => {
+        if (
+          current.startRow === startRow &&
+          current.endRow === endRow &&
+          current.columns === columns &&
+          current.width === width
+        ) {
+          return current;
+        }
+        return { startRow, endRow, columns, width };
+      });
+    };
+
+    const scheduleUpdate = () => {
+      if (frameId === null) frameId = window.requestAnimationFrame(updateRange);
+    };
+
+    scheduleUpdate();
+    scrollElement.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+
+    const observer = new ResizeObserver(scheduleUpdate);
+    if (gridRef.current) observer.observe(gridRef.current);
+
+    return () => {
+      scrollElement.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      observer.disconnect();
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
+  }, [images.length, lightboxOpen]);
+
+  const totalRows = Math.ceil(images.length / range.columns);
+  const firstIndex = Math.min(range.startRow * range.columns, images.length);
+  const lastIndex = Math.min(range.endRow * range.columns, images.length);
+  const rowHeight = (range.width - (range.columns - 1) * 12) / range.columns + 12;
+  const topSpace = Math.max(0, range.startRow * rowHeight - 12);
+  const bottomSpace = Math.max(0, (totalRows - range.endRow) * rowHeight - 12);
+
+  return (
+    <div
+      ref={gridRef}
+      className="grid gap-3"
+      style={{ gridTemplateColumns: `repeat(${range.columns}, minmax(0, 1fr))` }}
+    >
+      {topSpace > 0 && <div aria-hidden="true" style={{ height: topSpace, gridColumn: "1 / -1" }} />}
+      {images.slice(firstIndex, lastIndex).map((img) => {
+        const state = culls[img.id];
+        const aiResult = aiResults[img.id];
+        const selected = lightboxId === img.id;
+
+        return (
+          <PhotoTile
+            key={img.id}
+            img={img}
+            state={state}
+            aiResult={aiResult}
+            selected={selected}
+            onSelect={onSelect}
+            onRate={onRate}
+          />
+        );
+      })}
+      {bottomSpace > 0 && <div aria-hidden="true" style={{ height: bottomSpace, gridColumn: "1 / -1" }} />}
+    </div>
   );
 }
 
@@ -254,6 +520,7 @@ function CullingPage() {
   const [filter, setFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [originalLoadingId, setOriginalLoadingId] = useState(null);
 
   // UI-only switches for the redesigned Analysis Settings card.
   // These do not change the backend pipeline yet.
@@ -416,17 +683,28 @@ function CullingPage() {
       }
     }
 
-    const signedUrls = await Promise.all(
-      photoRows.map((p) => (p.previewable ? getSignedUrl(p.storage_path) : Promise.resolve(null)))
+    const previewableRows = photoRows.filter((p) => p.previewable);
+
+    // Only sign optimized preview URLs during initial page load.
+    // Full-resolution URLs are intentionally NOT created here.
+    const previewResults = await Promise.all(
+      previewableRows.map(async (p) => ({
+        id: p.id,
+        url: await getPreviewUrl(p.storage_path),
+      }))
     );
 
-    const photoState = photoRows.map((p, i) => ({
+    const previewUrlMap = Object.fromEntries(
+      previewResults.map((item) => [item.id, item.url])
+    );
+
+    const photoState = photoRows.map((p) => ({
       id: p.id,
       folderId: p.folder_id,
       fileName: p.file_name,
       storagePath: p.storage_path,
-      thumbUrl: signedUrls[i],
-      fullUrl: signedUrls[i],
+      thumbUrl: previewUrlMap[p.id] || null,
+      fullUrl: null,
       previewable: p.previewable,
       sizeLabel: p.size_bytes ? formatBytes(p.size_bytes) : null,
     }));
@@ -614,16 +892,27 @@ function CullingPage() {
         setPath([targetFolderId]);
       }
 
-      for (const file of files) {
+      // Upload a few files concurrently instead of waiting for every file
+      // to finish before starting the next one.
+      const CONCURRENCY = 3;
+      let nextIndex = 0;
+
+      const uploadOne = async (file) => {
         const isPreviewable = file.type.startsWith("image/");
-        const path = `${user.id}/${targetFolderId}/${Date.now()}-${file.name}`;
+        const uniqueId =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+        const path = `${user.id}/${targetFolderId}/${uniqueId}-${file.name}`;
 
         const { error: uploadErr } = await supabase.storage
           .from(PHOTOS_BUCKET)
           .upload(path, file);
+
         if (uploadErr) {
           console.error("Upload failed:", uploadErr);
-          continue;
+          return;
         }
 
         const { data: row, error: insertErr } = await supabase
@@ -641,10 +930,14 @@ function CullingPage() {
 
         if (insertErr) {
           console.error("Insert failed:", insertErr);
-          continue;
+          return;
         }
 
-        const thumbUrl = isPreviewable ? await getSignedUrl(path) : null;
+        // The gallery gets a transformed preview. The original is left in
+        // Storage and is fetched only when the photographer asks to inspect it.
+        const thumbUrl = isPreviewable
+          ? await getPreviewUrl(path)
+          : null;
 
         const newImage = {
           id: row.id,
@@ -652,15 +945,69 @@ function CullingPage() {
           fileName: file.name,
           storagePath: path,
           thumbUrl,
-          fullUrl: thumbUrl,
+          fullUrl: null,
           previewable: isPreviewable,
           sizeLabel: formatBytes(file.size),
         };
 
         setPhotos((prev) => [newImage, ...prev]);
-      }
+      };
+
+      const worker = async () => {
+        while (true) {
+          const index = nextIndex++;
+          if (index >= files.length) return;
+          await uploadOne(files[index]);
+        }
+      };
+
+      await Promise.all(
+        Array.from(
+          { length: Math.min(CONCURRENCY, files.length) },
+          () => worker()
+        )
+      );
     },
     [currentFolderId, user]
+  );
+
+  const loadOriginalUrl = useCallback(async (image) => {
+    if (!image?.storagePath) return null;
+
+    if (image.fullUrl) return image.fullUrl;
+
+    setOriginalLoadingId(image.id);
+
+    try {
+      const url = await getSignedUrl(image.storagePath);
+
+      if (url) {
+        setPhotos((prev) =>
+          prev.map((photo) =>
+            photo.id === image.id
+              ? { ...photo, fullUrl: url }
+              : photo
+          )
+        );
+      }
+
+      return url;
+    } finally {
+      setOriginalLoadingId(null);
+    }
+  }, []);
+
+  const openFullPreview = useCallback(
+    async (image) => {
+      if (!image?.previewable) return;
+
+      const url = await loadOriginalUrl(image);
+
+      if (url) {
+        setPreviewOpen(true);
+      }
+    },
+    [loadOriginalUrl]
   );
 
   function handleDrop(e) {
@@ -756,6 +1103,12 @@ function CullingPage() {
   const lightboxIndex = visibleImages.findIndex((img) => img.id === lightboxId);
   const lightboxImage = lightboxIndex >= 0 ? visibleImages[lightboxIndex] : null;
   const lightboxAiResult = lightboxImage ? aiResults[lightboxImage.id] : null;
+
+  useEffect(() => {
+    if (!previewOpen || !lightboxImage?.previewable || lightboxImage.fullUrl) return;
+
+    loadOriginalUrl(lightboxImage);
+  }, [previewOpen, lightboxImage, loadOriginalUrl]);
 
   const goToOffset = useCallback(
     (offset) => {
@@ -1312,137 +1665,24 @@ function CullingPage() {
                             : "No photos match this filter."}
                         </div>
                       ) : (
-                        <div
-                          className={`grid gap-3 transition-all duration-300 ${
-                            lightboxImage
-                              ? "grid-cols-2 md:grid-cols-3"
-                              : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-                          }`}
-                        >
-                          {visibleImages.map((img) => {
-                            const state = culls[img.id];
-                            const aiResult = aiResults[img.id];
-                            const selected = lightboxId === img.id;
+                        <>
+                          <p className="mb-2 text-[10px] text-slate-500 dark:text-slate-400">
+                            Gallery uses optimized previews (600px). Full-quality originals load only when requested.
+                          </p>
 
-                            const stateClasses =
-                              selected
-                                ? "ring-2 ring-sky-500 border-sky-500"
-                                : state === "star"
-                                ? "ring-2 ring-sky-500 border-transparent"
-                                : state === "reject" || aiResult?.ai_decision === "REJECT"
-                                ? "ring-2 ring-rose-500 border-transparent opacity-55"
-                                : aiResult?.ai_decision === "KEEP"
-                                ? "border-emerald-500/70"
-                                : aiResult?.ai_decision === "REVIEW"
-                                ? "border-amber-500/70"
-                                : "border-slate-300 hover:border-sky-400 dark:border-slate-700";
-
-                            return (
-                              <button
-                                key={img.id}
-                                type="button"
-                                onClick={() =>
-                                  setLightboxId((current) => {
-                                    setPreviewOpen(false);
-                                    return current === img.id ? null : img.id;
-                                  })
-                                }
-                                className={`group relative aspect-square overflow-hidden rounded-xl border bg-slate-900 text-left transition-all ${stateClasses}`}
-                              >
-                                {img.previewable && img.thumbUrl ? (
-                                  <img
-                                    src={img.thumbUrl}
-                                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                                    alt={img.fileName}
-                                  />
-                                ) : (
-                                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-800 px-2 text-center">
-                                    <FaFileImage className="text-2xl text-slate-600" />
-                                    <span className="w-full truncate text-[10px] text-slate-500">
-                                      No preview
-                                    </span>
-                                  </div>
-                                )}
-
-                                <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
-                                  <span className="max-w-[75%] truncate rounded-md bg-black/60 px-2 py-1 font-mono text-[9px] text-white backdrop-blur-sm">
-                                    {img.fileName}
-                                  </span>
-
-                                  {state === "star" && (
-                                    <span className="rounded-full bg-black/60 p-1 text-sky-400">
-                                      <FaStar className="text-[10px]" />
-                                    </span>
-                                  )}
-                                  {(state === "reject" || aiResult?.ai_decision === "REJECT") && state !== "star" && (
-                                    <span className="rounded-full bg-black/60 p-1 text-rose-400">
-                                      <FaBan className="text-[10px]" />
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Photographer quick actions — revealed on hover/focus */}
-                                <div className="absolute inset-x-2 bottom-2 z-10 flex translate-y-2 items-center justify-center gap-2 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setRating(img.id, "star");
-                                    }}
-                                    className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition ${
-                                      state === "star"
-                                        ? "border-sky-400 bg-sky-500 text-slate-950"
-                                        : "border-white/20 bg-black/65 text-white hover:bg-sky-500 hover:text-slate-950"
-                                    }`}
-                                    aria-label="Star or keep photo"
-                                    title="Star / Keep"
-                                  >
-                                    <FaStar className="text-[11px]" />
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setRating(img.id, "reject");
-                                    }}
-                                    className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition ${
-                                      state === "reject"
-                                        ? "border-rose-400 bg-rose-500 text-white"
-                                        : "border-white/20 bg-black/65 text-white hover:bg-rose-500"
-                                    }`}
-                                    aria-label="Reject photo"
-                                    title="Reject"
-                                  >
-                                    <FaBan className="text-[11px]" />
-                                  </button>
-                                </div>
-
-                                {aiResult && (
-                                  <div className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-2 transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
-                                    <span
-                                      className={`rounded-full px-2 py-1 text-[9px] font-bold shadow ${
-                                        aiResult.ai_decision === "KEEP"
-                                          ? "bg-emerald-500 text-white"
-                                          : aiResult.ai_decision === "REJECT"
-                                          ? "bg-rose-500 text-white"
-                                          : "bg-amber-500 text-slate-950"
-                                      }`}
-                                    >
-                                      {aiResult.ai_decision}
-                                    </span>
-
-                                    {aiResult.base_quality_score != null && (
-                                      <span className="rounded-full bg-black/70 px-2 py-1 text-[9px] font-semibold text-white">
-                                        {formatPercent(aiResult.base_quality_score)}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
+                          <VirtualizedPhotoGrid
+                            images={visibleImages}
+                            culls={culls}
+                            aiResults={aiResults}
+                            lightboxId={lightboxId}
+                            lightboxOpen={Boolean(lightboxImage)}
+                            onSelect={(id) => {
+                              setPreviewOpen(false);
+                              setLightboxId((current) => current === id ? null : id);
+                            }}
+                            onRate={setRating}
+                          />
+                        </>
                       )}
 
                       <p className="text-center text-[11px] text-slate-500">
@@ -1477,21 +1717,24 @@ function CullingPage() {
                         </div>
 
                         {/* Scrollable analysis content.
-                            The final photographer decision stays outside this area
+                            The analysis content and final photographer decision stay in this scrollable area
                             so the buttons remain visible at the bottom of the card. */}
                         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
                           <div className="relative overflow-hidden rounded-xl bg-slate-950">
-                          {lightboxImage.previewable && lightboxImage.fullUrl ? (
+                          {lightboxImage.previewable && lightboxImage.thumbUrl ? (
                             <button
                               type="button"
-                              onClick={() => setPreviewOpen(true)}
+                              onClick={() => openFullPreview(lightboxImage)}
                               className="block w-full cursor-zoom-in"
-                              aria-label="Enlarge photo"
-                              title="Click to enlarge"
+                              aria-label="View full quality photo"
+                              title="View full quality"
+                              disabled={originalLoadingId === lightboxImage.id}
                             >
                               <img
-                                src={lightboxImage.fullUrl}
+                                src={lightboxImage.thumbUrl}
                                 alt={lightboxImage.fileName}
+                                loading="eager"
+                                decoding="async"
                                 className="aspect-[4/3] w-full object-contain"
                               />
                             </button>
@@ -1501,15 +1744,18 @@ function CullingPage() {
                             </div>
                           )}
 
-                          {lightboxImage.previewable && lightboxImage.fullUrl && (
+                          {lightboxImage.previewable && lightboxImage.thumbUrl && (
                             <button
                               type="button"
-                              onClick={() => setPreviewOpen(true)}
-                              className="absolute right-2 top-2 flex items-center gap-1.5 rounded-lg bg-black/65 px-2.5 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition hover:bg-sky-500 hover:text-slate-950"
-                              aria-label="Enlarge photo"
+                              onClick={() => openFullPreview(lightboxImage)}
+                              disabled={originalLoadingId === lightboxImage.id}
+                              className="absolute right-2 top-2 flex items-center gap-1.5 rounded-lg bg-black/65 px-2.5 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition hover:bg-sky-500 hover:text-slate-950 disabled:cursor-wait disabled:opacity-70"
+                              aria-label="View full quality photo"
                             >
                               <FaSearchPlus className="text-[10px]" />
-                              Enlarge
+                              {originalLoadingId === lightboxImage.id
+                                ? "Loading original..."
+                                : "View Full Quality"}
                             </button>
                           )}
 
@@ -1519,7 +1765,7 @@ function CullingPage() {
                               setPreviewOpen(false);
                               goToOffset(-1);
                             }}
-                            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white/80 hover:text-white"
+                            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/75 text-white/80 hover:text-white"
                             aria-label="Previous photo"
                           >
                             <FaChevronLeft className="text-xs" />
@@ -2106,11 +2352,20 @@ function CullingPage() {
               </button>
             )}
 
-            <img
-              src={dupLightboxImage.fullUrl}
-              alt={dupLightboxImage.fileName}
-              className="max-h-[70vh] max-w-full object-contain rounded-lg shadow-2xl"
-            />
+            <button
+              type="button"
+              onClick={() => openFullPreview(dupLightboxImage)}
+              className="max-h-[70vh] max-w-full cursor-zoom-in rounded-lg"
+              title="View full quality"
+            >
+              <img
+                src={dupLightboxImage.thumbUrl}
+                alt={dupLightboxImage.fileName}
+                loading="eager"
+                decoding="async"
+                className="max-h-[70vh] max-w-full object-contain rounded-lg shadow-2xl"
+              />
+            </button>
 
             {dupLightboxSet.images.length > 1 && (
               <button

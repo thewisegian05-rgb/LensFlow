@@ -1,4 +1,6 @@
 import os
+import shutil
+from uuid import uuid4
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -179,10 +181,11 @@ def get_folder_photos(
 def download_photo_to_temp(
     user_supabase: Client,
     photo: dict,
+    temp_dir: Path = TEMP_DIR,
 ):
     """
-    Downloads one photo from Supabase Storage into the backend's
-    temporary directory.
+    Downloads one photo from Supabase Storage into the temporary
+    directory for the current culling run.
 
     The photo ID is included in the temporary filename to avoid
     collisions when different uploads have the same original filename.
@@ -191,7 +194,7 @@ def download_photo_to_temp(
         Path: Local path of the downloaded temporary image.
     """
 
-    TEMP_DIR.mkdir(exist_ok=True)
+    temp_dir.mkdir(parents=True, exist_ok=True)
 
     file_bytes = (
         user_supabase
@@ -201,11 +204,13 @@ def download_photo_to_temp(
     )
 
     original_name = Path(photo["file_name"])
+
     temp_name = (
         f"{photo['id']}_"
         f"{original_name.name}"
     )
-    temp_path = TEMP_DIR / temp_name
+
+    temp_path = temp_dir / temp_name
 
     temp_path.write_bytes(file_bytes)
 
@@ -392,6 +397,9 @@ def cull(
 
     print("CULL ENDPOINT HIT")
 
+    # Create a separate temporary folder for this culling run.
+    run_temp_dir = TEMP_DIR / f"cull_{uuid4().hex}"
+
     try:
         # ----------------------------------------------------
         # 1. Authenticate user
@@ -441,6 +449,7 @@ def cull(
             temp_path = download_photo_to_temp(
                 user_supabase,
                 photo,
+                run_temp_dir,
             )
 
             image_paths.append(temp_path)
@@ -547,3 +556,14 @@ def cull(
             status_code=500,
             detail=str(error),
         ) from error
+
+    finally:
+
+        # Always remove temporary files from this culling run.
+        # This also runs if the culling process fails.
+        try:
+            if run_temp_dir.exists():
+                shutil.rmtree(run_temp_dir, ignore_errors=True)
+                print("Temporary culling files cleaned up.")
+        except Exception as cleanup_error:
+            print("TEMP CLEANUP ERROR:", repr(cleanup_error))

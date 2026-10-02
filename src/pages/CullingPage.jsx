@@ -153,7 +153,7 @@ const PhotoTile = memo(function PhotoTile({
           onSelect(img.id);
         }
       }}
-      className={`group relative aspect-square overflow-hidden rounded-xl border bg-slate-900 text-left transition-[border-color,box-shadow] duration-200 hover:shadow-lg hover:shadow-black/20 focus:outline-none focus:ring-2 focus:ring-sky-500 ${stateClasses}`}
+      className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-200 hover:-translate-y-1 hover:border-sky-400 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900"
     >
       {img.previewable && img.thumbUrl ? (
         <img
@@ -172,7 +172,7 @@ const PhotoTile = memo(function PhotoTile({
       )}
 
       <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
-        <span className="max-w-[75%] truncate rounded-md bg-black/75 px-2 py-1 font-mono text-[9px] text-white">
+        <span className="max-w-[75%] truncate rounded-md bg-white/90 px-2 py-1 font-mono text-[9px] text-slate-800 dark:bg-black/70 dark:text-white">
           {img.fileName}
         </span>
         {state === "star" && (
@@ -236,7 +236,7 @@ const PhotoTile = memo(function PhotoTile({
             {aiResult.ai_decision}
           </span>
           {aiResult.base_quality_score != null && (
-            <span className="rounded-full bg-black/70 px-2 py-1 text-[9px] font-semibold text-white">
+            <span className="rounded-full px-2 py-1 text-[9px] font-semibold bg-white/90 text-slate-800 dark:bg-black/70 dark:text-white">
               {formatPercent(aiResult.base_quality_score)}
             </span>
           )}
@@ -550,6 +550,13 @@ function CullingPage() {
   const [aiResults, setAiResults] = useState({});
   const [cullingLoading, setCullingLoading] = useState(false);
   const [cullingError, setCullingError] = useState("");
+  const [cullingProgress, setCullingProgress] = useState({
+    progress: 0,
+    current: 0,
+    total: 0,
+    fileName: "",
+    stage: "Preparing LensFlow...",
+  });
 
   const [path, setPath] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -625,6 +632,8 @@ function CullingPage() {
   const currentFolderId = path.length ? path[path.length - 1] : null;
 
   // Run the FastAPI culling pipeline for the currently opened folder.
+  // The backend returns a job ID immediately, then the frontend polls the
+  // progress endpoint so the progress card reflects the real culling run.
   const handleRunCulling = async () => {
     try {
       if (!currentFolderId) {
@@ -634,14 +643,20 @@ function CullingPage() {
 
       setCullingLoading(true);
       setCullingError("");
+      setCullingProgress({
+        progress: 0,
+        current: 0,
+        total: folderTotal,
+        fileName: "",
+        stage: "Starting LensFlow...",
+      });
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!session) {
-        setCullingError("No active Supabase session.");
-        return;
+        throw new Error("No active Supabase session.");
       }
 
       const response = await fetch("http://127.0.0.1:8000/cull", {
@@ -656,50 +671,106 @@ function CullingPage() {
         }),
       });
 
-      const data = await response.json();
+      const startData = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.detail || "LensFlow culling failed.");
+        throw new Error(startData?.detail || "LensFlow culling failed.");
       }
 
-      const resultMap = {};
+      if (!startData.success || !startData.job_id) {
+        throw new Error(startData?.message || "LensFlow could not start the culling job.");
+      }
 
-      (data.results || []).forEach((result) => {
-        resultMap[result.photo_id] = {
-          photo_id: result.photo_id,
-          similarity_group: result.similarity_group,
-          group_rank: result.group_rank,
-          base_quality_score: result.base_quality_score,
-          ai_decision: result.lensflow_decision,
-          decision_reason: result.decision_reason,
-          metrics: {
-            sharpness: result.sharpness,
-            brightness: result.brightness,
-            dark_pixels_percent: result.dark_pixels_percent,
-            bright_pixels_percent: result.bright_pixels_percent,
-            contrast: result.contrast,
-            face_count: result.face_count,
-            average_face_sharpness: result.average_face_sharpness,
-            minimum_face_sharpness: result.minimum_face_sharpness,
-            maximum_blink_score: result.maximum_blink_score,
-            blink_asymmetry: result.blink_asymmetry,
-            aesthetic_score: result.aesthetic_score,
-            technical_score: result.technical_score,
-            face_quality_score: result.face_quality_score,
-            eye_quality_score: result.eye_quality_score,
-            aesthetic_quality_score: result.aesthetic_quality_score,
-            defects: result.defects || [],
-          },
-        };
-      });
+      const jobId = startData.job_id;
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      let completed = false;
+      let pollAttempts = 0;
+      const maxPollAttempts = 4500; // 30 minutes at 400 ms intervals.
 
-      // Merge instead of replacing so results from other folders remain visible.
-      setAiResults((prev) => ({
-        ...prev,
-        ...resultMap,
-      }));
+      while (!completed && pollAttempts < maxPollAttempts) {
+        await sleep(400);
+        pollAttempts += 1;
 
-      console.log("LensFlow results:", data.results);
+        const progressResponse = await fetch(
+          `http://127.0.0.1:8000/cull/progress/${jobId}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "X-Refresh-Token": session.refresh_token,
+            },
+          }
+        );
+
+        const progressData = await progressResponse.json();
+
+        if (!progressResponse.ok) {
+          throw new Error(
+            progressData?.detail || "Unable to retrieve culling progress."
+          );
+        }
+
+        setCullingProgress({
+          progress: Number(progressData.progress) || 0,
+          current: Number(progressData.current) || 0,
+          total: Number(progressData.total) || folderTotal,
+          fileName: progressData.file_name || "",
+          stage: progressData.stage || "Analyzing photos...",
+        });
+
+        if (progressData.status === "failed") {
+          throw new Error(progressData.error || "LensFlow culling failed.");
+        }
+
+        if (progressData.status === "completed") {
+          const resultMap = {};
+
+          (progressData.results || []).forEach((result) => {
+            resultMap[result.photo_id] = {
+              photo_id: result.photo_id,
+              similarity_group: result.similarity_group,
+              group_rank: result.group_rank,
+              base_quality_score: result.base_quality_score,
+              ai_decision: result.lensflow_decision,
+              decision_reason: result.decision_reason,
+              metrics: {
+                sharpness: result.sharpness,
+                brightness: result.brightness,
+                dark_pixels_percent: result.dark_pixels_percent,
+                bright_pixels_percent: result.bright_pixels_percent,
+                contrast: result.contrast,
+                face_count: result.face_count,
+                average_face_sharpness: result.average_face_sharpness,
+                minimum_face_sharpness: result.minimum_face_sharpness,
+                maximum_blink_score: result.maximum_blink_score,
+                blink_asymmetry: result.blink_asymmetry,
+                aesthetic_score: result.aesthetic_score,
+                technical_score: result.technical_score,
+                face_quality_score: result.face_quality_score,
+                eye_quality_score: result.eye_quality_score,
+                aesthetic_quality_score: result.aesthetic_quality_score,
+                defects: result.defects || [],
+              },
+            };
+          });
+
+          // Merge instead of replacing so results from other folders remain visible.
+          setAiResults((prev) => ({
+            ...prev,
+            ...resultMap,
+          }));
+
+          console.log("LensFlow results:", progressData.results);
+
+          // Keep the completed state visible briefly so the user can see 100%.
+          await sleep(500);
+          completed = true;
+        }
+      }
+
+      if (!completed) {
+        throw new Error("LensFlow culling took too long to finish. Please try again.");
+      }
     } catch (error) {
       console.error("Failed to run LensFlow:", error);
       setCullingError(error.message || "Failed to run LensFlow.");
@@ -1600,78 +1671,129 @@ function CullingPage() {
                           )}
                         </div>
 
-                        {/* Analysis settings / profile */}
+                        {/* Analysis settings / progress */}
                         <div className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/80 ${lightboxImage ? "p-4" : "p-5"}`}>
                           <div className="flex items-center justify-between gap-2">
                             <div>
                               <p className="text-m font-semibold text-slate-900 dark:text-white">
-                                Analysis Settings
+                                {cullingLoading ? "AI Culling in Progress" : "Analysis Settings"}
                               </p>
                               {!lightboxImage && (
                                 <p className="mt-0.5 text-[11px] text-slate-500">
-                                  Current LensFlow analysis profile
+                                  {cullingLoading
+                                    ? "LensFlow is analyzing your photos"
+                                    : "Current LensFlow analysis profile"}
                                 </p>
                               )}
                             </div>
                             <span className="rounded-full bg-sky-500/10 px-2 py-1 text-[10px] font-semibold text-sky-500 dark:text-sky-300">
-                              Balanced
+                              {cullingLoading ? `${Math.round(cullingProgress.progress)}%` : "Balanced"}
                             </span>
                           </div>
 
-                          <div className={`grid gap-2 ${lightboxImage ? "mt-3 grid-cols-2" : "mt-4 grid-cols-1 sm:grid-cols-2"}`}>
-                            {[
-                              ["technical", "Technical quality"],
-                              ["subject", "Subject quality"],
-                              ["aesthetic", "Aesthetic quality"],
-                              ["similarity", "Visual similarity"],
-                            ].map(([key, label]) => {
-                              const enabled = analysisOptions[key];
+                          {cullingLoading ? (
+                            <div className="mt-4 rounded-xl border border-dashed border-sky-500/40 bg-sky-500/5 p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-400">
+                                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-sky-500/25 border-t-sky-500" />
+                                    </span>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                                        Analyzing photos
+                                      </p>
+                                      <p className="mt-0.5 text-[10px] text-slate-500">
+                                        {cullingProgress.current} of {cullingProgress.total || folderTotal} photos analyzed
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className="flex-shrink-0 text-sm font-bold text-slate-900 dark:text-white">
+                                  {Math.round(cullingProgress.progress)}%
+                                </span>
+                              </div>
 
-                              return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  onClick={() => toggleAnalysisOption(key)}
-                                  className={`flex min-w-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-[10px] font-medium transition ${
-                                    enabled
-                                      ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-300"
-                                      : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500"
-                                  }`}
-                                  title="UI preview only — backend currently runs the complete pipeline"
-                                >
-                                  <span className="truncate">{label}</span>
-                                  <span
-                                    className={`relative h-4 w-7 flex-shrink-0 rounded-full transition ${
-                                      enabled ? "bg-sky-500" : "bg-slate-300 dark:bg-slate-700"
-                                    }`}
-                                  >
-                                    <span
-                                      className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${
-                                        enabled ? "left-3.5" : "left-0.5"
+                              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                                <div
+                                  className="h-full rounded-full bg-sky-500 transition-[width] duration-300"
+                                  style={{
+                                    width: `${Math.min(100, Math.max(0, Number(cullingProgress.progress) || 0))}%`,
+                                  }}
+                                />
+                              </div>
+
+                              <div className="mt-3 min-w-0">
+                                <p className="truncate text-[10px] font-medium text-slate-700 dark:text-slate-200">
+                                  {cullingProgress.fileName || "Preparing photos..."}
+                                </p>
+                                <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                                  {cullingProgress.stage}
+                                </p>
+                              </div>
+
+                              <p className="mt-3 text-[9px] leading-relaxed text-slate-400">
+                                LensFlow is processing the selected photos and generating your culling recommendations.
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              <div className={`grid gap-2 ${lightboxImage ? "mt-3 grid-cols-2" : "mt-4 grid-cols-1 sm:grid-cols-2"}`}>
+                                {[
+                                  ["technical", "Technical quality"],
+                                  ["subject", "Subject quality"],
+                                  ["aesthetic", "Aesthetic quality"],
+                                  ["similarity", "Visual similarity"],
+                                ].map(([key, label]) => {
+                                  const enabled = analysisOptions[key];
+
+                                  return (
+                                    <button
+                                      key={key}
+                                      type="button"
+                                      onClick={() => toggleAnalysisOption(key)}
+                                      className={`flex min-w-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-[10px] font-medium transition ${
+                                        enabled
+                                          ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-300"
+                                          : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500"
                                       }`}
-                                    />
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
+                                      title="UI preview only — backend currently runs the complete pipeline"
+                                    >
+                                      <span className="truncate">{label}</span>
+                                      <span
+                                        className={`relative h-4 w-7 flex-shrink-0 rounded-full transition ${
+                                          enabled ? "bg-sky-500" : "bg-slate-300 dark:bg-slate-700"
+                                        }`}
+                                      >
+                                        <span
+                                          className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${
+                                            enabled ? "left-3.5" : "left-0.5"
+                                          }`}
+                                        />
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
 
-                          {!lightboxImage && (
-                            <p className="mt-2 text-[9px] text-slate-400">
-                              Preview controls only — all analysis stages still run in the current backend.
-                            </p>
+                              {!lightboxImage && (
+                                <p className="mt-2 text-[9px] text-slate-400">
+                                  Preview controls only — all analysis stages still run in the current backend.
+                                </p>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={handleRunCulling}
+                                disabled={cullingLoading || folderTotal === 0}
+                                className={`mt-4 w-full rounded-xl bg-sky-600 font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+                                  lightboxImage ? "px-3 py-2 text-[11px]" : "px-4 py-2.5 text-xs"
+                                }`}
+                              >
+                                Start Automated Culling
+                              </button>
+                            </>
                           )}
-
-                          <button
-                            type="button"
-                            onClick={handleRunCulling}
-                            disabled={cullingLoading || folderTotal === 0}
-                            className={`mt-4 w-full rounded-xl bg-sky-600 font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
-                              lightboxImage ? "px-3 py-2 text-[11px]" : "px-4 py-2.5 text-xs"
-                            }`}
-                          >
-                            {cullingLoading ? "Analyzing photos..." : "Start Automated Culling"}
-                          </button>
 
                           {cullingError && (
                             <p className="mt-2 text-[10px] text-red-400">{cullingError}</p>

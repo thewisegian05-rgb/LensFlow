@@ -57,6 +57,8 @@ const FILTERS = [
 
 const ACCEPTED_ATTR = "image/*,.cr3,.nef,.arw,.dng,.raw,.rw2,.orf";
 
+const CULLING_JOB_STORAGE_KEY = "lensflow_active_culling_job";
+
 /* ============ Helpers ============ */
 function formatPercent(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
@@ -549,6 +551,7 @@ function CullingPage() {
   // Latest LensFlow AI result per photo (separate from the photographer's manual rating).
   const [aiResults, setAiResults] = useState({});
   const [cullingLoading, setCullingLoading] = useState(false);
+  const [cullingJobFolderId, setCullingJobFolderId] = useState(null);
   const [cullingError, setCullingError] = useState("");
   const [cullingProgress, setCullingProgress] = useState({
     progress: 0,
@@ -588,6 +591,7 @@ function CullingPage() {
   const [folderToDelete, setFolderToDelete] = useState(null);
 
   const fileInputRef = useRef(null);
+  const cullingPollingJobRef = useRef(null);
   const [backfill, setBackfill] = useState(null);
 
   // Uploads run in a shared background manager (src/lib/uploadManager.js),
@@ -630,10 +634,149 @@ function CullingPage() {
   }, [mode, path.length]);
 
   const currentFolderId = path.length ? path[path.length - 1] : null;
+  const isCurrentFolderCulling =
+    cullingLoading && cullingJobFolderId === currentFolderId;
+
+  // Poll a running FastAPI culling job. The job ID is persisted in localStorage
+  // so this can reconnect after the Culling page unmounts and remounts.
+  const pollCullingJob = useCallback(async (jobId, session, expectedFolderId = null) => {
+    if (!jobId || !session) return;
+
+    // Prevent duplicate polling loops for the same job.
+    if (cullingPollingJobRef.current === jobId) return;
+    cullingPollingJobRef.current = jobId;
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    let completed = false;
+    let pollAttempts = 0;
+    const maxPollAttempts = 4500; // 30 minutes at 400 ms intervals.
+
+    try {
+      setCullingLoading(true);
+      setCullingJobFolderId(expectedFolderId);
+      setCullingError("");
+
+      while (!completed && pollAttempts < maxPollAttempts) {
+        await sleep(400);
+        pollAttempts += 1;
+
+        const progressResponse = await fetch(
+          `http://127.0.0.1:8000/cull/progress/${jobId}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "X-Refresh-Token": session.refresh_token,
+            },
+          }
+        );
+
+        const progressData = await progressResponse.json();
+
+        if (!progressResponse.ok) {
+          if (progressResponse.status === 404) {
+            localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
+          }
+          throw new Error(
+            progressData?.detail || "Unable to retrieve culling progress."
+          );
+        }
+
+        // Only update the visible progress card when this is still the
+        // folder that owns the active culling job.
+        const sameFolder =
+          !expectedFolderId ||
+          !progressData.folder_id ||
+          progressData.folder_id === expectedFolderId;
+
+        if (sameFolder) {
+          setCullingProgress({
+            progress: Number(progressData.progress) || 0,
+            current: Number(progressData.current) || 0,
+            total: Number(progressData.total) || 0,
+            fileName: progressData.file_name || "",
+            stage: progressData.stage || "Analyzing photos...",
+          });
+        }
+
+        if (progressData.status === "failed") {
+          localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
+          throw new Error(progressData.error || "LensFlow culling failed.");
+        }
+
+        if (progressData.status === "completed") {
+          const resultMap = {};
+
+          (progressData.results || []).forEach((result) => {
+            resultMap[result.photo_id] = {
+              photo_id: result.photo_id,
+              similarity_group: result.similarity_group,
+              group_rank: result.group_rank,
+              base_quality_score: result.base_quality_score,
+              ai_decision: result.lensflow_decision,
+              decision_reason: result.decision_reason,
+              metrics: {
+                sharpness: result.sharpness,
+                brightness: result.brightness,
+                dark_pixels_percent: result.dark_pixels_percent,
+                bright_pixels_percent: result.bright_pixels_percent,
+                contrast: result.contrast,
+                face_count: result.face_count,
+                average_face_sharpness: result.average_face_sharpness,
+                minimum_face_sharpness: result.minimum_face_sharpness,
+                maximum_face_sharpness: result.maximum_face_sharpness,
+                maximum_blink_score: result.maximum_blink_score,
+                blink_asymmetry: result.blink_asymmetry,
+                aesthetic_score: result.aesthetic_score,
+                technical_score: result.technical_score,
+                face_quality_score: result.face_quality_score,
+                eye_quality_score: result.eye_quality_score,
+                aesthetic_quality_score: result.aesthetic_quality_score,
+                defects: result.defects || [],
+              },
+            };
+          });
+
+          setAiResults((prev) => ({
+            ...prev,
+            ...resultMap,
+          }));
+
+          console.log("LensFlow results:", progressData.results);
+
+          // Keep 100% visible briefly.
+          setCullingProgress((prev) => ({
+            ...prev,
+            progress: 100,
+            current: Number(progressData.total) || prev.total,
+            total: Number(progressData.total) || prev.total,
+            fileName: progressData.file_name || prev.fileName,
+            stage: progressData.stage || "Culling complete.",
+          }));
+
+          localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
+
+          await sleep(500);
+          completed = true;
+        }
+      }
+
+      if (!completed) {
+        throw new Error("LensFlow culling took too long to finish. Please try again.");
+      }
+    } catch (error) {
+      console.error("Failed to poll LensFlow:", error);
+      setCullingError(error.message || "Failed to run LensFlow.");
+    } finally {
+      if (cullingPollingJobRef.current === jobId) {
+        cullingPollingJobRef.current = null;
+      }
+      setCullingLoading(false);
+      setCullingJobFolderId(null);
+    }
+  }, []);
 
   // Run the FastAPI culling pipeline for the currently opened folder.
-  // The backend returns a job ID immediately, then the frontend polls the
-  // progress endpoint so the progress card reflects the real culling run.
   const handleRunCulling = async () => {
     try {
       if (!currentFolderId) {
@@ -642,6 +785,7 @@ function CullingPage() {
       }
 
       setCullingLoading(true);
+      setCullingJobFolderId(currentFolderId);
       setCullingError("");
       setCullingProgress({
         progress: 0,
@@ -678,104 +822,29 @@ function CullingPage() {
       }
 
       if (!startData.success || !startData.job_id) {
-        throw new Error(startData?.message || "LensFlow could not start the culling job.");
+        throw new Error(
+          startData?.message || "LensFlow could not start the culling job."
+        );
       }
 
       const jobId = startData.job_id;
-      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      let completed = false;
-      let pollAttempts = 0;
-      const maxPollAttempts = 4500; // 30 minutes at 400 ms intervals.
 
-      while (!completed && pollAttempts < maxPollAttempts) {
-        await sleep(400);
-        pollAttempts += 1;
+      // Persist the active job so returning to this page can reconnect to it.
+      localStorage.setItem(
+        CULLING_JOB_STORAGE_KEY,
+        JSON.stringify({
+          jobId,
+          folderId: currentFolderId,
+        })
+      );
 
-        const progressResponse = await fetch(
-          `http://127.0.0.1:8000/cull/progress/${jobId}`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-              "X-Refresh-Token": session.refresh_token,
-            },
-          }
-        );
-
-        const progressData = await progressResponse.json();
-
-        if (!progressResponse.ok) {
-          throw new Error(
-            progressData?.detail || "Unable to retrieve culling progress."
-          );
-        }
-
-        setCullingProgress({
-          progress: Number(progressData.progress) || 0,
-          current: Number(progressData.current) || 0,
-          total: Number(progressData.total) || folderTotal,
-          fileName: progressData.file_name || "",
-          stage: progressData.stage || "Analyzing photos...",
-        });
-
-        if (progressData.status === "failed") {
-          throw new Error(progressData.error || "LensFlow culling failed.");
-        }
-
-        if (progressData.status === "completed") {
-          const resultMap = {};
-
-          (progressData.results || []).forEach((result) => {
-            resultMap[result.photo_id] = {
-              photo_id: result.photo_id,
-              similarity_group: result.similarity_group,
-              group_rank: result.group_rank,
-              base_quality_score: result.base_quality_score,
-              ai_decision: result.lensflow_decision,
-              decision_reason: result.decision_reason,
-              metrics: {
-                sharpness: result.sharpness,
-                brightness: result.brightness,
-                dark_pixels_percent: result.dark_pixels_percent,
-                bright_pixels_percent: result.bright_pixels_percent,
-                contrast: result.contrast,
-                face_count: result.face_count,
-                average_face_sharpness: result.average_face_sharpness,
-                minimum_face_sharpness: result.minimum_face_sharpness,
-                maximum_blink_score: result.maximum_blink_score,
-                blink_asymmetry: result.blink_asymmetry,
-                aesthetic_score: result.aesthetic_score,
-                technical_score: result.technical_score,
-                face_quality_score: result.face_quality_score,
-                eye_quality_score: result.eye_quality_score,
-                aesthetic_quality_score: result.aesthetic_quality_score,
-                defects: result.defects || [],
-              },
-            };
-          });
-
-          // Merge instead of replacing so results from other folders remain visible.
-          setAiResults((prev) => ({
-            ...prev,
-            ...resultMap,
-          }));
-
-          console.log("LensFlow results:", progressData.results);
-
-          // Keep the completed state visible briefly so the user can see 100%.
-          await sleep(500);
-          completed = true;
-        }
-      }
-
-      if (!completed) {
-        throw new Error("LensFlow culling took too long to finish. Please try again.");
-      }
+      await pollCullingJob(jobId, session, currentFolderId);
     } catch (error) {
-      console.error("Failed to run LensFlow:", error);
+      console.error("Failed to start LensFlow:", error);
       setCullingError(error.message || "Failed to run LensFlow.");
-    } finally {
+      localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
       setCullingLoading(false);
+      setCullingJobFolderId(null);
     }
   };
 
@@ -887,6 +956,56 @@ function CullingPage() {
     setAiResults(aiResultMap);
     setDataLoading(false);
   }, []);
+
+  // Reconnect to an active culling job after the page remounts.
+  useEffect(() => {
+    if (!user || dataLoading || folders.length === 0) return;
+
+    let savedJob = null;
+
+    try {
+      savedJob = JSON.parse(
+        localStorage.getItem(CULLING_JOB_STORAGE_KEY) || "null"
+      );
+    } catch {
+      localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
+      return;
+    }
+
+    if (!savedJob?.jobId || !savedJob?.folderId) return;
+
+    const savedFolder = folders.find((folder) => folder.id === savedJob.folderId);
+
+    if (!savedFolder) {
+      localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
+      return;
+    }
+
+    // Reopen the folder that owns the active job so the existing progress
+    // card becomes visible again.
+    setPath((prevPath) => {
+      if (prevPath.length > 0) return prevPath;
+      return [savedJob.folderId];
+    });
+
+    let cancelled = false;
+
+    const reconnect = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (cancelled || !session) return;
+
+      await pollCullingJob(savedJob.jobId, session, savedJob.folderId);
+    };
+
+    reconnect();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, dataLoading, folders, pollCullingJob]);
 
   useEffect(() => {
     if (user) {
@@ -1676,22 +1795,22 @@ function CullingPage() {
                           <div className="flex items-center justify-between gap-2">
                             <div>
                               <p className="text-m font-semibold text-slate-900 dark:text-white">
-                                {cullingLoading ? "AI Culling in Progress" : "Analysis Settings"}
+                                {isCurrentFolderCulling ? "AI Culling in Progress" : "Analysis Settings"}
                               </p>
                               {!lightboxImage && (
                                 <p className="mt-0.5 text-[11px] text-slate-500">
-                                  {cullingLoading
+                                  {isCurrentFolderCulling
                                     ? "LensFlow is analyzing your photos"
                                     : "Current LensFlow analysis profile"}
                                 </p>
                               )}
                             </div>
                             <span className="rounded-full bg-sky-500/10 px-2 py-1 text-[10px] font-semibold text-sky-500 dark:text-sky-300">
-                              {cullingLoading ? `${Math.round(cullingProgress.progress)}%` : "Balanced"}
+                              {isCurrentFolderCulling ? `${Math.round(cullingProgress.progress)}%` : "Balanced"}
                             </span>
                           </div>
 
-                          {cullingLoading ? (
+                          {isCurrentFolderCulling ? (
                             <div className="mt-4 rounded-xl border border-dashed border-sky-500/40 bg-sky-500/5 p-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">

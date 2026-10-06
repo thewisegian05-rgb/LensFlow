@@ -4,12 +4,16 @@ import ScheduleHeader from "../components/Schedule/ScheduleHeader";
 import ScheduleSummary from "../components/Schedule/ScheduleSummary";
 import ScheduleFilters from "../components/Schedule/ScheduleFilters";
 import Calendar from "../components/Schedule/Calendar";
-import EventCard from "../components/Schedule/EventCard";
 import AddEventModal from "../components/Schedule/AddEventModal";
 import EventDetailsModal from "../components/Schedule/EventDetailsModal";
 import ConfirmModal from "../components/Common/ConfirmModal";
 
 import { supabase } from "../lib/supabaseClient";
+import {
+  getEventCategory,
+  CATEGORY_HEX,
+  CATEGORY_LABELS,
+} from "../components/Schedule/eventCategory";
 
 const formatDateForInput = (date) => {
   const value = new Date(date);
@@ -19,6 +23,126 @@ const formatDateForInput = (date) => {
 
   return `${year}-${month}-${day}`;
 };
+
+// Same category colors the Calendar uses, so a wedding looks the same
+// in the lists as it does on the calendar.
+const hexToRgba = (hex, alpha = 1) => {
+  const normalized = (hex || "#d946ef").replace("#", "");
+  const safeHex =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : normalized;
+
+  const value = Number.parseInt(safeHex, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const getCategoryStyle = (event) => {
+  const category = getEventCategory(event);
+  const hex = CATEGORY_HEX[category] || CATEGORY_HEX.default;
+
+  return {
+    backgroundColor: hexToRgba(hex, 0.1),
+    borderColor: hexToRgba(hex, 0.3),
+    borderLeftColor: hex,
+    color: hex,
+  };
+};
+
+// =========================================================
+// COMPACT EVENT LIST (Today's Events / Coming Events)
+// =========================================================
+
+function EventList({
+  title,
+  dot,
+  events,
+  loading,
+  emptyText,
+  showDate = false,
+  limit = 5,
+  onSelect,
+}) {
+  const visible = events.slice(0, limit);
+  const hidden = events.length - visible.length;
+
+  return (
+    <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+      <header className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+          <span className={`h-2 w-2 rounded-full ${dot}`} />
+          {title}
+        </h3>
+        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300">
+          {events.length}
+        </span>
+      </header>
+
+      {loading ? (
+        <p className="py-6 text-center text-sm text-slate-500">Loading...</p>
+      ) : events.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">
+          {emptyText}
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {visible.map((event) => {
+            const category = getEventCategory(event);
+            const categoryLabel = CATEGORY_LABELS[category] || event.category;
+
+            return (
+              <button
+                key={event.id}
+                type="button"
+                onClick={() => onSelect(event)}
+                style={getCategoryStyle(event)}
+                className="flex w-full items-center gap-3 rounded-lg border border-l-4 px-3 py-2 text-left transition hover:brightness-125"
+              >
+                <div className="w-16 flex-shrink-0 text-xs">
+                  <p className="font-semibold">{event.time}</p>
+                  {showDate && (
+                    <p className="mt-0.5 opacity-70">
+                      {event.start.toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{event.title}</p>
+                  <p className="truncate text-xs opacity-70">
+                    {[event.client, categoryLabel].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+
+                {event.status === "completed" && (
+                  <span className="flex-shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                    Done
+                  </span>
+                )}
+              </button>
+            );
+          })}
+
+          {hidden > 0 && (
+            <p className="pt-1 text-center text-xs text-slate-500">
+              +{hidden} more in the calendar below
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function SchedulePage() {
 
@@ -563,6 +687,26 @@ function SchedulePage() {
 
 
   // =========================================================
+  // TODAY'S EVENTS + COMING EVENTS (follow the search/category filters)
+  // =========================================================
+
+  const todayKey = formatDateForInput(new Date());
+
+  const todaysEvents = filteredEvents.filter(
+    (event) => formatDateForInput(event.start) === todayKey
+  );
+
+  const comingEvents = filteredEvents.filter(
+    (event) => formatDateForInput(event.start) > todayKey
+  );
+
+  const openEventDetails = (event) => {
+    setSelectedEvent(event);
+    setDetailsOpen(true);
+  };
+
+
+  // =========================================================
   // CALENDAR EVENT CLICK
   // =========================================================
 
@@ -596,6 +740,26 @@ function SchedulePage() {
         setCategory={setCategory}
       />
 
+      <div className="mb-4 mt-4 grid gap-4 md:grid-cols-2">
+        <EventList
+          title="Today's Events"
+          dot="bg-amber-400"
+          events={todaysEvents}
+          loading={loading}
+          emptyText="No events today."
+          onSelect={openEventDetails}
+        />
+        <EventList
+          title="Coming Events"
+          dot="bg-sky-400"
+          events={comingEvents}
+          loading={loading}
+          emptyText="No upcoming events."
+          showDate
+          onSelect={openEventDetails}
+        />
+      </div>
+
       <Calendar
         events={filteredEvents}
         onSelectSlot={({ start }) => {
@@ -605,36 +769,6 @@ function SchedulePage() {
         }}
         onEventClick={handleCalendarEventClick}
       />
-
-      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
-
-        {loading ? (
-          <div className="col-span-full rounded-xl border border-slate-700 bg-slate-900 p-8 text-center">
-            <p className="text-slate-400">Loading events...</p>
-          </div>
-        ) : filteredEvents.length > 0 ? (
-          filteredEvents.map((event) => (
-            <div
-              key={event.id}
-              className="cursor-pointer"
-              onClick={() => {
-                setSelectedEvent(event);
-                setDetailsOpen(true);
-              }}
-            >
-              <EventCard event={event} />
-            </div>
-          ))
-        ) : (
-          <div className="col-span-full rounded-xl border border-slate-700 bg-slate-900 p-8 text-center">
-            <p className="text-slate-400">No events found.</p>
-            <p className="text-sm text-slate-500 mt-1">
-              Try changing your search or category filter.
-            </p>
-          </div>
-        )}
-
-      </div>
 
       <AddEventModal
         open={modalOpen}

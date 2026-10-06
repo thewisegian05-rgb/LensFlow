@@ -1,628 +1,427 @@
-import { useEffect, useMemo, useState } from "react";
-import { FaPlus, FaSearch } from "react-icons/fa";
-
-import { supabase } from "../lib/supabaseClient";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  STAGE_KEYS,
-  STAGE_LABELS,
-  STAGE_COLUMN_BORDER,
-} from "../components/Workflow/workflowStages";
-import { CATEGORY_KEYS, CATEGORY_LABELS } from "../components/Schedule/eventCategory";
-import ProjectCard from "../components/Workflow/ProjectCard";
-import AddProjectModal from "../components/Workflow/Addprojectmodal";
+  FaChevronLeft,
+  FaChevronRight,
+  FaRegCalendarAlt,
+  FaUser,
+  FaMapMarkerAlt,
+} from "react-icons/fa";
+import { supabase } from "../lib/supabaseClient";
 
+/* ============ Stages (in order) ============ */
+// Values match what the rest of the app already stores in projects.stage
+// ("coming-events", "shoot-completed"), plus the new ones.
+const STAGES = [
+  { key: "coming-events", label: "Coming Events", dot: "bg-sky-400", text: "text-sky-400" },
+  { key: "today-event", label: "Today's Event", dot: "bg-amber-400", text: "text-amber-400" },
+  { key: "shoot-completed", label: "Shoot Completed", dot: "bg-violet-400", text: "text-violet-400" },
+  { key: "editing", label: "Editing", dot: "bg-orange-400", text: "text-orange-400" },
+  { key: "edit-complete", label: "Edit Complete", dot: "bg-indigo-400", text: "text-indigo-400" },
+  { key: "delivered", label: "Delivered", dot: "bg-teal-400", text: "text-teal-400" },
+  { key: "completed", label: "Completed", dot: "bg-emerald-400", text: "text-emerald-400" },
+];
+
+const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
+const SHOOT_COMPLETED_INDEX = STAGE_INDEX["shoot-completed"];
+
+/* ============ Helpers ============ */
+function todayString() {
+  return new Date().toLocaleDateString("en-CA"); // local YYYY-MM-DD
+}
+
+function formatDate(value) {
+  if (!value) return "No date";
+  const [y, m, d] = String(value).split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatTime(value) {
+  if (!value) return "";
+  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// Which column a scheduled shoot sits in. A stage you've set on the board wins;
+// otherwise it follows the shoot's date and status.
+function deriveStage(row, linkedProjectStage) {
+  const eventDay = new Date(row.start_time).toLocaleDateString("en-CA");
+
+  // A shoot that hasn't happened yet can only be in Coming Events.
+  if (eventDay > todayString()) return "coming-events";
+
+  if (row.workflow_stage in STAGE_INDEX) return row.workflow_stage;
+  if (linkedProjectStage in STAGE_INDEX && linkedProjectStage !== "coming-events") {
+    return linkedProjectStage;
+  }
+  if (row.status === "completed") return "shoot-completed";
+
+  const today = todayString();
+  if (eventDay === today) return "today-event";
+  return "shoot-completed";
+}
+
+// Moving past Coming Events is only allowed once the event's date has arrived.
+function isFutureEvent(item) {
+  return Boolean(item?.event_date) && item.event_date > todayString();
+}
+
+function sortProjects(a, b) {
+  return (a.start_time || "").localeCompare(b.start_time || "");
+}
+
+/* ============ Card ============ */
+function ProjectCard({ project, onMove, onDragStart, dragging }) {
+  const index = STAGE_INDEX[project.stage];
+  const locked = isFutureEvent(project);
+  const isToday = project.event_date === todayString();
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => onDragStart(e, project.id)}
+      className={`rounded-xl border border-slate-700 bg-slate-800/70 p-3 transition hover:border-sky-500/50 ${
+        dragging ? "opacity-40" : ""
+      } cursor-grab active:cursor-grabbing`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="text-sm font-medium leading-snug text-white">{project.name}</h4>
+        {project.category && (
+          <span className="flex-shrink-0 rounded-full bg-sky-500/10 px-2 py-0.5 text-[9px] font-semibold text-sky-400">
+            {project.category}
+          </span>
+        )}
+      </div>
+
+      {project.client && (
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
+          <FaUser className="text-[9px]" />
+          <span className="truncate">{project.client}</span>
+        </p>
+      )}
+
+      <p
+        className={`mt-1 flex items-center gap-1.5 text-[11px] ${
+          isToday ? "font-semibold text-amber-400" : "text-slate-400"
+        }`}
+      >
+        <FaRegCalendarAlt className="text-[9px]" />
+        {isToday ? "Today" : formatDate(project.event_date)}
+        {project.time && <span className="text-slate-500">· {project.time}</span>}
+      </p>
+
+      {project.location && (
+        <p className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+          <FaMapMarkerAlt className="text-[9px]" />
+          <span className="truncate">{project.location}</span>
+        </p>
+      )}
+
+      <div className="mt-3 flex items-center justify-between border-t border-slate-700/70 pt-2">
+        <button
+          type="button"
+          onClick={() => onMove(project.id, index - 1)}
+          disabled={index === 0}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+          aria-label="Move to previous stage"
+          title="Previous stage"
+        >
+          <FaChevronLeft className="text-[10px]" />
+        </button>
+
+        {project.project_code && (
+          <span className="font-mono text-[9px] text-slate-600">{project.project_code}</span>
+        )}
+
+        <button
+          type="button"
+          onClick={() => onMove(project.id, index + 1)}
+          disabled={index === STAGES.length - 1 || locked}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-sky-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+          aria-label="Move to next stage"
+          title={locked ? `Available on ${formatDate(project.event_date)}` : "Next stage"}
+        >
+          <FaChevronRight className="text-[10px]" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ============ Page ============ */
 function WorkflowPage() {
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState(null);
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // =========================================================
-  // LOAD PROJECTS (+ NESTED TASKS) FROM SUPABASE, AND MERGE IN
-  // UPCOMING SCHEDULE EVENTS THAT HAVEN'T BEEN PROMOTED YET
-  // =========================================================
-  //
-  // The Schedule tab writes to `schedule_events`, with `project_id` null
-  // until an event is linked to (or promoted into) a real project. Any
-  // event dated today or later with no project yet shows up here as a
-  // Coming Events card tagged "From Schedule."
+  const [notice, setNotice] = useState("");
 
-  const fetchUpcomingEvents = async () => {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 4500);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
-    const { data, error } = await supabase
+  const [draggingId, setDraggingId] = useState(null);
+  const [dragOverStage, setDragOverStage] = useState(null);
+
+  /* ---- auth ---- */
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user ?? null);
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  /* ---- load scheduled shoots (same source as the Schedule page) ---- */
+  const loadProjects = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    const { data: rows, error: eventErr } = await supabase
       .from("schedule_events")
       .select("*")
-      .gte("start_time", startOfToday.toISOString())
-      .is("project_id", null)
       .order("start_time", { ascending: true });
 
-    if (error) {
-      // Don't hard-fail the whole page if this query fails — just skip
-      // the merge and show whatever real projects loaded fine.
-      console.error("Failed to load schedule events:", error.message);
-      return [];
-    }
-
-    return data.map((ev) => ({
-      id: `event-${ev.id}`,
-      eventId: ev.id,
-      clientId: ev.client_id,
-      client: ev.client || ev.title,
-      category: ev.category,
-      date: new Date(ev.start_time).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-      dateRaw: ev.start_time,
-      notes: ev.notes,
-      stage: "coming-events",
-      tasks: [],
-      isScheduleEvent: true,
-    }));
-  };
-
-  const fetchProjects = async () => {
-    setLoading(true);
-
-    const { data, error } = await supabase
-      .from("projects")
-      .select("*, project_tasks(*)")
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error("Failed to load projects:", error.message);
+    if (eventErr) {
+      console.error("Events load failed:", eventErr);
+      setError(eventErr.message);
       setLoading(false);
       return;
     }
 
-    const mapped = data.map((row) => ({
-      id: row.id,
-      project_code: row.project_code,
-      client: row.client,
-      category: row.category,
-      date: row.event_date,
-      stage: row.stage,
-      notes: row.notes,
-      tasks: (row.project_tasks || [])
-        .sort((a, b) => a.position - b.position)
-        .map((t) => ({ id: t.id, text: t.text, done: t.done })),
-    }));
+    // Linked projects (optional): their code, and any stage already set there.
+    const projectIds = [...new Set(rows.map((r) => r.project_id).filter(Boolean))];
+    const projectById = {};
 
-    const upcomingEvents = await fetchUpcomingEvents();
+    if (projectIds.length > 0) {
+      const { data: linked, error: projectErr } = await supabase
+        .from("projects")
+        .select("id, project_code, stage")
+        .in("id", projectIds);
 
-    setProjects([...mapped, ...upcomingEvents]);
+      if (projectErr) console.error("Linked projects load failed:", projectErr);
+      (linked || []).forEach((p) => (projectById[p.id] = p));
+    }
+
+    const mapped = rows.map((row) => {
+      const linked = row.project_id ? projectById[row.project_id] : null;
+
+      return {
+        id: row.id,
+        project_id: row.project_id,
+        project_code: linked?.project_code || null,
+        name: row.title || "Untitled event",
+        client: row.client,
+        category: row.category,
+        location: row.location,
+        start_time: row.start_time,
+        event_date: new Date(row.start_time).toLocaleDateString("en-CA"),
+        time: formatTime(row.start_time),
+        stage: deriveStage(row, linked?.stage),
+      };
+    });
+
+    setProjects(mapped);
     setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchProjects();
   }, []);
 
-  // =========================================================
-  // FILTERING
-  // =========================================================
+  useEffect(() => {
+    if (user) loadProjects();
+    else setProjects([]);
+  }, [user, loadProjects]);
 
-  const filteredProjects = useMemo(() => {
-    const query = search.trim().toLowerCase();
+  /* ---- move a shoot to another stage ---- */
+  const moveProject = useCallback(
+    async (id, targetIndex) => {
+      if (targetIndex < 0 || targetIndex >= STAGES.length) return;
+      const stage = STAGES[targetIndex].key;
+      const item = projects.find((p) => p.id === id);
+      if (!item || item.stage === stage) return;
 
-    return projects.filter((project) => {
-      const matchesSearch =
-        !query || project.client.toLowerCase().includes(query);
-
-      const matchesCategory =
-        categoryFilter === "all" || project.category === categoryFilter;
-
-      return matchesSearch && matchesCategory;
-    });
-  }, [projects, search, categoryFilter]);
-
-  const projectsByStage = useMemo(() => {
-    const grouped = {};
-    STAGE_KEYS.forEach((key) => {
-      grouped[key] = [];
-    });
-
-    filteredProjects.forEach((project) => {
-      if (grouped[project.stage]) {
-        grouped[project.stage].push(project);
-      }
-    });
-
-    return grouped;
-  }, [filteredProjects]);
-
-  // =========================================================
-  // PROJECT ACTIONS
-  // =========================================================
-
-  const handleSaveProject = async (form) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      console.error("No authenticated user found.");
-      return;
-    }
-
-    if (form.id) {
-      const { error } = await supabase
-        .from("projects")
-        .update({
-          client: form.client,
-          category: form.category,
-          event_date: form.date,
-          stage: form.stage,
-          notes: form.notes,
-        })
-        .eq("id", form.id);
-
-      if (error) {
-        console.error("Failed to update project:", error.message);
-        return;
-      }
-    } else {
-      const { error } = await supabase.from("projects").insert([
-        {
-          user_id: user.id,
-          client: form.client,
-          category: form.category,
-          event_date: form.date,
-          stage: form.stage || STAGE_KEYS[0],
-          notes: form.notes || "",
-        },
-      ]);
-
-      if (error) {
-        console.error("Failed to create project:", error.message);
-        return;
-      }
-    }
-
-    setModalOpen(false);
-    setEditingProject(null);
-    await fetchProjects();
-  };
-
-  const handleEditProject = (project) => {
-    setEditingProject(project);
-    setModalOpen(true);
-  };
-
-  // =========================================================
-  // RESYNC OR REMOVE A CLIENT AFTER THEIR EVENTS CHANGE
-  // =========================================================
-  //
-  // `clients.project` / `venue` / `category` are a snapshot written
-  // from the Schedule tab whenever an event is saved — it's what
-  // ClientPage falls back to display when a client has no *current*
-  // events. If the client still has other events left, we just
-  // refresh that snapshot to the next one. If they have none at all,
-  // the client record itself is deleted — including any manually
-  // entered contact info, email, or notes — rather than left behind
-  // as an empty shell. This is a deliberate, confirmed choice: there
-  // is no "keep the client but empty" middle ground here.
-
-  const syncOrRemoveClient = async (clientId) => {
-    if (!clientId) return;
-
-    const { data: remainingEvents, error } = await supabase
-      .from("schedule_events")
-      .select("title, location, category, start_time")
-      .eq("client_id", clientId)
-      .order("start_time", { ascending: true });
-
-    if (error) {
-      console.error(
-        "Failed to check remaining events for client:",
-        error.message
-      );
-      return;
-    }
-
-    if (!remainingEvents || remainingEvents.length === 0) {
-      const { error: deleteError } = await supabase
-        .from("clients")
-        .delete()
-        .eq("id", clientId);
-
-      if (deleteError) {
-        console.error(
-          "Failed to delete client with no remaining events:",
-          deleteError.message
-        );
-      }
-
-      return;
-    }
-
-    const now = new Date();
-    const upcoming = remainingEvents.filter(
-      (event) => new Date(event.start_time) >= now
-    );
-
-    const active = upcoming[0] || remainingEvents[remainingEvents.length - 1];
-
-    const { error: updateError } = await supabase
-      .from("clients")
-      .update({
-        project: active?.title || null,
-        venue: active?.location || null,
-        category: active?.category || null,
-      })
-      .eq("id", clientId);
-
-    if (updateError) {
-      console.error(
-        "Failed to update client project snapshot:",
-        updateError.message
-      );
-    }
-  };
-
-  const handleDeleteProject = async (id) => {
-    const project = projects.find((p) => p.id === id);
-
-    if (!project) return;
-
-    // "Coming Events" cards aren't real project rows — they're just
-    // unlinked schedule_events surfaced here (see fetchUpcomingEvents
-    // above). There's nothing in the `projects` table to delete; the
-    // thing to delete is the schedule_events row itself, which is
-    // also what makes it disappear from the Schedule tab.
-    if (project.isScheduleEvent) {
-      const { error } = await supabase
-        .from("schedule_events")
-        .delete()
-        .eq("id", project.eventId);
-
-      if (error) {
-        console.error("Failed to delete schedule event:", error.message);
-        return;
-      }
-
-      await syncOrRemoveClient(project.clientId);
-      await fetchProjects();
-      return;
-    }
-
-    // Real project row. Find every client whose event links to this
-    // project before we delete those events, so we know who to
-    // resync afterward.
-    const { data: linkedEvents, error: linkedFetchError } = await supabase
-      .from("schedule_events")
-      .select("client_id")
-      .eq("project_id", id);
-
-    if (linkedFetchError) {
-      console.error(
-        "Failed to look up events linked to this project:",
-        linkedFetchError.message
-      );
-      return;
-    }
-
-    // If it was promoted from a schedule event (see handleMoveStage
-    // below), that event still points project_id at this project —
-    // delete it too so it disappears from Schedule as well, not just
-    // here.
-    const { error: eventsDeleteError } = await supabase
-      .from("schedule_events")
-      .delete()
-      .eq("project_id", id);
-
-    if (eventsDeleteError) {
-      console.error(
-        "Failed to delete schedule events linked to this project:",
-        eventsDeleteError.message
-      );
-      return;
-    }
-
-    const affectedClientIds = [
-      ...new Set((linkedEvents || []).map((e) => e.client_id).filter(Boolean)),
-    ];
-
-    for (const clientId of affectedClientIds) {
-      await syncOrRemoveClient(clientId);
-    }
-
-    const { error } = await supabase.from("projects").delete().eq("id", id);
-
-    if (error) {
-      console.error("Failed to delete project:", error.message);
-      return;
-    }
-
-    await fetchProjects();
-  };
-
-  // Moves a card to targetStage. For a real project row this just updates
-  // `stage`. For a card pulled in from Schedule (isScheduleEvent), clicking
-  // "Event Finished" promotes it into an actual project row and links the
-  // event back to it so it won't show up as "upcoming" again.
-  //
-  // Guard: a schedule-derived card can only be promoted once its shoot
-  // date has arrived (today or earlier) — it can't be pushed forward
-  // while the shoot is still in the future, even if the button in the
-  // UI is somehow bypassed.
-  const handleMoveStage = async (id, targetStage) => {
-    if (!targetStage) return;
-
-    const project = projects.find((p) => p.id === id);
-    if (!project) return;
-
-    if (project.isScheduleEvent) {
-      const eventDate = new Date(project.dateRaw);
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-
-      const startOfEventDay = new Date(
-        eventDate.getFullYear(),
-        eventDate.getMonth(),
-        eventDate.getDate()
-      );
-
-      if (startOfEventDay > startOfToday) {
-        console.error(
-          "Cannot promote a shoot that hasn't happened yet:",
-          project.client
+      // Not before the shoot's date.
+      if (targetIndex > 0 && isFutureEvent(item)) {
+        setNotice(
+          `"${item.name}" is scheduled for ${formatDate(item.event_date)}, so it can't move past Coming Events yet.`
         );
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const previous = item.stage;
+      setError("");
+      setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, stage } : p)));
 
-      if (!user) {
-        console.error("No authenticated user found.");
-        return;
+      const update = { workflow_stage: stage };
+      // Same status the Schedule page sets when a shoot is done.
+      if (targetIndex >= SHOOT_COMPLETED_INDEX && STAGE_INDEX[previous] < SHOOT_COMPLETED_INDEX) {
+        update.status = "completed";
       }
 
-      const { data: newProject, error: insertErr } = await supabase
-        .from("projects")
-        .insert([
-          {
-            user_id: user.id,
-            client: project.client,
-            category: project.category,
-            event_date: project.dateRaw,
-            stage: targetStage,
-            notes: project.notes || "",
-          },
-        ])
-        .select()
-        .single();
-
-      if (insertErr) {
-        console.error("Failed to promote event to project:", insertErr.message);
-        return;
-      }
-
-      const { error: linkErr } = await supabase
+      const { error: moveErr } = await supabase
         .from("schedule_events")
-        .update({ project_id: newProject.id })
-        .eq("id", project.eventId);
-
-      if (linkErr) {
-        console.error("Failed to link event to new project:", linkErr.message);
-      }
-    } else {
-      const { error } = await supabase
-        .from("projects")
-        .update({ stage: targetStage })
+        .update(update)
         .eq("id", id);
 
-      if (error) {
-        console.error("Failed to move project stage:", error.message);
+      if (moveErr) {
+        console.error("Move failed:", moveErr);
+        setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, stage: previous } : p)));
+        setError(
+          moveErr.message.includes("workflow_stage")
+            ? "The workflow_stage column is missing. Run the SQL from the chat, then try again."
+            : moveErr.message
+        );
         return;
       }
-    }
 
-    await fetchProjects();
-  };
+      // Keep the linked project (if there is one) on the same stage.
+      if (item.project_id) {
+        const { error: projectErr } = await supabase
+          .from("projects")
+          .update({ stage })
+          .eq("id", item.project_id);
 
-  // =========================================================
-  // TASK ACTIONS
-  // =========================================================
+        if (projectErr) console.error("Failed to sync linked project:", projectErr);
+      }
+    },
+    [projects]
+  );
 
-  const handleToggleTask = async (projectId, taskId) => {
-    const project = projects.find((p) => p.id === projectId);
-    const task = project?.tasks.find((t) => t.id === taskId);
+  /* ---- drag & drop ---- */
+  function handleDragStart(e, id) {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", id);
+    setDraggingId(id);
+  }
 
-    if (!task) return;
+  function handleDragEnd() {
+    setDraggingId(null);
+    setDragOverStage(null);
+  }
 
-    const { error } = await supabase
-      .from("project_tasks")
-      .update({ done: !task.done })
-      .eq("id", taskId);
+  function handleDrop(e, stageKey) {
+    e.preventDefault();
+    const id = e.dataTransfer.getData("text/plain") || draggingId;
+    setDragOverStage(null);
+    setDraggingId(null);
+    if (id) moveProject(id, STAGE_INDEX[stageKey]);
+  }
 
-    if (error) {
-      console.error("Failed to toggle task:", error.message);
-      return;
-    }
+  /* ---- grouping ---- */
+  const grouped = useMemo(() => {
+    const map = Object.fromEntries(STAGES.map((s) => [s.key, []]));
+    projects.forEach((p) => map[p.stage].push(p));
+    Object.values(map).forEach((list) => list.sort(sortProjects));
+    return map;
+  }, [projects]);
 
-    await fetchProjects();
-  };
+  /* ============ RENDER ============ */
+  if (authLoading) {
+    return <p className="mt-20 text-center text-sm text-slate-500">Loading...</p>;
+  }
 
-  const handleAddTask = async (projectId, text) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      console.error("No authenticated user found.");
-      return;
-    }
-
-    const project = projects.find((p) => p.id === projectId);
-    const position = project?.tasks.length || 0;
-
-    const { error } = await supabase.from("project_tasks").insert([
-      {
-        project_id: projectId,
-        user_id: user.id,
-        text,
-        done: false,
-        position,
-      },
-    ]);
-
-    if (error) {
-      console.error("Failed to add task:", error.message);
-      return;
-    }
-
-    await fetchProjects();
-  };
-
-  const handleDeleteTask = async (projectId, taskId) => {
-    const { error } = await supabase
-      .from("project_tasks")
-      .delete()
-      .eq("id", taskId);
-
-    if (error) {
-      console.error("Failed to delete task:", error.message);
-      return;
-    }
-
-    await fetchProjects();
-  };
-
-  // =========================================================
-  // PAGE
-  // =========================================================
+  if (!user) {
+    return (
+      <p className="mt-20 text-center text-sm text-slate-500">
+        Sign in to see your workflow.
+      </p>
+    );
+  }
 
   return (
-    <div className="p-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Workflow</h1>
-          <p className="text-slate-400 mt-1">
-            Track every project from inquiry to delivery.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            setEditingProject(null);
-            setModalOpen(true);
-          }}
-          className="
-            px-5 py-2.5 rounded-lg bg-sky-500 hover:bg-sky-600
-            text-slate-900 font-semibold transition
-            flex items-center gap-2 self-start md:self-auto
-          "
-        >
-          <FaPlus className="text-xs" /> New Project
-        </button>
+    <div onDragEnd={handleDragEnd}>
+      <div className="mb-5">
+        <h2 className="text-xl font-semibold text-white sm:text-2xl">Workflow</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Every shoot from your Schedule, from booking to delivery. Drag cards between stages or use the arrows.
+        </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by client..."
-            className="
-              w-full bg-slate-900 border border-slate-700 rounded-lg
-              pl-9 pr-3 py-2.5 text-white placeholder-slate-500
-              outline-none focus:border-sky-500
-            "
-          />
+      {notice && (
+        <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-300">
+          {notice}
         </div>
+      )}
 
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="
-            bg-slate-900 border border-slate-700 rounded-lg
-            px-3 py-2.5 text-white outline-none focus:border-sky-500
-          "
-        >
-          <option value="all">All Categories</option>
-          {CATEGORY_KEYS.map((key) => (
-            <option key={key} value={key}>
-              {CATEGORY_LABELS[key]}
-            </option>
-          ))}
-        </select>
-      </div>
+      {error && (
+        <div className="mb-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300">
+          {error}
+        </div>
+      )}
 
-      <div className="workflow-container">
-        {loading ? (
-          <p className="text-slate-400 px-2">Loading projects...</p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-start">
-            {STAGE_KEYS.map((stage) => {
-              const stageProjects = projectsByStage[stage] || [];
+      {loading ? (
+        <p className="py-16 text-center text-sm text-slate-500">Loading your shoots...</p>
+      ) : (
+        <div className="flex gap-4 overflow-x-auto pb-4 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
+          {STAGES.map((stage) => {
+            const list = grouped[stage.key];
+            const isOver = dragOverStage === stage.key;
 
-              return (
-                <div
-                  key={stage}
-                  className={`
-                    min-w-0
-                    bg-slate-50 border border-slate-200
-                    border-t-2 ${STAGE_COLUMN_BORDER[stage]}
-                    rounded-xl p-3
-                    dark:bg-slate-900/60 dark:border-slate-800
-                  `}
-                >
-                  <div className="flex items-center justify-between mb-3 px-1">
-                    <h3 className="text-sm font-semibold text-white truncate">
-                      {STAGE_LABELS[stage]}
-                    </h3>
-                    <span className="text-xs text-slate-500 font-mono flex-shrink-0 ml-1">
-                      {stageProjects.length}
-                    </span>
-                  </div>
+            return (
+              <section
+                key={stage.key}
+                onDragOver={(e) => {
+                  const dragged = projects.find((p) => p.id === draggingId);
+                  const blocked = isFutureEvent(dragged) && STAGE_INDEX[stage.key] > 0;
+                  if (blocked) {
+                    e.dataTransfer.dropEffect = "none";
+                    return; // not preventing default = drop not allowed here
+                  }
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (dragOverStage !== stage.key) setDragOverStage(stage.key);
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget)) setDragOverStage(null);
+                }}
+                onDrop={(e) => handleDrop(e, stage.key)}
+                className={`flex max-h-[calc(100vh-12rem)] w-72 flex-shrink-0 flex-col rounded-2xl border bg-slate-900/70 transition-colors ${
+                  isOver ? "border-sky-500/70 bg-sky-500/5" : "border-slate-800"
+                }`}
+              >
+                <header className="flex items-center justify-between gap-2 px-4 py-3">
+                  <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                    <span className={`h-2 w-2 flex-shrink-0 rounded-full ${stage.dot}`} />
+                    <span className="truncate">{stage.label}</span>
+                  </h3>
+                  <span
+                    className={`rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-bold tabular-nums ${stage.text}`}
+                  >
+                    {list.length}
+                  </span>
+                </header>
 
-                  <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
-                    {stageProjects.length === 0 && (
-                      <p className="text-xs text-slate-600 text-center py-6">
-                        No projects here yet.
-                      </p>
-                    )}
-
-                    {stageProjects.map((project) => (
+                <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
+                  {list.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-700 py-8 text-center text-[11px] text-slate-600">
+                      {isOver ? "Drop here" : "Nothing here"}
+                    </div>
+                  ) : (
+                    list.map((project) => (
                       <ProjectCard
                         key={project.id}
                         project={project}
-                        onMoveStage={handleMoveStage}
-                        onToggleTask={handleToggleTask}
-                        onAddTask={handleAddTask}
-                        onDeleteTask={handleDeleteTask}
-                        onEdit={handleEditProject}
-                        onDelete={handleDeleteProject}
+                        dragging={draggingId === project.id}
+                        onMove={moveProject}
+                        onDragStart={handleDragStart}
                       />
-                    ))}
-                  </div>
+                    ))
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <AddProjectModal
-        open={modalOpen}
-        onClose={() => {
-          setModalOpen(false);
-          setEditingProject(null);
-        }}
-        onSave={handleSaveProject}
-        editingProject={editingProject}
-      />
+              </section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -147,15 +147,12 @@ function StatCard({ title, value, subtitle, icon, iconClass }) {
 // Compact category chip — icon + count on one row, label below. Fills
 // its grid cell rather than a fixed width, so it scales cleanly across
 // the responsive column counts above.
-// Zero-count categories are dimmed rather than hidden, so the full
-// service lineup stays visible without competing visually with the
-// categories that actually have bookings.
+// Every chip is always shown in full color, including categories with
+// 0 events, so the whole service lineup stays clearly visible.
 function CategoryChip({ title, value, icon, iconClass }) {
-  const isEmpty = value === 0;
-
   return (
     <div
-      className={`
+      className="
         min-w-0
         bg-slate-900
         border
@@ -164,22 +161,17 @@ function CategoryChip({ title, value, icon, iconClass }) {
         p-3
         hover:border-slate-600
         transition
-        ${isEmpty ? "opacity-50" : ""}
-      `}
+      "
     >
       <div className="flex items-center justify-between mb-2">
         <div
-          className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${
-            isEmpty ? "bg-slate-800 text-slate-500" : iconClass
-          }`}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${iconClass}`}
         >
           {icon}
         </div>
-        <span className={`text-xl font-bold ${isEmpty ? "text-slate-500" : "text-white"}`}>
-          {value}
-        </span>
+        <span className="text-xl font-bold text-white">{value}</span>
       </div>
-      <p className="text-xs text-slate-400 leading-tight truncate" title={title}>
+      <p className="text-xs text-slate-300 leading-tight truncate" title={title}>
         {title}
       </p>
     </div>

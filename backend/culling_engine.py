@@ -29,10 +29,10 @@ CONFIG = {
     "bright_pixel_threshold": 225,
 
     # Absolute quality calibration
-    "sharpness_low": 10.0,
-    "sharpness_high": 50.0,
-    "face_sharpness_low": 10.0,
-    "face_sharpness_high": 80.0,
+    "sharpness_low": 30.0,
+    "sharpness_high": 75.0,
+    "face_sharpness_low": 6.0,
+    "face_sharpness_high": 60.0,
     "aesthetic_low": 2.0,
     "aesthetic_high": 5.0,
 
@@ -46,10 +46,10 @@ CONFIG = {
     "partial_blink": 0.35,
     "probable_closed_eyes": 0.50,
     "strong_closed_eyes": 0.70,
-    "overexposed_pixels": 25.0,
-    "underexposed_pixels": 15.0,
-    "very_low_sharpness_score": 0.15,
-    "low_sharpness_score": 0.30,
+    "overexposed_pixels": 30.0,
+    "underexposed_pixels": 20.0,
+    "very_low_sharpness": 0.15,
+    "low_sharpness": 0.40,
 
     # Decision thresholds
     "keep_margin": 0.08,
@@ -646,6 +646,7 @@ def detect_defects(
     bright_pixels_percent,
     dark_pixels_percent,
     technical_score,
+    sharpness=None,
 ):
     """
     Detects specific quality concerns separately from the Base Quality Score.
@@ -704,15 +705,15 @@ def detect_defects(
             "message": "Possible underexposure",
         })
 
-    if technical_score is not None:
-        if technical_score <= CONFIG["very_low_sharpness_score"]:
+    if sharpness is not None:
+        if sharpness < CONFIG["very_low_sharpness"]:
             defects.append({
                 "type": "sharpness",
                 "severity": "strong",
                 "message": "Very low sharpness",
             })
 
-        elif technical_score <= CONFIG["low_sharpness_score"]:
+        elif sharpness <= CONFIG["low_sharpness"]:
             defects.append({
                 "type": "sharpness",
                 "severity": "moderate",

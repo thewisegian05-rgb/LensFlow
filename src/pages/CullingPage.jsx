@@ -55,7 +55,26 @@ const FILTERS = [
   { key: "ai_reject", label: "Reject", group: "ai" },
 ];
 
-const ACCEPTED_ATTR = "image/*,.cr3,.nef,.arw,.dng,.raw,.rw2,.orf";
+const ACCEPTED_ATTR = "image/*,.cr2,.cr3,.nef,.arw,.dng,.raw,.rw2,.orf";
+
+const RAW_EXTENSIONS = new Set([
+  "cr2",
+  "cr3",
+  "nef",
+  "arw",
+  "dng",
+  "raf",
+  "rw2",
+  "orf",
+  "pef",
+  "srw",
+  "raw",
+]);
+
+function isRawFileName(fileName) {
+  const extension = String(fileName || "").split(".").pop()?.toLowerCase();
+  return RAW_EXTENSIONS.has(extension);
+}
 
 const CULLING_JOB_STORAGE_KEY = "lensflow_active_culling_job";
 
@@ -169,7 +188,9 @@ const PhotoTile = memo(function PhotoTile({
       ) : (
         <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-800 px-2 text-center">
           <FaFileImage className="text-2xl text-slate-600" />
-          <span className="w-full truncate text-[10px] text-slate-500">No preview</span>
+          <span className="w-full truncate text-[10px] text-slate-500">
+            {isRawFileName(img.fileName) ? "Generating RAW preview..." : "No preview"}
+          </span>
         </div>
       )}
 
@@ -237,11 +258,22 @@ const PhotoTile = memo(function PhotoTile({
           >
             {aiResult.ai_decision}
           </span>
-          {aiResult.base_quality_score != null && (
-            <span className="rounded-full px-2 py-1 text-[9px] font-semibold bg-white/90 text-slate-800 dark:bg-black/70 dark:text-white">
-              {formatPercent(aiResult.base_quality_score)}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {aiResult.similarity_group && (
+              <span
+                className="rounded-full bg-sky-500 px-2 py-1 text-[9px] font-semibold text-white shadow"
+                title={`Similarity group ${aiResult.similarity_group}`}
+              >
+                {aiResult.similarity_group}
+              </span>
+            )}
+
+            {aiResult.base_quality_score != null && (
+              <span className="rounded-full px-2 py-1 text-[9px] font-semibold bg-white/90 text-slate-800 dark:bg-black/70 dark:text-white">
+                {formatPercent(aiResult.base_quality_score)}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -593,6 +625,8 @@ function CullingPage() {
   const fileInputRef = useRef(null);
   const cullingPollingJobRef = useRef(null);
   const [backfill, setBackfill] = useState(null);
+  const rawPreviewRunningRef = useRef(new Set());
+  const rawPreviewFailedRef = useRef(new Set());
 
   // Uploads run in a shared background manager (src/lib/uploadManager.js),
   // so they keep going when you switch folders, tabs, or pages.
@@ -848,6 +882,63 @@ function CullingPage() {
     }
   };
 
+  // Generate a browser-friendly WebP preview for RAW photos through FastAPI.
+  // Browsers cannot reliably decode CR2/CR3/NEF/etc. directly, so RAW files
+  // use the backend-generated thumbnail while the original RAW stays untouched.
+  const generateRawPreview = useCallback(async (photo, session) => {
+    if (!photo?.id || !isRawFileName(photo.fileName)) return;
+    if (photo.thumbPath || rawPreviewRunningRef.current.has(photo.id)) return;
+    if (rawPreviewFailedRef.current.has(photo.id)) return;
+
+    rawPreviewRunningRef.current.add(photo.id);
+
+    try {
+      const activeSession = session || (await supabase.auth.getSession()).data.session;
+
+      if (!activeSession) {
+        throw new Error("No active Supabase session.");
+      }
+
+      const response = await fetch("http://127.0.0.1:8000/generate-preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${activeSession.access_token}`,
+          "X-Refresh-Token": activeSession.refresh_token,
+        },
+        body: JSON.stringify({
+          photo_id: photo.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data?.success || !data?.thumb_path) {
+        throw new Error(data?.detail || "Failed to generate RAW preview.");
+      }
+
+      const thumbUrl = await getSignedUrl(data.thumb_path);
+
+      setPhotos((prev) =>
+        prev.map((item) =>
+          item.id === photo.id
+            ? {
+                ...item,
+                thumbPath: data.thumb_path,
+                thumbUrl: thumbUrl || null,
+                previewable: Boolean(thumbUrl),
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      rawPreviewFailedRef.current.add(photo.id);
+      console.error("RAW preview generation failed for", photo.fileName, error);
+    } finally {
+      rawPreviewRunningRef.current.delete(photo.id);
+    }
+  }, []);
+
   /* ---- load folders + photos for the signed-in user ---- */
   const loadData = useCallback(async (userId) => {
     setDataLoading(true);
@@ -903,9 +994,13 @@ function CullingPage() {
       }
     }
 
-    const previewableRows = photoRows.filter((p) => p.previewable);
+    const previewableRows = photoRows.filter(
+      (p) => p.previewable || isRawFileName(p.file_name)
+    );
     const withThumb = previewableRows.filter((p) => p.thumb_path);
-    const withoutThumb = previewableRows.filter((p) => !p.thumb_path);
+    const withoutThumb = previewableRows.filter(
+      (p) => !p.thumb_path && !isRawFileName(p.file_name)
+    );
 
     // New photos: sign every stored thumbnail in ONE request.
     const thumbMap = await getSignedUrlMap(withThumb.map((p) => p.thumb_path));
@@ -930,7 +1025,7 @@ function CullingPage() {
       thumbPath: p.thumb_path || null,
       thumbUrl: previewUrlMap[p.id] || null,
       fullUrl: null,
-      previewable: p.previewable,
+      previewable: p.previewable || isRawFileName(p.file_name),
       sizeLabel: p.size_bytes ? formatBytes(p.size_bytes) : null,
     }));
 
@@ -1018,6 +1113,47 @@ function CullingPage() {
       setPath([]);
     }
   }, [user, loadData]);
+
+  useEffect(() => {
+    if (!user || dataLoading || photos.length === 0) return;
+
+    let cancelled = false;
+
+    const generateMissingRawPreviews = async () => {
+      const targets = photos.filter(
+        (photo) =>
+          isRawFileName(photo.fileName) &&
+          !photo.thumbPath &&
+          !rawPreviewFailedRef.current.has(photo.id)
+      );
+
+      if (targets.length === 0) return;
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (cancelled || !session) return;
+
+      let next = 0;
+
+      const worker = async () => {
+        while (!cancelled) {
+          const index = next++;
+          if (index >= targets.length) return;
+          await generateRawPreview(targets[index], session);
+        }
+      };
+
+      await Promise.all([worker(), worker()]);
+    };
+
+    generateMissingRawPreviews();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [photos, user, dataLoading, generateRawPreview]);
 
   // Root-level "Unsorted" — used when dropping files with no folder open.
   async function findOrCreateUnsortedFolder() {
@@ -1180,6 +1316,28 @@ function CullingPage() {
   const loadOriginalUrl = useCallback(async (image) => {
     if (!image?.storagePath) return null;
 
+    // RAW files cannot be displayed directly by most browsers.
+    // Use the generated WebP preview instead.
+    if (isRawFileName(image.fileName)) {
+      const previewUrl = image.thumbUrl || null;
+
+      if (previewUrl) {
+        setPhotos((prev) =>
+          prev.map((photo) =>
+            photo.id === image.id
+              ? {
+                  ...photo,
+                  fullUrl: previewUrl,
+                }
+              : photo
+          )
+        );
+      }
+
+      return previewUrl;
+    }
+
+    // Normal JPG/PNG/etc. files use the original full-quality file.
     if (image.fullUrl) return image.fullUrl;
 
     setOriginalLoadingId(image.id);
@@ -1190,7 +1348,12 @@ function CullingPage() {
       if (url) {
         setPhotos((prev) =>
           prev.map((photo) =>
-            photo.id === image.id ? { ...photo, fullUrl: url } : photo
+            photo.id === image.id
+              ? {
+                  ...photo,
+                  fullUrl: url,
+                }
+              : photo
           )
         );
       }
@@ -1783,7 +1946,7 @@ function CullingPage() {
                                 {isDragging ? "Drop photos here" : "Drag & drop photos here, or click to browse"}
                               </p>
                               <p className={`text-slate-500 ${lightboxImage ? "text-[10px] truncate" : "mt-1 text-sm"}`}>
-                                JPG, PNG, WEBP and supported RAW files (CR3, NEF, ARW, DNG)
+                                JPG, PNG, WEBP and supported RAW files (CR2, CR3, NEF, ARW, DNG)
                               </p>
                             </div>
                           </div>
@@ -2782,7 +2945,7 @@ function CullingPage() {
               <FaCrown />
               {bestPicks[dupLightboxSet.id] === dupLightboxImage.id
                 ? "This is the best pick"
-                : "Mark as best (S)"}
+                : "Mark as best pick"}
             </button>
           </div>
         </div>

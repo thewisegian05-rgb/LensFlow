@@ -12,13 +12,48 @@ import { supabase } from "../lib/supabaseClient";
 // Values match what the rest of the app already stores in projects.stage
 // ("coming-events", "shoot-completed"), plus the new ones.
 const STAGES = [
-  { key: "coming-events", label: "Coming Events", dot: "bg-sky-400", text: "text-sky-400" },
-  { key: "today-event", label: "Today's Event", dot: "bg-amber-400", text: "text-amber-400" },
-  { key: "shoot-completed", label: "Shoot Completed", dot: "bg-violet-400", text: "text-violet-400" },
-  { key: "editing", label: "Editing", dot: "bg-orange-400", text: "text-orange-400" },
-  { key: "edit-complete", label: "Edit Complete", dot: "bg-indigo-400", text: "text-indigo-400" },
-  { key: "delivered", label: "Delivered", dot: "bg-teal-400", text: "text-teal-400" },
-  { key: "completed", label: "Completed", dot: "bg-emerald-400", text: "text-emerald-400" },
+  {
+    key: "coming-events",
+    label: "Coming Events",
+    dot: "bg-sky-500",
+    text: "text-sky-600 dark:text-sky-400",
+  },
+  {
+    key: "today-event",
+    label: "Today's Event",
+    dot: "bg-amber-500",
+    text: "text-amber-600 dark:text-amber-400",
+  },
+  {
+    key: "shoot-completed",
+    label: "Shoot Completed",
+    dot: "bg-violet-500",
+    text: "text-violet-600 dark:text-violet-400",
+  },
+  {
+    key: "editing",
+    label: "Editing",
+    dot: "bg-orange-500",
+    text: "text-orange-600 dark:text-orange-400",
+  },
+  {
+    key: "edit-complete",
+    label: "Edit Complete",
+    dot: "bg-indigo-500",
+    text: "text-indigo-600 dark:text-indigo-400",
+  },
+  {
+    key: "delivered",
+    label: "Delivered",
+    dot: "bg-teal-500",
+    text: "text-teal-600 dark:text-teal-400",
+  },
+  {
+    key: "completed",
+    label: "Completed",
+    dot: "bg-emerald-500",
+    text: "text-emerald-600 dark:text-emerald-400",
+  },
 ];
 
 const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
@@ -82,21 +117,23 @@ function ProjectCard({ project, onMove, onDragStart, dragging }) {
     <div
       draggable
       onDragStart={(e) => onDragStart(e, project.id)}
-      className={`rounded-xl border border-slate-700 bg-slate-800/70 p-3 transition hover:border-sky-500/50 ${
-        dragging ? "opacity-40" : ""
-      } cursor-grab active:cursor-grabbing`}
+      className={`rounded-xl border border-slate-200 bg-white p-3 transition
+        hover:border-sky-400 hover:shadow-sm
+        dark:border-slate-700 dark:bg-slate-800/70 dark:hover:border-sky-500/50
+        ${dragging ? "opacity-40" : ""}
+        cursor-grab active:cursor-grabbing`}
     >
       <div className="flex items-start justify-between gap-2">
-        <h4 className="text-sm font-medium leading-snug text-white">{project.name}</h4>
+        <h4 className="text-sm font-medium leading-snug text-slate-900 dark:text-white">{project.name}</h4>
         {project.category && (
-          <span className="flex-shrink-0 rounded-full bg-sky-500/10 px-2 py-0.5 text-[9px] font-semibold text-sky-400">
+          <span className="flex-shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-semibold text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
             {project.category}
           </span>
         )}
       </div>
 
       {project.client && (
-        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400">
           <FaUser className="text-[9px]" />
           <span className="truncate">{project.client}</span>
         </p>
@@ -104,7 +141,9 @@ function ProjectCard({ project, onMove, onDragStart, dragging }) {
 
       <p
         className={`mt-1 flex items-center gap-1.5 text-[11px] ${
-          isToday ? "font-semibold text-amber-400" : "text-slate-400"
+          isToday
+            ? "font-semibold text-amber-600 dark:text-amber-400"
+            : "text-slate-600 dark:text-slate-400"
         }`}
       >
         <FaRegCalendarAlt className="text-[9px]" />
@@ -119,28 +158,34 @@ function ProjectCard({ project, onMove, onDragStart, dragging }) {
         </p>
       )}
 
-      <div className="mt-3 flex items-center justify-between border-t border-slate-700/70 pt-2">
+      <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-2 dark:border-slate-700/70">
         <button
           type="button"
           onClick={() => onMove(project.id, index - 1)}
           disabled={index === 0}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
-          aria-label="Move to previous stage"
+          className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition
+            hover:bg-slate-100 hover:text-slate-800
+            dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white
+            disabled:cursor-not-allowed disabled:opacity-30
+            disabled:hover:bg-transparent"
           title="Previous stage"
         >
           <FaChevronLeft className="text-[10px]" />
         </button>
 
         {project.project_code && (
-          <span className="font-mono text-[9px] text-slate-600">{project.project_code}</span>
+          <span className="font-mono text-[9px] text-slate-400 dark:text-slate-600">{project.project_code}</span>
         )}
 
         <button
           type="button"
           onClick={() => onMove(project.id, index + 1)}
           disabled={index === STAGES.length - 1 || locked}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-sky-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
-          aria-label="Move to next stage"
+          className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition
+            hover:bg-sky-500 hover:text-slate-950
+            dark:text-slate-400
+            disabled:cursor-not-allowed disabled:opacity-30
+            disabled:hover:bg-transparent disabled:hover:text-slate-400"
           title={locked ? `Available on ${formatDate(project.event_date)}` : "Next stage"}
         >
           <FaChevronRight className="text-[10px]" />
@@ -340,20 +385,22 @@ function WorkflowPage() {
   return (
     <div onDragEnd={handleDragEnd}>
       <div className="mb-5">
-        <h2 className="text-xl font-semibold text-white sm:text-2xl">Workflow</h2>
+        <h2 className="text-xl font-semibold text-slate-900 dark:text-white sm:text-2xl">
+          Workflow
+        </h2>
         <p className="mt-1 text-xs text-slate-500">
           Every shoot from your Schedule, from booking to delivery. Drag cards between stages or use the arrows.
         </p>
       </div>
 
       {notice && (
-        <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-300">
+        <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
           {notice}
         </div>
       )}
 
       {error && (
-        <div className="mb-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300">
+        <div className="mb-4 rounded-xl border border-rose-500/40 bg-rose-50 p-3 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
           {error}
         </div>
       )}
@@ -361,7 +408,7 @@ function WorkflowPage() {
       {loading ? (
         <p className="py-16 text-center text-sm text-slate-500">Loading your shoots...</p>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-4 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
+        <div className="flex gap-4 overflow-x-auto pb-4 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
           {STAGES.map((stage) => {
             const list = grouped[stage.key];
             const isOver = dragOverStage === stage.key;
@@ -384,25 +431,31 @@ function WorkflowPage() {
                   if (!e.currentTarget.contains(e.relatedTarget)) setDragOverStage(null);
                 }}
                 onDrop={(e) => handleDrop(e, stage.key)}
-                className={`flex max-h-[calc(100vh-12rem)] w-72 flex-shrink-0 flex-col rounded-2xl border bg-slate-900/70 transition-colors ${
-                  isOver ? "border-sky-500/70 bg-sky-500/5" : "border-slate-800"
+                className={`flex max-h-[calc(100vh-12rem)] w-72 flex-shrink-0 flex-col rounded-2xl border bg-white/70 transition-colors
+                dark:bg-slate-900/70
+                ${
+                  isOver
+                    ? "border-sky-400 bg-sky-50/70 dark:border-sky-500/70 dark:bg-sky-500/5"
+                    : "border-slate-200 dark:border-slate-800"
                 }`}
               >
                 <header className="flex items-center justify-between gap-2 px-4 py-3">
-                  <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                     <span className={`h-2 w-2 flex-shrink-0 rounded-full ${stage.dot}`} />
                     <span className="truncate">{stage.label}</span>
                   </h3>
                   <span
-                    className={`rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-bold tabular-nums ${stage.text}`}
+                    className={`rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold tabular-nums
+                    dark:bg-slate-800
+                    ${stage.text}`}
                   >
                     {list.length}
                   </span>
                 </header>
 
-                <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
+                <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
                   {list.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-700 py-8 text-center text-[11px] text-slate-600">
+                    <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-600">
                       {isOver ? "Drop here" : "Nothing here"}
                     </div>
                   ) : (

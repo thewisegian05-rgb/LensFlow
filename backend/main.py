@@ -108,6 +108,12 @@ class CullRequest(BaseModel):
     culling a selected folder.
     """
     folder_id: str
+class ExportRequest(BaseModel):
+    """
+    Request body sent by the React frontend when the photographer
+    exports the finalized photo selection.
+    """
+    folder_id: str
 # ============================================================
 # Helper Functions
 # ============================================================
@@ -229,7 +235,6 @@ RAW_EXTENSIONS = {
 }
 def is_raw_file_name(file_name: str) -> bool:
     return Path(file_name).suffix.lower() in RAW_EXTENSIONS
-
 def convert_raw_to_jpeg(
     raw_path: Path,
     temp_dir: Path,
@@ -239,59 +244,45 @@ def convert_raw_to_jpeg(
     the LensFlow AI pipeline can analyze.
     """
     output_path = temp_dir / f"{raw_path.stem}_decoded.jpg"
-
     print(f"Converting RAW for culling: {raw_path.name}")
-
     with rawpy.imread(str(raw_path)) as raw:
         rgb_image = raw.postprocess(
             use_camera_wb=True,
             no_auto_bright=True,
             output_bps=8,
         )
-
     image = Image.fromarray(rgb_image).convert("RGB")
-    
     print(
         f"RAW decoded dimensions: "
         f"{rgb_image.shape[1]} x {rgb_image.shape[0]}"
     )
-
     image.save(
         output_path,
         format="JPEG",
         quality=95,
     )
-
     if not output_path.exists():
         raise RuntimeError(
             f"Could not create temporary JPEG from RAW file: {raw_path.name}"
         )
-
     print(f"RAW converted successfully: {output_path.name}")
-
     return output_path
-
-
 def prepare_culling_image(
     image_path: Path,
     temp_dir: Path,
 ) -> Path:
     """
     Return an image path that the AI pipeline can read.
-
     Normal images are returned unchanged.
     RAW images are decoded into a temporary JPEG.
     """
     if image_path.suffix.lower() not in RAW_EXTENSIONS:
         return image_path
-
     print(f"RAW image detected: {image_path.name}")
-
     return convert_raw_to_jpeg(
         image_path,
         temp_dir,
     )
-
 def generate_raw_thumbnail(
     user_supabase: Client,
     photo: dict,
@@ -371,7 +362,6 @@ def analyze_photo(photo: dict, temp_path: Path):
     try:
         with Image.open(temp_path) as debug_image:
             debug_width, debug_height = debug_image.size
-
         print("\n" + "=" * 60)
         print("LENSFLOW TECHNICAL ANALYSIS DEBUG")
         print("=" * 60)
@@ -390,7 +380,6 @@ def analyze_photo(photo: dict, temp_path: Path):
         )
         print(f"Contrast      : {technical_result['contrast']:.2f}")
         print("=" * 60 + "\n")
-
     except Exception as debug_error:
         print(
             "TECHNICAL ANALYSIS DEBUG ERROR:",
@@ -503,7 +492,53 @@ def save_culling_results(
         )
         .execute()
     )
-# ============================================================
+def build_export_storage_path(
+    storage_path: str,
+    user_id: str,
+    destination_folder_id: str,
+) -> str:
+    """
+    Replace the folder ID portion of a LensFlow storage path
+    while preserving the filename and any remaining path.
+    Expected structure:
+        user_id/folder_id/file.ext
+    Example:
+        user123/main-folder/IMG_001.CR2
+        ->
+        user123/culled-folder/IMG_001.CR2
+    """
+    parts = str(storage_path).strip("/").split("/")
+    if len(parts) < 3:
+        raise ValueError(
+            f"Unexpected storage path format: {storage_path}"
+        )
+    if parts[0] != str(user_id):
+        raise ValueError(
+            f"Storage path does not belong to the authenticated user: "
+            f"{storage_path}"
+        )
+    parts[1] = str(destination_folder_id)
+    return "/".join(parts)
+def copy_storage_object(
+    user_supabase: Client,
+    source_path: str,
+    destination_path: str,
+):
+    """Copy one object inside the photos bucket without deleting the source."""
+    if not source_path or source_path == destination_path:
+        return
+    user_supabase.storage.from_("photos").copy(
+        source_path,
+        destination_path,
+    )
+def remove_storage_objects(
+    user_supabase: Client,
+    storage_paths: list[str],
+):
+    """Remove a list of objects from the photos bucket during rollback."""
+    if not storage_paths:
+        return
+    user_supabase.storage.from_("photos").remove(storage_paths)
 # Routes
 # ============================================================
 @app.get("/")
@@ -558,7 +593,6 @@ def run_culling_job(
                 photo,
                 run_temp_dir,
             )
-
             # RAW files must be decoded before OpenCV/MediaPipe/OpenCLIP
             # can analyze them.
             if is_raw_file_name(file_name):
@@ -570,19 +604,15 @@ def run_culling_job(
                     file_name=file_name,
                     stage="Converting RAW image...",
                 )
-
             temp_path = prepare_culling_image(
                 downloaded_path,
                 run_temp_dir,
             )
-
             image_paths.append(temp_path)
-
             analysis_result = analyze_photo(
                 photo,
                 temp_path,
             )
-
             analysis_results.append(analysis_result)
             completed_progress = round((index / total) * 80)
             update_cull_job(
@@ -685,6 +715,343 @@ def run_culling_job(
                 print("Temporary culling files cleaned up.")
         except Exception as cleanup_error:
             print("TEMP CLEANUP ERROR:", repr(cleanup_error))
+@app.post("/export")
+def export_folder(
+    request: ExportRequest,
+    authorization: str | None = Header(default=None),
+    x_refresh_token: str | None = Header(default=None),
+):
+    """
+    Export the photographer's finalized selection from a Raw folder.
+    Expected folder structure:
+        Main/
+            Raw/
+                original photos...
+            Culled/
+                copies of starred photos...
+    Rules:
+        - The request folder_id must be the Raw folder.
+        - Raw and Culled are sibling folders under the same Main folder.
+        - Starred photos are COPIED to Culled.
+        - Rejected photos remain in Raw and are not copied.
+        - Unrated photos remain in Raw and are not copied.
+        - Original Raw files, thumbnails, photo rows, and culling results are
+          never moved or deleted by export.
+        - Repeating export is safe: photos already copied to Culled are skipped.
+    """
+    try:
+        # --------------------------------------------------------
+        # 1. Authenticate
+        # --------------------------------------------------------
+        user, user_supabase = get_authenticated_client(
+            authorization,
+            x_refresh_token,
+        )
+        user_id = str(user.id)
+        raw_folder_id = request.folder_id
+        # --------------------------------------------------------
+        # 2. Verify that the requested folder is the user's Raw folder
+        # --------------------------------------------------------
+        folder_response = (
+            user_supabase
+            .table("folders")
+            .select("id, name, parent_id")
+            .eq("id", raw_folder_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        raw_folder = (folder_response.data or [None])[0]
+        if not raw_folder:
+            raise HTTPException(
+                status_code=404,
+                detail="Raw folder not found.",
+            )
+        if str(raw_folder.get("name", "")).strip().lower() != "raw":
+            raise HTTPException(
+                status_code=400,
+                detail="Export must be started from a Raw folder.",
+            )
+        main_folder_id = raw_folder.get("parent_id")
+        if not main_folder_id:
+            raise HTTPException(
+                status_code=400,
+                detail="The Raw folder must be inside a main folder.",
+            )
+        # --------------------------------------------------------
+        # 3. Verify the parent/main folder belongs to this user
+        # --------------------------------------------------------
+        main_response = (
+            user_supabase
+            .table("folders")
+            .select("id, name, parent_id")
+            .eq("id", main_folder_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not main_response.data:
+            raise HTTPException(
+                status_code=404,
+                detail="Main folder not found.",
+            )
+        # --------------------------------------------------------
+        # 4. Get all photos that are actually inside Raw
+        # --------------------------------------------------------
+        photo_response = (
+            user_supabase
+            .table("photos")
+            .select(
+                """
+                id,
+                folder_id,
+                user_id,
+                file_name,
+                storage_path,
+                thumb_path,
+                previewable,
+                size_bytes,
+                rating
+                """
+            )
+            .eq("folder_id", raw_folder_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        photos = photo_response.data or []
+        if not photos:
+            return {
+                "success": True,
+                "folder_id": raw_folder_id,
+                "main_folder_id": main_folder_id,
+                "raw_folder_id": raw_folder_id,
+                "culled_folder_id": None,
+                "raw_count": 0,
+                "culled_count": 0,
+                "rejected_count": 0,
+                "unrated_count": 0,
+                "message": "There are no photos in the Raw folder to export.",
+            }
+        starred_photos = [
+            photo for photo in photos
+            if photo.get("rating") == "star"
+        ]
+        rejected_count = sum(
+            1 for photo in photos if photo.get("rating") == "reject"
+        )
+        unrated_count = sum(
+            1 for photo in photos
+            if photo.get("rating") not in ("star", "reject")
+        )
+        if not starred_photos:
+            raise HTTPException(
+                status_code=400,
+                detail="Star at least one photo before exporting to Culled.",
+            )
+        # --------------------------------------------------------
+        # 5. Find or create Culled as a SIBLING of Raw
+        # --------------------------------------------------------
+        child_response = (
+            user_supabase
+            .table("folders")
+            .select("id, name, parent_id")
+            .eq("parent_id", main_folder_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        children = child_response.data or []
+        culled_folder = next(
+            (
+                folder
+                for folder in children
+                if str(folder.get("name", "")).strip().lower() == "culled"
+            ),
+            None,
+        )
+        if culled_folder:
+            culled_folder_id = culled_folder["id"]
+        else:
+            insert_response = (
+                user_supabase
+                .table("folders")
+                .insert(
+                    {
+                        "name": "Culled",
+                        "user_id": user_id,
+                        "parent_id": main_folder_id,
+                    }
+                )
+                .select("id, name, parent_id")
+                .execute()
+            )
+            if not insert_response.data:
+                raise Exception("Failed to create the Culled folder.")
+            culled_folder_id = insert_response.data[0]["id"]
+        # --------------------------------------------------------
+        # 6. Find existing Culled photo records for idempotency
+        # --------------------------------------------------------
+        existing_culled_response = (
+            user_supabase
+            .table("photos")
+            .select("id, storage_path")
+            .eq("folder_id", culled_folder_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        existing_culled_paths = {
+            row.get("storage_path")
+            for row in (existing_culled_response.data or [])
+            if row.get("storage_path")
+        }
+        copied_objects: list[str] = []
+        inserted_photo_ids: list[str] = []
+        exported_count = 0
+        skipped_count = 0
+        try:
+            # ----------------------------------------------------
+            # 7. Copy only starred photos from Raw -> Culled
+            # ----------------------------------------------------
+            for photo in starred_photos:
+                old_storage_path = photo.get("storage_path")
+                if not old_storage_path:
+                    raise ValueError(
+                        f"Photo {photo.get('id')} has no storage path."
+                    )
+                new_storage_path = build_export_storage_path(
+                    old_storage_path,
+                    user_id,
+                    culled_folder_id,
+                )
+                # If this exact destination already exists, the photo was
+                # exported previously. Do not create another copy.
+                if new_storage_path in existing_culled_paths:
+                    skipped_count += 1
+                    continue
+                # --------------------------------------------
+                # Copy the original photo.
+                # --------------------------------------------
+                copy_storage_object(
+                    user_supabase,
+                    old_storage_path,
+                    new_storage_path,
+                )
+                copied_objects.append(new_storage_path)
+                # --------------------------------------------
+                # Copy the generated thumbnail when present.
+                # --------------------------------------------
+                old_thumb_path = photo.get("thumb_path")
+                new_thumb_path = None
+                if old_thumb_path:
+                    new_thumb_path = build_export_storage_path(
+                        old_thumb_path,
+                        user_id,
+                        culled_folder_id,
+                    )
+                    copy_storage_object(
+                        user_supabase,
+                        old_thumb_path,
+                        new_thumb_path,
+                    )
+                    copied_objects.append(new_thumb_path)
+                # --------------------------------------------
+                # Create a NEW photo record for the Culled copy.
+                # The original Raw photo row remains untouched.
+                # --------------------------------------------
+                new_photo_data = {
+                    "folder_id": culled_folder_id,
+                    "user_id": user_id,
+                    "file_name": photo["file_name"],
+                    "storage_path": new_storage_path,
+                    "thumb_path": new_thumb_path,
+                    "size_bytes": photo.get("size_bytes"),
+                    "previewable": photo.get("previewable", False),
+                    "rating": "star",
+                }
+                insert_photo_response = (
+                    user_supabase
+                    .table("photos")
+                    .insert(new_photo_data)
+                    .select("id")
+                    .execute()
+                )
+                if not insert_photo_response.data:
+                    raise Exception(
+                        f"Failed to create Culled photo record for "
+                        f"{photo['file_name']}."
+                    )
+                inserted_photo_ids.append(insert_photo_response.data[0]["id"])
+                existing_culled_paths.add(new_storage_path)
+                exported_count += 1
+        except Exception as export_error:
+            print(
+                "EXPORT FAILED — attempting rollback:",
+                repr(export_error),
+            )
+            # --------------------------------------------
+            # Roll back newly inserted Culled photo rows.
+            # --------------------------------------------
+            for photo_id in reversed(inserted_photo_ids):
+                try:
+                    (
+                        user_supabase
+                        .table("photos")
+                        .delete()
+                        .eq("id", photo_id)
+                        .eq("user_id", user_id)
+                        .execute()
+                    )
+                except Exception as rollback_db_error:
+                    print(
+                        "EXPORT DATABASE ROLLBACK ERROR:",
+                        repr(rollback_db_error),
+                    )
+            # --------------------------------------------
+            # Roll back only objects created by THIS export.
+            # Raw originals are never touched.
+            # --------------------------------------------
+            for storage_path in reversed(copied_objects):
+                try:
+                    remove_storage_objects(
+                        user_supabase,
+                        [storage_path],
+                    )
+                except Exception as rollback_storage_error:
+                    print(
+                        "EXPORT STORAGE ROLLBACK ERROR:",
+                        repr(rollback_storage_error),
+                    )
+            raise export_error
+        # --------------------------------------------------------
+        # 8. Return export summary
+        # --------------------------------------------------------
+        print(
+            f"EXPORT COMPLETE: {exported_count} copied to Culled, "
+            f"{skipped_count} already existed, "
+            f"{rejected_count} rejected remain in Raw, "
+            f"{unrated_count} unrated remain in Raw"
+        )
+        return {
+            "success": True,
+            "folder_id": raw_folder_id,
+            "main_folder_id": main_folder_id,
+            "raw_folder_id": raw_folder_id,
+            "culled_folder_id": culled_folder_id,
+            "raw_count": len(photos),
+            "culled_count": exported_count,
+            "already_exported_count": skipped_count,
+            "rejected_count": rejected_count,
+            "unrated_count": unrated_count,
+            "message": (
+                f"Export complete. {exported_count} photo(s) copied to Culled. "
+                f"The original Raw collection remains untouched."
+            ),
+        }
+    except HTTPException:
+        raise
+    except Exception as error:
+        print("EXPORT ERROR:", repr(error))
+        raise HTTPException(
+            status_code=500,
+            detail=str(error),
+        ) from error
 @app.post("/generate-preview")
 def generate_preview(
     request: dict,
@@ -711,10 +1078,9 @@ def generate_preview(
             )
             .eq("id", photo_id)
             .eq("user_id", user.id)
-            .single()
             .execute()
         )
-        photo = response.data
+        photo = (response.data or [None])[0]
         if not photo:
             raise HTTPException(
                 status_code=404,
@@ -803,7 +1169,7 @@ def cull(
             "current": 0,
             "total": len(photos),
             "file_name": "",
-            "stage": "Starting LensFlow*\\.*..",
+            "stage": "Starting LensFlow...",
             "error": None,
             "results": None,
             "finished_at": None,

@@ -27,6 +27,7 @@ import {
   FaFolderPlus,
   FaSignOutAlt,
   FaTrash,
+  FaFileExport,
 } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
 import {
@@ -116,29 +117,125 @@ const FolderCard = memo(function FolderCard({
   folder,
   reviewed,
   total,
+  starred = 0,
   onOpen,
   onContextMenu,
+  onExport,
+  exportLoading = false,
 }) {
+  const isRaw = folder.name?.toLowerCase() === "raw";
+  const isCulled = folder.name?.toLowerCase() === "culled";
+  const reviewPercent = total > 0 ? (reviewed / total) * 100 : 0;
+
   return (
-    <button
-      type="button"
-      onClick={onOpen}
+    <div
       onContextMenu={onContextMenu}
-      className="text-left bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-sky-500/50 rounded-xl p-4 transition-colors group"
+      className="
+        w-full rounded-2xl border border-slate-800 bg-slate-900/70
+        px-5 py-4 transition-all duration-200
+        hover:border-sky-500/50 hover:bg-slate-800/80
+        hover:shadow-lg hover:shadow-sky-500/5 group
+      "
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-10 h-10 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center group-hover:bg-sky-500/20 transition-colors">
-          <FaFolder />
-        </div>
-        <span className="text-xs text-slate-500">
-          {total} photo{total !== 1 ? "s" : ""}
-        </span>
+      <div className="flex items-center gap-4">
+        {/* Clickable folder area */}
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex min-w-0 flex-1 items-center gap-4 text-left outline-none"
+        >
+          {/* Folder icon */}
+          <div
+            className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl transition-colors ${
+              isCulled
+                ? "bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20"
+                : "bg-sky-500/10 text-sky-400 group-hover:bg-sky-500/20"
+            }`}
+          >
+            <FaFolder className="text-lg" />
+          </div>
+
+          {/* Folder information */}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="truncate text-sm font-semibold text-white">
+                {folder.name}
+              </h4>
+
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                isCulled
+                  ? "bg-emerald-500/10 text-emerald-400"
+                  : "bg-sky-500/10 text-sky-400"
+              }`}>
+                {total} photo{total !== 1 ? "s" : ""}
+              </span>
+
+              {isRaw && starred > 0 && (
+                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                  {starred} selected
+                </span>
+              )}
+            </div>
+
+            <p className="mt-1 text-xs text-slate-500">
+              {isRaw
+                ? "Original photo collection"
+                : isCulled
+                ? "Final selected photos"
+                : "Photo collection"}
+            </p>
+          </div>
+
+          {/* Folder status */}
+          <div className="hidden text-right sm:block">
+            {isCulled ? (
+              <p className="text-xs font-medium text-emerald-400">
+                {total} selected
+              </p>
+            ) : (
+              <>
+                <p className="text-xs font-medium text-slate-300">
+                  Culling {reviewed}/{total}
+                </p>
+                <div className="mt-1.5 h-1.5 w-28 overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className="h-full rounded-full bg-sky-500 transition-all"
+                    style={{ width: `${reviewPercent}%` }}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-slate-500 transition-all group-hover:bg-sky-500/10 group-hover:text-sky-400">
+            <FaChevronRight className="text-xs" />
+          </div>
+        </button>
+
+        {/* Export belongs to the Raw folder */}
+        {isRaw && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onExport?.();
+            }}
+            disabled={exportLoading || starred === 0}
+            title={
+              starred === 0
+                ? "Star at least one photo before exporting"
+                : "Copy selected photos to Culled"
+            }
+            className="flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg bg-sky-500 px-3 text-xs font-semibold text-slate-950 transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <FaFileExport className="text-[11px]" />
+            <span className="hidden md:inline">
+              {exportLoading ? "Exporting..." : "Export"}
+            </span>
+          </button>
+        )}
       </div>
-      <h4 className="text-white font-medium text-sm">{folder.name}</h4>
-      <p className="text-xs text-slate-500 mt-0.5">
-        Culling {reviewed}/{total}
-      </p>
-    </button>
+    </div>
   );
 });
 
@@ -151,17 +248,20 @@ const PhotoTile = memo(function PhotoTile({
   onSelect,
   onRate,
 }) {
-  const stateClasses = selected
-    ? "ring-2 ring-sky-500 border-sky-500"
-    : state === "star"
-    ? "ring-2 ring-sky-500 border-transparent"
-    : state === "reject" || aiResult?.ai_decision === "REJECT"
-    ? "ring-2 ring-rose-500 border-transparent opacity-55"
-    : aiResult?.ai_decision === "KEEP"
-    ? "border-emerald-500/70"
-    : aiResult?.ai_decision === "REVIEW"
-    ? "border-amber-500/70"
-    : "border-slate-300 hover:border-sky-400 dark:border-slate-700";
+  const stateClasses =
+    selected
+      ? "ring-2 ring-sky-500 border-sky-500"
+      : state === "star"
+      ? "ring-2 ring-emerald-500 border-emerald-500"
+      : state === "reject"
+      ? "ring-2 ring-rose-500 border-rose-500"
+      : aiResult?.ai_decision === "KEEP"
+      ? "border-emerald-500/70"
+      : aiResult?.ai_decision === "REJECT"
+      ? "border-rose-500/70"
+      : aiResult?.ai_decision === "REVIEW"
+      ? "border-amber-500/70"
+      : "border-slate-300 dark:border-slate-700";
 
   return (
     <div
@@ -182,7 +282,7 @@ const PhotoTile = memo(function PhotoTile({
           loading="lazy"
           decoding="async"
           fetchPriority="low"
-          className="h-full w-full object-cover"
+          className={`h-full w-full object-cover transition duration-200 ${state === "reject" ? "brightness-50" : ""}`}
           alt={img.fileName}
         />
       ) : (
@@ -585,6 +685,9 @@ function CullingPage() {
   const [cullingLoading, setCullingLoading] = useState(false);
   const [cullingJobFolderId, setCullingJobFolderId] = useState(null);
   const [cullingError, setCullingError] = useState("");
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [exportMessage, setExportMessage] = useState("");
   const [cullingProgress, setCullingProgress] = useState({
     progress: 0,
     current: 0,
@@ -882,6 +985,99 @@ function CullingPage() {
     }
   };
 
+  const handleExportFolder = async (rawFolderId) => {
+    if (!rawFolderId || exportLoading) return;
+
+    setExportError("");
+    setExportMessage("");
+
+    const rawFolder = folders.find((folder) => folder.id === rawFolderId);
+    const rawStats = folderStats[rawFolderId] || {};
+    const starred = rawStats.starred || 0;
+    const rejected = rawStats.rejected || 0;
+    const total = rawStats.total || 0;
+    const unrated = Math.max(0, total - starred - rejected);
+
+    if (rawFolder?.name?.toLowerCase() !== "raw") {
+      setExportError("Only the Raw folder can be exported.");
+      return;
+    }
+
+    if (starred === 0) {
+      setExportError(
+        "No photos are starred yet. Star the photos you want to place in Culled first."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Finalize this folder?\n\n` +
+        `• ${starred} starred photo(s) → copied to Culled\n` +
+        `• ${rejected} rejected photo(s) → remain in Raw\n` +
+        `• ${unrated} unrated photo(s) → remain in Raw\n\n` +
+        `The Raw originals will not be moved or deleted. Continue?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setExportLoading(true);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error("No active Supabase session.");
+      }
+
+      const response = await fetch("http://127.0.0.1:8000/export", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          "X-Refresh-Token": session.refresh_token,
+        },
+        body: JSON.stringify({ folder_id: rawFolderId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Failed to export the finalized photos."
+        );
+      }
+
+      setExportMessage(
+        `Export complete — ${data.culled_count ?? starred} selected photo(s) ` +
+          `were copied to Culled. The Raw originals remain intact.`
+      );
+
+      setLightboxId(null);
+      setPreviewOpen(false);
+      setFilter("all");
+
+      await loadData(user.id);
+
+      // Stay at the parent/project folder so Raw and Culled are visible together.
+      if (rawFolder.parentId) {
+        setPath([rawFolder.parentId]);
+      } else {
+        setPath([]);
+      }
+    } catch (error) {
+      console.error("LensFlow export failed:", error);
+      setExportError(
+        error.message || "Failed to export the finalized photos."
+      );
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   // Generate a browser-friendly WebP preview for RAW photos through FastAPI.
   // Browsers cannot reliably decode CR2/CR3/NEF/etc. directly, so RAW files
   // use the backend-generated thumbnail while the original RAW stays untouched.
@@ -1156,22 +1352,82 @@ function CullingPage() {
   }, [photos, user, dataLoading, generateRawPreview]);
 
   // Root-level "Unsorted" — used when dropping files with no folder open.
+  // New uploads are placed inside its Raw child folder.
   async function findOrCreateUnsortedFolder() {
-    const existing = folders.find((f) => f.name === "Unsorted" && f.parentId === null);
-    if (existing) return existing.id;
+    const existing = folders.find(
+      (folder) =>
+        folder.name.toLowerCase() === "unsorted" &&
+        folder.parentId === null
+    );
+
+    if (existing) {
+      return existing.id;
+    }
 
     const { data, error } = await supabase
       .from("folders")
-      .insert({ name: "Unsorted", user_id: user.id, parent_id: null })
+      .insert({
+        name: "Unsorted",
+        user_id: user.id,
+        parent_id: null,
+      })
       .select()
       .single();
 
     if (error) {
-      console.error(error);
+      console.error("Failed to create Unsorted folder:", error);
       return null;
     }
 
-    setFolders((prev) => [...prev, { id: data.id, name: data.name, parentId: null }]);
+    setFolders((prev) => [
+      ...prev,
+      {
+        id: data.id,
+        name: data.name,
+        parentId: null,
+      },
+    ]);
+
+    return data.id;
+  }
+
+  async function findOrCreateRawFolder(parentFolderId) {
+    if (!parentFolderId) return null;
+
+    const existing = folders.find(
+      (folder) =>
+        folder.name.toLowerCase() === "raw" &&
+        folder.parentId === parentFolderId
+    );
+
+    if (existing) {
+      return existing.id;
+    }
+
+    const { data, error } = await supabase
+      .from("folders")
+      .insert({
+        name: "Raw",
+        user_id: user.id,
+        parent_id: parentFolderId,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Failed to create Raw folder:", error);
+      return null;
+    }
+
+    setFolders((prev) => [
+      ...prev,
+      {
+        id: data.id,
+        name: data.name,
+        parentId: parentFolderId,
+      },
+    ]);
+
     return data.id;
   }
 
@@ -1297,17 +1553,57 @@ function CullingPage() {
   const handleFiles = useCallback(
     async (fileList) => {
       const files = Array.from(fileList || []);
+
       if (files.length === 0 || !user) return;
 
-      let targetFolderId = currentFolderId;
-      if (!targetFolderId) {
-        targetFolderId = await findOrCreateUnsortedFolder();
-        if (!targetFolderId) return;
-        setPath([targetFolderId]);
+      let mainFolderId = currentFolderId;
+
+      // If no folder is currently open, create/use the root Unsorted folder.
+      if (!mainFolderId) {
+        mainFolderId = await findOrCreateUnsortedFolder();
+
+        if (!mainFolderId) return;
       }
 
-      // Hand the files to the background manager and return immediately.
-      enqueueUploads(files, { userId: user.id, folderId: targetFolderId });
+      const currentFolder = folders.find(
+        (folder) => folder.id === mainFolderId
+      );
+
+      let targetFolderId = mainFolderId;
+
+      // Uploads always belong in Raw. If Raw is already open, use it directly.
+      if (currentFolder?.name?.toLowerCase() === "raw") {
+        targetFolderId = mainFolderId;
+      } else if (currentFolder?.name?.toLowerCase() === "culled") {
+        // Never upload new source photos into Culled. Return to its parent and
+        // use the sibling Raw folder instead.
+        const rawFolder = folders.find(
+          (folder) =>
+            folder.name.toLowerCase() === "raw" &&
+            folder.parentId === currentFolder.parentId
+        );
+
+        targetFolderId =
+          rawFolder?.id ||
+          (await findOrCreateRawFolder(currentFolder.parentId));
+
+        if (!targetFolderId) return;
+
+        setPath([currentFolder.parentId, targetFolderId]);
+      } else {
+        // Otherwise, this is the main/project folder. Make sure its Raw child exists.
+        targetFolderId = await findOrCreateRawFolder(mainFolderId);
+
+        if (!targetFolderId) return;
+
+        // Open Raw after the upload target has been resolved.
+        setPath([mainFolderId, targetFolderId]);
+      }
+
+      enqueueUploads(files, {
+        userId: user.id,
+        folderId: targetFolderId,
+      });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentFolderId, user, folders]
@@ -1499,6 +1795,11 @@ function CullingPage() {
   }, []);
 
   /* ---- current level: subfolders + photos in the open folder ---- */
+  const currentFolder = useMemo(
+    () => folders.find((folder) => folder.id === currentFolderId) || null,
+    [folders, currentFolderId]
+  );
+
   const currentSubfolders = useMemo(
     () => folders.filter((f) => f.parentId === currentFolderId),
     [folders, currentFolderId]
@@ -1518,9 +1819,22 @@ function CullingPage() {
   const folderStats = useMemo(() => {
     const m = {};
     for (const p of photos) {
-      const s = (m[p.folderId] ||= { total: 0, reviewed: 0 });
+      const s = (m[p.folderId] ||= {
+        total: 0,
+        reviewed: 0,
+        starred: 0,
+        rejected: 0,
+      });
+
       s.total++;
-      if (culls[p.id]) s.reviewed++;
+
+      if (culls[p.id] === "star") {
+        s.starred++;
+        s.reviewed++;
+      } else if (culls[p.id] === "reject") {
+        s.rejected++;
+        s.reviewed++;
+      }
     }
     return m;
   }, [photos, culls]);
@@ -1732,20 +2046,7 @@ function CullingPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-4">
         <h2 className="text-xl sm:text-2xl font-semibold text-white">Culling Station</h2>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {mode === "cull" && (
-            <button className="bg-sky-500 hover:bg-sky-600 text-slate-900 font-semibold px-4 py-2 rounded-lg text-sm flex items-center gap-2 whitespace-nowrap transition-colors">
-              <FaCheck /> Finish
-            </button>
-          )}
-          <button
-            onClick={() => supabase.auth.signOut()}
-            title="Sign out"
-            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
-          >
-            <FaSignOutAlt />
-          </button>
-        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto" />
       </div>
 
       {/* Mode tabs */}
@@ -1829,26 +2130,85 @@ function CullingPage() {
                     })}
                   </div>
 
+                  <div className="flex items-center gap-3">
+                    {currentFolder?.name?.toLowerCase() === "raw" && (
+                      <button
+                        type="button"
+                        onClick={() => handleExportFolder(currentFolderId)}
+                        disabled={exportLoading || folderStarred === 0}
+                        title={
+                          folderStarred === 0
+                            ? "Star at least one photo before exporting"
+                            : "Copy selected photos to Culled"
+                        }
+                        className="flex items-center gap-1.5 rounded-lg bg-sky-500 px-3 py-1.5 text-[11px] font-semibold text-slate-950 transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <FaFileExport className="text-[10px]" />
+                        {exportLoading ? "Exporting..." : "Export selected"}
+                      </button>
+                    )}
+
+                    <button
+                      onClick={openNewFolderModal}
+                      className="flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 transition-colors"
+                    >
+                      <FaFolderPlus className="text-xs" /> New subfolder
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {(exportMessage || exportError) && (
+                <div
+                  className={`mb-4 flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                    exportError
+                      ? "border-rose-500/20 bg-rose-500/5 text-rose-300"
+                      : "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
+                  }`}
+                >
+                  <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/5">
+                    <span className="text-xs">{exportError ? "!" : "✓"}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold">
+                      {exportError ? "Export failed" : "Export complete"}
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed opacity-80">
+                      {exportError || exportMessage}
+                    </p>
+                  </div>
                   <button
-                    onClick={openNewFolderModal}
-                    className="flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 transition-colors"
+                    type="button"
+                    onClick={() => {
+                      setExportError("");
+                      setExportMessage("");
+                    }}
+                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-white/5 hover:text-white"
+                    aria-label="Dismiss export message"
                   >
-                    <FaFolderPlus className="text-xs" /> New subfolder
+                    ×
                   </button>
                 </div>
               )}
 
               {/* Subfolders (root or nested) */}
               {(path.length === 0 ? rootFolders : currentSubfolders).length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                <div className="flex flex-col gap-3 mb-6">
                   {(path.length === 0 ? rootFolders : currentSubfolders).map((folder) => {
-                    const { total = 0, reviewed = 0 } = folderStats[folder.id] || {};
+                    const {
+                      total = 0,
+                      reviewed = 0,
+                      starred = 0,
+                    } = folderStats[folder.id] || {};
                     return (
                       <FolderCard
                         key={folder.id}
                         folder={folder}
                         reviewed={reviewed}
                         total={total}
+                        starred={starred}
+                        onExport={() => handleExportFolder(folder.id)}
+                        exportLoading={exportLoading}
                         onOpen={() => {
                           setPath([...path, folder.id]);
                           setFilter("all");

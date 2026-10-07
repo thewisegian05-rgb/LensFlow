@@ -10,7 +10,6 @@ import {
 import {
   FaTimes,
   FaStar,
-  FaCheck,
   FaChevronLeft,
   FaChevronRight,
   FaBan,
@@ -25,7 +24,6 @@ import {
   FaFolder,
   FaArrowLeft,
   FaFolderPlus,
-  FaSignOutAlt,
   FaTrash,
   FaFileExport,
 } from "react-icons/fa";
@@ -117,125 +115,103 @@ const FolderCard = memo(function FolderCard({
   folder,
   reviewed,
   total,
-  starred = 0,
   onOpen,
   onContextMenu,
-  onExport,
-  exportLoading = false,
 }) {
-  const isRaw = folder.name?.toLowerCase() === "raw";
-  const isCulled = folder.name?.toLowerCase() === "culled";
-  const reviewPercent = total > 0 ? (reviewed / total) * 100 : 0;
+  const isCulled = folder.name.toLowerCase() === "culled";
 
   return (
-    <div
+    <button
+      type="button"
+      onClick={onOpen}
       onContextMenu={onContextMenu}
       className="
-        w-full rounded-2xl border border-slate-800 bg-slate-900/70
-        px-5 py-4 transition-all duration-200
-        hover:border-sky-500/50 hover:bg-slate-800/80
-        hover:shadow-lg hover:shadow-sky-500/5 group
+        group
+        w-full
+        rounded-2xl
+        border
+        border-slate-200
+        bg-white
+        px-5
+        py-4
+        text-left
+        transition-all
+        duration-200
+        hover:border-slate-300
+        hover:bg-slate-50
+        hover:shadow-lg
+        hover:shadow-slate-900/5
+        dark:border-slate-800
+        dark:bg-slate-900/70
+        dark:hover:border-sky-500/50
+        dark:hover:bg-slate-800/80
+        dark:hover:shadow-lg
+        dark:hover:shadow-sky-500/5
       "
+      style={{
+        outline: "none",
+        boxShadow: "none",
+        appearance: "none",
+        WebkitAppearance: "none",
+      }}
     >
       <div className="flex items-center gap-4">
-        {/* Clickable folder area */}
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex min-w-0 flex-1 items-center gap-4 text-left outline-none"
-        >
-          {/* Folder icon */}
-          <div
-            className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl transition-colors ${
+
+        {/* Folder icon */}
+        <div
+          className={`
+            flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl
+            transition-colors
+            ${
               isCulled
-                ? "bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20"
-                : "bg-sky-500/10 text-sky-400 group-hover:bg-sky-500/20"
-            }`}
-          >
-            <FaFolder className="text-lg" />
-          </div>
-
-          {/* Folder information */}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h4 className="truncate text-sm font-semibold text-white">
-                {folder.name}
-              </h4>
-
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                isCulled
-                  ? "bg-emerald-500/10 text-emerald-400"
-                  : "bg-sky-500/10 text-sky-400"
-              }`}>
-                {total} photo{total !== 1 ? "s" : ""}
-              </span>
-
-              {isRaw && starred > 0 && (
-                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">
-                  {starred} selected
-                </span>
-              )}
-            </div>
-
-            <p className="mt-1 text-xs text-slate-500">
-              {isRaw
-                ? "Original photo collection"
-                : isCulled
-                ? "Final selected photos"
-                : "Photo collection"}
-            </p>
-          </div>
-
-          {/* Folder status */}
-          <div className="hidden text-right sm:block">
-            {isCulled ? (
-              <p className="text-xs font-medium text-emerald-400">
-                {total} selected
-              </p>
-            ) : (
-              <>
-                <p className="text-xs font-medium text-slate-300">
-                  Culling {reviewed}/{total}
-                </p>
-                <div className="mt-1.5 h-1.5 w-28 overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-sky-500 transition-all"
-                    style={{ width: `${reviewPercent}%` }}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-slate-500 transition-all group-hover:bg-sky-500/10 group-hover:text-sky-400">
-            <FaChevronRight className="text-xs" />
-          </div>
-        </button>
-
-        {/* Export belongs to the Raw folder */}
-        {isRaw && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onExport?.();
-            }}
-            disabled={exportLoading || starred === 0}
-            title={
-              starred === 0
-                ? "Star at least one photo before exporting"
-                : "Copy selected photos to Culled"
+                ? "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:group-hover:bg-emerald-500/20"
+                : "bg-sky-50 text-sky-500 group-hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-400 dark:group-hover:bg-sky-500/20"
             }
-            className="flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg bg-sky-500 px-3 text-xs font-semibold text-slate-950 transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <FaFileExport className="text-[11px]" />
-            <span className="hidden md:inline">
-              {exportLoading ? "Exporting..." : "Export"}
+          `}
+        >
+          <FaFolder className="text-lg" />
+        </div>
+
+        {/* Folder information */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h4 className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+              {folder.name}
+            </h4>
+
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+              {total} photo{total !== 1 ? "s" : ""}
             </span>
-          </button>
-        )}
+          </div>
+
+          <p className="mt-1 text-xs text-slate-500">
+            {isCulled ? "Final selected photos" : "Photo collection"}
+          </p>
+        </div>
+
+        {/* Culling progress */}
+        <div className="hidden text-right sm:block">
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            Culling {reviewed}/{total}
+          </p>
+
+          <div className="mt-1.5 h-1.5 w-28 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+            <div
+              className="h-full rounded-full bg-sky-500 transition-all"
+              style={{
+                width: `${total > 0 ? (reviewed / total) * 100 : 0}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Arrow */}
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-slate-500 transition-all group-hover:bg-slate-100 group-hover:text-slate-700 dark:group-hover:bg-sky-500/10 dark:group-hover:text-sky-400">
+          <FaChevronRight className="text-xs" />
+        </div>
+
       </div>
-    </div>
+    </button>
   );
 });
 

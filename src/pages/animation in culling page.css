@@ -1,0 +1,38 @@
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes pop {
+  0%   { transform: scale(0); }
+  60%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
+  50%      { box-shadow: 0 0 0 8px rgba(14, 165, 233, 0); }
+}
+
+.animate-fade-in      { animation: fade-in 0.2s ease-out; }
+/* "backwards" (not "both") so rejected photos keep their opacity-50 */
+.animate-fade-in-up   { animation: fade-in-up 0.4s ease-out backwards; }
+.animate-scale-in     { animation: scale-in 0.25s ease-out; }
+.animate-pop          { animation: pop 0.3s ease-out; }
+.animate-pulse-border { animation: pulse-border 1.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .animate-scale-in,
+  .animate-pop,
+  .animate-pulse-border {
+    animation: none;
+  }
+}

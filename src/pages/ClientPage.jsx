@@ -13,6 +13,7 @@ import "../components/Clients/ClientCard.css";
 import "../components/Clients/ClientList.css";
 import "../components/Clients/AddClientModal.css";
 import "../components/Clients/ViewClientModal.css";
+import "../components/Clients/Animations.css"; // <-- NEW (keep this last)
 
 import {
   FiGrid,
@@ -553,10 +554,11 @@ const handleEditClient = async (updatedClient) => {
         <>
           {viewType === "grid" && (
             <div className="clients-grid">
-              {filteredClients.map((client) => (
+              {filteredClients.map((client, index) => (   // <-- NEW: added index
                 <ClientCard
                   key={client.id}
                   client={client}
+                  index={index}                           // <-- NEW
                   onDelete={handleDeleteClient}
                   onView={() => setSelectedClient(client)}
                   onComplete={handleCompleteClient}

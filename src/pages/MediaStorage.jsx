@@ -1,5 +1,12 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { FaFolder, FaPlus, FaEdit, FaTrash, FaFile, FaTimes } from "react-icons/fa";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import {
+  FaFolder,
+  FaPlus,
+  FaEdit,
+  FaTrash,
+  FaFile,
+  FaTimes,
+} from "react-icons/fa";
 import { useTheme } from "../context/ThemeContext";
 import { supabase } from "../lib/supabaseClient";
 
@@ -414,6 +421,14 @@ function MediaStorage() {
     });
   };
 
+  const getFolderCounts = useCallback(
+    (folderId) => ({
+      folders: folders.filter((folder) => folder.parentId === folderId).length,
+      files: photos.filter((photo) => photo.folderId === folderId).length,
+    }),
+    [folders, photos]
+  );
+
   if (authLoading) {
     return <p className="text-sm text-slate-500 text-center mt-20">Loading...</p>;
   }
@@ -539,20 +554,16 @@ function MediaStorage() {
       )}
 
       <div className="space-y-3">
-        {dataLoading ? (
-          <p className={`text-sm ${emptyTextClasses}`}>Loading...</p>
-        ) : currentItems.length === 0 ? (
-          <p className={`text-sm italic ${emptyTextClasses}`}>
-            The storage is empty. Use the "+ Add" button to create folders or upload files.
-          </p>
-        ) : (
-          <p className={`text-sm font-medium ${emptyTextClasses}`}>
-            {currentItems.filter((item) => !item.isFile).length} folders · {currentItems.filter((item) => item.isFile).length} files
+        {dataLoading && (
+          <p className={`text-sm ${emptyTextClasses}`}>
+            Loading...
           </p>
         )}
+        {sortedCurrentItems.map((item) => {
+          const counts = !item.isFile ? getFolderCounts(item.id) : null;
 
-        {sortedCurrentItems.map((item) => (
-          <div
+          return (
+            <div
             key={`${item.isFile ? "file" : "folder"}-${item.id}`}
             onClick={() => {
               if (item.isFile) {
@@ -563,13 +574,28 @@ function MediaStorage() {
             }}
             className={`flex items-center justify-between rounded-lg border p-4 transition cursor-pointer ${itemClasses}`}
           >
-            <div className="flex items-center gap-3 flex-1">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               {item.isFile ? (
-                <FaFile className="text-2xl text-sky-400" />
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-500/10">
+                  <FaFile className="text-lg text-sky-500 dark:text-sky-400" />
+                </div>
               ) : (
-                <FaFolder className="text-2xl text-yellow-400" />
+                <div
+                  className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl ${
+                    item.name.toLowerCase() === "culled"
+                      ? "bg-emerald-50 dark:bg-emerald-500/10"
+                      : "bg-sky-50 dark:bg-sky-500/10"
+                  }`}
+                >
+                  <FaFolder
+                    className={
+                      item.name.toLowerCase() === "culled"
+                        ? "text-xl text-emerald-500 dark:text-emerald-400"
+                        : "text-xl text-sky-500 dark:text-sky-400"
+                    }
+                  />
+                </div>
               )}
-
               {/*
                 Only stop propagation while this row is actively being
                 renamed — otherwise a click on the name should bubble up
@@ -593,12 +619,50 @@ function MediaStorage() {
                       className={`rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500 ${inputClasses}`}
                       autoFocus
                     />
-                    <button onClick={() => handleSaveEdit(item.id, item.isFile)} className="rounded bg-green-600 px-2.5 py-1 text-xs text-white hover:bg-green-500">Save</button>
+                    <button onClick={() => handleSaveEdit(item.id, item.isFile)} className="rounded bg-sky-600 px-2.5 py-1 text-xs text-white hover:bg-green-500">Save</button>
                     <button onClick={() => setEditId(null)} className={`rounded px-2.5 py-1 text-xs ${modalButtonClasses}`}>Cancel</button>
                   </div>
                 ) : (
-                  <div>
-                    <h2 className="font-semibold">{item.name}</h2>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="truncate font-semibold">
+                        {item.name}
+                      </h2>
+
+                      {!item.isFile && (
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={
+                              isDark
+                                ? "rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400"
+                                : "rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600"
+                            }
+                          >
+                            {counts.folders} {counts.folders === 1 ? "folder" : "folders"}
+                          </span>
+
+                          <span
+                            className={
+                              isDark
+                                ? "rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400"
+                                : "rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600"
+                            }
+                          >
+                            {counts.files} {counts.files === 1 ? "file" : "files"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {!item.isFile && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        {item.name.toLowerCase() === "culled"
+                          ? "Final selected photos"
+                          : item.name.toLowerCase() === "raw"
+                            ? "Original photo collection"
+                            : "Photo collection"}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -627,8 +691,9 @@ function MediaStorage() {
                 <FaTrash />
               </button>
             </div>
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
 
       {/* File Preview Modal */}

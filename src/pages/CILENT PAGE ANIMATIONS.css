@@ -57,7 +57,7 @@
 }
 
 /* ==========================================
-   LIST ROWS (staggered)
+   LIST ROWS 
 ========================================== */
 .client-list-table tbody tr {
   animation: fadeUp 0.4s ease-out backwards;
@@ -70,7 +70,7 @@
 }
 
 /* ==========================================
-   BUTTONS
+   THESE ARE THE BUTTONS
 ========================================== */
 .add-client-btn,
 .action-btn,
@@ -99,7 +99,7 @@
 }
 
 /* ==========================================
-   STATUS DOT (ongoing pulses)
+   STATUS DOT 
 ========================================== */
 .status-dot.ongoing,
 .list-status-dot.ongoing {

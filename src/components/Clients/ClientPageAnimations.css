@@ -1,0 +1,128 @@
+/* ==========================================
+   KEYFRAMES
+========================================== */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.92) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes pulseDot {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* ==========================================
+   PAGE LOAD
+========================================== */
+.clients-header {
+  animation: fadeDown 0.5s ease-out backwards;
+}
+
+.clients-toolbar {
+  animation: fadeIn 0.5s ease-out 0.1s backwards;
+}
+
+.client-filter-bar {
+  animation: fadeIn 0.5s ease-out 0.2s backwards;
+}
+
+/* ==========================================
+   GRID CARDS (staggered)
+========================================== */
+.client-card {
+  animation: fadeUp 0.5s ease-out backwards;
+  animation-delay: calc(var(--i, 0) * 80ms);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.client-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+/* ==========================================
+   LIST ROWS (staggered)
+========================================== */
+.client-list-table tbody tr {
+  animation: fadeUp 0.4s ease-out backwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+  transition: background-color 0.2s ease;
+}
+
+.client-list-table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* ==========================================
+   BUTTONS
+========================================== */
+.add-client-btn,
+.action-btn,
+.message-btn,
+.complete-btn,
+.list-action-btn,
+.view-toggle-btn {
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.add-client-btn:hover,
+.action-btn:hover,
+.message-btn:hover,
+.complete-btn:hover,
+.list-action-btn:hover {
+  transform: translateY(-2px);
+}
+
+.add-client-btn:active,
+.action-btn:active,
+.message-btn:active,
+.complete-btn:active,
+.list-action-btn:active,
+.view-toggle-btn:active {
+  transform: scale(0.94);
+}
+
+/* ==========================================
+   STATUS DOT (ongoing pulses)
+========================================== */
+.status-dot.ongoing,
+.list-status-dot.ongoing {
+  animation: pulseDot 1.8s infinite;
+}
+
+/* ==========================================
+   MODALS
+========================================== */
+.modal-overlay {
+  animation: fadeIn 0.25s ease-out;
+}
+
+.client-modal {
+  animation: modalPop 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ==========================================
+   ACCESSIBILITY: reduced motion
+========================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -13,6 +13,7 @@ import "../components/Clients/ClientCard.css";
 import "../components/Clients/ClientList.css";
 import "../components/Clients/AddClientModal.css";
 import "../components/Clients/ViewClientModal.css";
+import "../components/Clients/ClientPageAnimations.css";
 
 import {
   FiGrid,

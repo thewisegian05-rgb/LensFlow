@@ -8,6 +8,8 @@ import AddEventModal from "../components/Schedule/AddEventModal";
 import EventDetailsModal from "../components/Schedule/EventDetailsModal";
 import ConfirmModal from "../components/Common/ConfirmModal";
 
+import "../components/Schedule/schedule.css";
+
 import { supabase } from "../lib/supabaseClient";
 import {
   getEventCategory,

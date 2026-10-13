@@ -26,6 +26,7 @@ import {
   FaFolderPlus,
   FaTrash,
   FaFileExport,
+  FaInfoCircle,
 } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
 import {
@@ -675,23 +676,9 @@ function CullingPage() {
   const [path, setPath] = useState([]);
   const [filter, setFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
+  const [showDetailInfo, setShowDetailInfo] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [originalLoadingId, setOriginalLoadingId] = useState(null);
-
-  // UI-only switches for the Analysis Settings card.
-  const [analysisOptions, setAnalysisOptions] = useState({
-    technical: true,
-    subject: true,
-    aesthetic: true,
-    similarity: true,
-  });
-
-  const toggleAnalysisOption = (key) => {
-    setAnalysisOptions((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  };
 
   const [isDragging, setIsDragging] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
@@ -2229,7 +2216,7 @@ function CullingPage() {
                     }`}
                   >
                     <div className="min-w-0 space-y-5">
-                      {/* Top controls: upload, analysis settings, culling summary */}
+                      {/* Top controls: upload, automated culling, culling summary */}
                       <div
                         className={`grid gap-3 ${
                           lightboxImage
@@ -2294,18 +2281,18 @@ function CullingPage() {
                           <div className="flex items-center justify-between gap-2">
                             <div>
                               <p className="text-m font-semibold text-slate-900 dark:text-white">
-                                {isCurrentFolderCulling ? "AI Culling in Progress" : "Analysis Settings"}
+                                {isCurrentFolderCulling ? "AI Culling in Progress" : "Automated Culling"}
                               </p>
                               {!lightboxImage && (
                                 <p className="mt-0.5 text-[11px] text-slate-500">
                                   {isCurrentFolderCulling
                                     ? "LensFlow is analyzing your photos"
-                                    : "Current LensFlow analysis profile"}
+                                    : "Ready to analyze this folder"}
                                 </p>
                               )}
                             </div>
                             <span className="rounded-full bg-sky-500/10 px-2 py-1 text-[10px] font-semibold text-sky-500 dark:text-sky-300">
-                              {isCurrentFolderCulling ? `${Math.round(cullingProgress.progress)}%` : "Balanced"}
+                              {isCurrentFolderCulling ? `${Math.round(cullingProgress.progress)}%` : "Ready"}
                             </span>
                           </div>
 
@@ -2356,49 +2343,14 @@ function CullingPage() {
                             </div>
                           ) : (
                             <>
-                              <div className={`grid gap-2 ${lightboxImage ? "mt-3 grid-cols-2" : "mt-4 grid-cols-1 sm:grid-cols-2"}`}>
-                                {[
-                                  ["technical", "Technical quality"],
-                                  ["subject", "Subject quality"],
-                                  ["aesthetic", "Aesthetic quality"],
-                                  ["similarity", "Visual similarity"],
-                                ].map(([key, label]) => {
-                                  const enabled = analysisOptions[key];
-
-                                  return (
-                                    <button
-                                      key={key}
-                                      type="button"
-                                      onClick={() => toggleAnalysisOption(key)}
-                                      className={`flex min-w-0 items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-[10px] font-medium transition ${
-                                        enabled
-                                          ? "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-300"
-                                          : "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500"
-                                      }`}
-                                      title="UI preview only — backend currently runs the complete pipeline"
-                                    >
-                                      <span className="truncate">{label}</span>
-                                      <span
-                                        className={`relative h-4 w-7 flex-shrink-0 rounded-full transition ${
-                                          enabled ? "bg-sky-500" : "bg-slate-300 dark:bg-slate-700"
-                                        }`}
-                                      >
-                                        <span
-                                          className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${
-                                            enabled ? "left-3.5" : "left-0.5"
-                                          }`}
-                                        />
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-
-                              {!lightboxImage && (
-                                <p className="mt-2 text-[9px] text-slate-400">
-                                  Preview controls only — all analysis stages still run in the current backend.
+                              <div className={`mt-4 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-800/40 ${lightboxImage ? "text-[10px]" : "text-xs"}`}>
+                                <p className="font-medium text-slate-700 dark:text-slate-200">
+                                  LensFlow will check technical quality, subjects, aesthetics, and visual similarity automatically.
                                 </p>
-                              )}
+                                <p className="mt-1 text-slate-500 dark:text-slate-400">
+                                  No settings need to be adjusted. You can review the recommendations after analysis.
+                                </p>
+                              </div>
 
                               <button
                                 type="button"
@@ -2592,18 +2544,127 @@ function CullingPage() {
                             </p>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPreviewOpen(false);
-                              setLightboxId(null);
-                            }}
-                            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white"
-                            aria-label="Close photo details"
-                          >
-                            <FaTimes />
-                          </button>
+                          <div className="flex flex-shrink-0 items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setShowDetailInfo(true)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 dark:text-sky-400"
+                              aria-label="About the photo details"
+                              title="About the photo details"
+                            >
+                              <FaInfoCircle />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPreviewOpen(false);
+                                setShowDetailInfo(false);
+                                setLightboxId(null);
+                              }}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white"
+                              aria-label="Close photo details"
+                            >
+                              <FaTimes />
+                            </button>
+                          </div>
                         </div>
+
+                        {showDetailInfo && (
+                          <div
+                            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+                            role="presentation"
+                            onClick={() => setShowDetailInfo(false)}
+                          >
+                            <section
+                              role="dialog"
+                              aria-modal="true"
+                              aria-labelledby="detail-info-title"
+                              className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-xl text-sky-500">
+                                    <FaInfoCircle />
+                                  </div>
+                                  <h3 id="detail-info-title" className="text-lg font-bold text-slate-900 dark:text-white">
+                                    Understanding Photo Details
+                                  </h3>
+                                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                    A quick guide to LensFlow’s photo analysis and recommendation.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowDetailInfo(false)}
+                                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white"
+                                  aria-label="Close information"
+                                >
+                                  <FaTimes />
+                                </button>
+                              </div>
+
+                              <div className="mt-5 space-y-4 text-sm text-slate-600 dark:text-slate-300">
+                                <div>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">What do the percentages mean?</h4>
+                                  <p className="mt-1">Higher scores generally indicate stronger results for that particular check. Use this scale as a quick guide, not a guarantee of photo quality:</p>
+                                  <div className="mt-3 space-y-2">
+                                    <div className="flex items-center gap-3 rounded-lg bg-emerald-500/10 px-3 py-2">
+                                      <span className="w-20 flex-shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">80–100%</span>
+                                      <span>High — strong result for this check.</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 rounded-lg bg-sky-500/10 px-3 py-2">
+                                      <span className="w-20 flex-shrink-0 font-semibold text-sky-700 dark:text-sky-400">60–79%</span>
+                                      <span>Moderate — generally okay, but review the photo.</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 rounded-lg bg-amber-500/10 px-3 py-2">
+                                      <span className="w-20 flex-shrink-0 font-semibold text-amber-700 dark:text-amber-400">40–59%</span>
+                                      <span>Low — inspect for possible issues.</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 rounded-lg bg-rose-500/10 px-3 py-2">
+                                      <span className="w-20 flex-shrink-0 font-semibold text-rose-700 dark:text-rose-400">0–39%</span>
+                                      <span>Very low — this check may have found a concern.</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">What each score checks</h4>
+                                  <ul className="mt-1.5 space-y-1">
+                                    <li><strong>Overall Quality</strong> — combined quality estimate.</li>
+                                    <li><strong>Technical Quality</strong> — sharpness and image clarity.</li>
+                                    <li><strong>Face Quality</strong> — detected-face quality and possible facial blur.</li>
+                                    <li><strong>Eye Quality</strong> — eye-related checks, such as whether eyes appear closed.</li>
+                                    <li><strong>Aesthetic Quality</strong> — estimated visual appeal.</li>
+                                  </ul>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">Other details in this panel</h4>
+                                  <ul className="mt-1.5 space-y-1">
+                                    <li><strong>Similarity group</strong> — identifies photos LensFlow considers visually similar. “Independent” means the photo is not assigned to a similarity group.</li>
+                                    <li><strong>Group rank</strong> — LensFlow’s relative ranking for a photo within its similarity group; rank 1 is the top-ranked candidate.</li>
+                                    <li><strong>Sharpness</strong> — a technical measurement related to image detail and focus. It is a raw metric, not a percentage.</li>
+                                    <li><strong>Aesthetic score</strong> — LensFlow’s estimated visual-aesthetic score. Use it as a guide and review the image yourself.</li>
+                                    <li><strong>LensFlow reason</strong> — a short explanation for the AI recommendation, which may mention quality or similarity.</li>
+                                    <li><strong>Detected issues</strong> — lists potential problems identified during analysis, when any are found.</li>
+                                  </ul>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">Photographer decision</h4>
+                                  <p className="mt-1"><strong>Star / Keep</strong> marks the photo as your selection. <strong>Reject</strong> marks it as one you do not want to keep. <strong>Clear photographer decision</strong> removes your manual choice so the photo is no longer marked by either action.</p>
+                                  <p className="mt-1">Your manual decision is separate from LensFlow’s AI recommendation.</p>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">Recommendations and unavailable scores</h4>
+                                  <p className="mt-1"><strong className="text-emerald-600 dark:text-emerald-400">KEEP</strong> = likely a good candidate; <strong className="text-amber-600 dark:text-amber-400">REVIEW</strong> = check it yourself; <strong className="text-rose-600 dark:text-rose-400">REJECT</strong> = issues may make it unsuitable.</p>
+                                  <p className="mt-2">“No face detected” means no face was found for analysis. “Not applicable” means eye analysis does not apply. “Unable to determine” means an eye score could not be calculated. None of these means the score is 0%.</p>
+                                </div>
+                                <p className="rounded-xl bg-sky-500/10 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                  Scores are indicators, not guarantees. Always check the photo yourself before rejecting or deleting it.
+                                </p>
+                              </div>
+                            </section>
+                          </div>
+                        )}
 
                         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
                           <div className="relative overflow-hidden rounded-xl bg-slate-950">
@@ -2692,29 +2753,45 @@ function CullingPage() {
 
                                 <div className="mt-3 space-y-2">
                                   {[
-                                    ["Technical Quality", lightboxAiResult.metrics?.technical_score],
-                                    ["Face Quality", lightboxAiResult.metrics?.face_quality_score],
-                                    ["Eye Quality", lightboxAiResult.metrics?.eye_quality_score],
-                                    ["Aesthetic Quality", lightboxAiResult.metrics?.aesthetic_quality_score],
-                                  ].map(([label, value]) => (
+                                    ["Technical Quality", lightboxAiResult.metrics?.technical_score, null],
+                                    [
+                                      "Face Quality",
+                                      lightboxAiResult.metrics?.face_quality_score,
+                                      Number(lightboxAiResult.metrics?.face_count) === 0 ? "No face detected" : null,
+                                    ],
+                                    [
+                                      "Eye Quality",
+                                      lightboxAiResult.metrics?.eye_quality_score,
+                                      Number(lightboxAiResult.metrics?.face_count) === 0
+                                        ? "Not applicable"
+                                        : Number(lightboxAiResult.metrics?.face_count) > 0 &&
+                                          (lightboxAiResult.metrics?.eye_quality_score === null ||
+                                            lightboxAiResult.metrics?.eye_quality_score === undefined)
+                                        ? "Unable to determine"
+                                        : null,
+                                    ],
+                                    ["Aesthetic Quality", lightboxAiResult.metrics?.aesthetic_quality_score, null],
+                                  ].map(([label, value, specialText]) => (
                                     <div key={label}>
                                       <div className="mb-1 flex items-center justify-between gap-2 text-[12px]">
                                         <span className="text-slate-400">{label}</span>
-                                        <span className="font-semibold text-slate-700 dark:text-slate-200">
-                                          {formatPercent(value)}
+                                        <span className="text-right font-semibold text-slate-700 dark:text-slate-200">
+                                          {specialText || formatPercent(value)}
                                         </span>
                                       </div>
-                                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                                        <div
-                                          className="h-full rounded-full bg-sky-500 transition-all"
-                                          style={{
-                                            width:
-                                              value === null || value === undefined
-                                                ? "0%"
-                                                : `${Math.max(0, Math.min(100, Number(value) * 100))}%`,
-                                          }}
-                                        />
-                                      </div>
+                                      {!specialText && (
+                                        <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                                          <div
+                                            className="h-full rounded-full bg-sky-500 transition-all"
+                                            style={{
+                                              width:
+                                                value === null || value === undefined
+                                                  ? "0%"
+                                                  : `${Math.max(0, Math.min(100, Number(value) * 100))}%`,
+                                            }}
+                                          />
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>

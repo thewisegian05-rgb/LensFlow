@@ -2,15 +2,21 @@
    SCHEDULE PAGE ANIMATIONS
    ========================================================= */
 
-/* Page fades and slides in */
+
+/* Page fades in without affecting fixed-position modals */
 .schedule-page {
   animation: schedulePageIn 0.45s ease-out both;
 }
 
 @keyframes schedulePageIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
+
 
 /* Event cards pop in one after another (set animationDelay inline) */
 .event-card-anim {

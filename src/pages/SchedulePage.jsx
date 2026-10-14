@@ -1,30 +1,9 @@
-import { useEffect, useState } from "react";
-
-import ScheduleHeader from "../components/Schedule/ScheduleHeader";
-import ScheduleSummary from "../components/Schedule/ScheduleSummary";
-import ScheduleFilters from "../components/Schedule/ScheduleFilters";
-import Calendar from "../components/Schedule/Calendar";
-import AddEventModal from "../components/Schedule/AddEventModal";
-import EventDetailsModal from "../components/Schedule/EventDetailsModal";
-import ConfirmModal from "../components/Common/ConfirmModal";
-
-import "../components/Schedule/schedule.css";
-
-import { supabase } from "../lib/supabaseClient";
+// Save as: src/components/Schedule/EventList.jsx
 import {
   getEventCategory,
   CATEGORY_HEX,
   CATEGORY_LABELS,
-} from "../components/Schedule/eventCategory";
-
-const formatDateForInput = (date) => {
-  const value = new Date(date);
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-};
+} from "./eventCategory";
 
 // Same category colors the Calendar uses, so a wedding looks the same
 // in the lists as it does on the calendar.
@@ -32,10 +11,7 @@ const hexToRgba = (hex, alpha = 1) => {
   const normalized = (hex || "#d946ef").replace("#", "");
   const safeHex =
     normalized.length === 3
-      ? normalized
-          .split("")
-          .map((char) => char + char)
-          .join("")
+      ? normalized.split("").map((char) => char + char).join("")
       : normalized;
 
   const value = Number.parseInt(safeHex, 16);
@@ -58,10 +34,7 @@ const getCategoryStyle = (event) => {
   };
 };
 
-// =========================================================
-// COMPACT EVENT LIST (Today's Events / Coming Events)
-// =========================================================
-
+// COMPACT EVENT LIST (Today's Events / Coming Events) - animated
 function EventList({
   title,
   dot,
@@ -70,32 +43,41 @@ function EventList({
   emptyText,
   showDate = false,
   limit = 5,
+  highlightId = null,
   onSelect,
 }) {
   const visible = events.slice(0, limit);
   const hidden = events.length - visible.length;
 
   return (
-    <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+    <section className="event-list rounded-xl border border-slate-700 bg-slate-900 p-4">
       <header className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-          <span className={`h-2 w-2 rounded-full ${dot}`} />
+          <span className={`event-dot h-2 w-2 rounded-full ${dot}`} />
           {title}
         </h3>
-        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300">
+        {/* key={events.length} replays the pop animation when the count changes */}
+        <span
+          key={events.length}
+          className="event-count rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300"
+        >
           {events.length}
         </span>
       </header>
 
       {loading ? (
-        <p className="py-6 text-center text-sm text-slate-500">Loading...</p>
+        <div className="space-y-2">
+          <div className="event-skeleton" />
+          <div className="event-skeleton" style={{ animationDelay: "0.15s" }} />
+          <div className="event-skeleton" style={{ animationDelay: "0.3s" }} />
+        </div>
       ) : events.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">
+        <p className="event-more rounded-lg border border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">
           {emptyText}
         </p>
       ) : (
         <div className="space-y-2">
-          {visible.map((event) => {
+          {visible.map((event, index) => {
             const category = getEventCategory(event);
             const categoryLabel = CATEGORY_LABELS[category] || event.category;
 
@@ -104,8 +86,10 @@ function EventList({
                 key={event.id}
                 type="button"
                 onClick={() => onSelect(event)}
-                style={getCategoryStyle(event)}
-                className="flex w-full items-center gap-3 rounded-lg border border-l-4 px-3 py-2 text-left transition hover:brightness-125"
+                style={{ ...getCategoryStyle(event), "--i": index }}
+                className={`${
+                  event.id === highlightId ? "event-row-new" : "event-row"
+                } flex w-full items-center gap-3 rounded-lg border border-l-4 px-3 py-2 text-left`}
               >
                 <div className="w-16 flex-shrink-0 text-xs">
                   <p className="font-semibold">{event.time}</p>
@@ -127,7 +111,7 @@ function EventList({
                 </div>
 
                 {event.status === "completed" && (
-                  <span className="flex-shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                  <span className="event-done-badge flex-shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
                     Done
                   </span>
                 )}
@@ -136,7 +120,7 @@ function EventList({
           })}
 
           {hidden > 0 && (
-            <p className="pt-1 text-center text-xs text-slate-500">
+            <p className="event-more pt-1 text-center text-xs text-slate-500">
               +{hidden} more in the calendar below
             </p>
           )}
@@ -146,671 +130,4 @@ function EventList({
   );
 }
 
-function SchedulePage() {
-
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  const [selectedDate, setSelectedDate] = useState("");
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [eventToDelete, setEventToDelete] = useState(null);
-  const [clients, setClients] = useState([]);
-
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
-
-  // =========================================================
-  // FETCH CLIENTS FOR SCHEDULE
-  // =========================================================
-  const fetchClients = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    // Also pull talent_fee so AddEventModal can pre-fill the fee
-    // field when an existing client is picked, instead of always
-    // starting blank.
-    const { data, error } = await supabase
-      .from("clients")
-      .select("id, name, talent_fee")
-      .eq("user_id", user.id)
-      .order("name", { ascending: true });
-
-    if (error) {
-      console.error("Failed to load clients:", error.message);
-      return;
-    }
-
-    const mapped = (data || []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      talentFee: row.talent_fee,
-    }));
-
-    setClients(mapped);
-  };
-
-  // =========================================================
-  // SYNC SCHEDULE CLIENT -> CLIENTS TABLE
-  // =========================================================
-
-  const syncClientFromSchedule = async (form, userId) => {
-    console.log("SYNC CLIENT STARTED");
-    console.log("Form:", form);
-    console.log("User ID:", userId);
-
-    const clientName = form.client?.trim();
-
-    if (!clientName) {
-      console.log("No client name found.");
-      return;
-    }
-
-    const { data: existingClients, error: findError } = await supabase
-      .from("clients")
-      .select("id, name")
-      .eq("user_id", userId)
-      .ilike("name", clientName)
-      .limit(1);
-
-    console.log("Existing client result:", existingClients);
-
-    if (findError) {
-      console.error("CLIENT LOOKUP MESSAGE:", findError?.message);
-      console.error("CLIENT LOOKUP CODE:", findError?.code);
-      console.error("CLIENT LOOKUP DETAILS:", findError?.details);
-      console.error("CLIENT LOOKUP HINT:", findError?.hint);
-      return;
-    }
-
-    const existingClient = existingClients?.[0];
-
-    const scheduleData = {
-      project: form.title,
-      venue: form.location,
-      category: form.category,
-      project_status: "Ongoing",
-    };
-
-    if (existingClient) {
-      console.log("Updating existing client:", existingClient);
-
-      const { data, error } = await supabase
-        .from("clients")
-        .update(scheduleData)
-        .eq("id", existingClient.id)
-        .select();
-
-      console.log("Update result:", data);
-
-      if (error) {
-        console.error("CLIENT UPDATE ERROR:", error);
-      }
-
-      return;
-    }
-
-    const initials = clientName
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((word) => word[0])
-      .join("")
-      .toUpperCase();
-
-    console.log("Creating new client:", clientName);
-
-    const { data, error } = await supabase
-      .from("clients")
-      .insert([
-        {
-          user_id: userId,
-          name: clientName,
-          project: form.title,
-          venue: form.location,
-          category: form.category,
-          project_status: "Ongoing",
-          initials,
-          talent_fee: 0,
-          type: null,
-          contact: null,
-          email: null,
-        },
-      ])
-      .select();
-
-    console.log("Insert result:", data);
-
-    if (error) {
-      console.error("CLIENT INSERT ERROR:", error);
-    }
-  };
-
-  // =========================================================
-  // LOAD EVENTS FROM SUPABASE
-  // =========================================================
-
-  const fetchEvents = async () => {
-    setLoading(true);
-
-    const { data, error } = await supabase
-      .from("schedule_events")
-      .select("*")
-      .order("start_time", { ascending: true });
-
-    if (error) {
-      console.error("Failed to load events:", error.message);
-      setLoading(false);
-      return;
-    }
-
-    const mapped = data.map((row) => {
-      const start = new Date(row.start_time);
-      const end = new Date(row.end_time);
-
-      return {
-        id: row.id,
-        title: row.title,
-        client: row.client,
-        clientId: row.client_id,
-        category: row.category,
-        photographer: row.photographer,
-        location: row.location,
-        gears: row.gears || [],
-        notes: row.notes,
-        start,
-        end,
-        date: start.toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-        time: start.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        project_id: row.project_id,
-        status: row.status,
-        // Per-event fee, now actually persisted (see addOrUpdateEvent
-        // below) instead of only living on the client record.
-        talentFee: Number(row.talent_fee) || 0,
-      };
-    });
-
-    setEvents(mapped);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchEvents();
-    fetchClients();
-  }, []);
-
-
-  // =========================================================
-  // RESYNC OR REMOVE A CLIENT AFTER THEIR EVENTS CHANGE
-  // =========================================================
-  //
-  // `clients.project` / `venue` / `category` are a snapshot written
-  // whenever an event is saved (see addOrUpdateEvent below) — it's
-  // what ClientPage falls back to display when a client has no
-  // *current* events. If the client still has other events left, we
-  // just refresh that snapshot to the next one. If they have none at
-  // all, the client record itself is deleted — including any manually
-  // entered contact info, email, or notes — rather than left behind
-  // as an empty shell. This is a deliberate, confirmed choice: there
-  // is no "keep the client but empty" middle ground here.
-
-  const syncOrRemoveClient = async (clientId) => {
-    if (!clientId) return;
-
-    const { data: remainingEvents, error } = await supabase
-      .from("schedule_events")
-      .select("title, location, category, start_time")
-      .eq("client_id", clientId)
-      .order("start_time", { ascending: true });
-
-    if (error) {
-      console.error(
-        "Failed to check remaining events for client:",
-        error.message
-      );
-      return;
-    }
-
-    if (!remainingEvents || remainingEvents.length === 0) {
-      const { error: deleteError } = await supabase
-        .from("clients")
-        .delete()
-        .eq("id", clientId);
-
-      if (deleteError) {
-        console.error(
-          "Failed to delete client with no remaining events:",
-          deleteError.message
-        );
-      }
-
-      return;
-    }
-
-    const now = new Date();
-    const upcoming = remainingEvents.filter(
-      (event) => new Date(event.start_time) >= now
-    );
-
-    const active = upcoming[0] || remainingEvents[remainingEvents.length - 1];
-
-    const { error: updateError } = await supabase
-      .from("clients")
-      .update({
-        project: active?.title || null,
-        venue: active?.location || null,
-        category: active?.category || null,
-      })
-      .eq("id", clientId);
-
-    if (updateError) {
-      console.error(
-        "Failed to update client project snapshot:",
-        updateError.message
-      );
-    }
-  };
-
-  // =========================================================
-  // ADD / UPDATE EVENT
-  // =========================================================
-
-  const addOrUpdateEvent = async (form) => {
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      console.error("No authenticated user found.");
-      return;
-    }
-
-    const talentFee = Number(form.talentFee) || 0;
-    let clientId = form.clientId;
-
-    if (!clientId) {
-      const clientName = form.client?.trim();
-
-      if (!clientName) {
-        console.error("Client name is required.");
-        return;
-      }
-
-      const initials = clientName
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((word) => word[0])
-        .join("")
-        .toUpperCase();
-
-      const { data: newClient, error: clientError } = await supabase
-        .from("clients")
-        .insert([
-          {
-            user_id: user.id,
-            name: clientName,
-            project: form.title,
-            venue: form.location,
-            category: form.category,
-            project_status: "Ongoing",
-            initials,
-            talent_fee: talentFee,
-          },
-        ])
-        .select()
-        .single();
-
-      if (clientError) {
-        console.error(
-          "Failed to create new client:",
-          clientError.message
-        );
-        return;
-      }
-
-      clientId = newClient.id;
-
-      setClients((prev) => [
-        ...prev,
-        {
-          id: newClient.id,
-          name: newClient.name,
-          talentFee,
-        },
-      ]);
-    }
-
-    const { error: clientFeeError } = await supabase
-      .from("clients")
-      .update({ talent_fee: talentFee })
-      .eq("id", clientId)
-      .eq("user_id", user.id);
-
-    if (clientFeeError) {
-      console.error(
-        "Failed to update client talent fee:",
-        clientFeeError.message
-      );
-      return;
-    }
-
-    const payload = {
-      title: form.title,
-      client: form.client,
-      client_id: clientId,
-      category: form.category,
-      photographer: form.photographer,
-      location: form.location,
-      gears: form.gears,
-      notes: form.notes,
-      start_time: new Date(`${form.date}T${form.start}`).toISOString(),
-      end_time: new Date(`${form.date}T${form.end}`).toISOString(),
-      project_id: form.projectId || null,
-      // This was being computed above and synced onto the client, but
-      // never actually saved onto the event row itself — added here
-      // so each event keeps its own fee going forward.
-      talent_fee: talentFee,
-    };
-
-    if (form.id) {
-      const { error } = await supabase
-        .from("schedule_events")
-        .update(payload)
-        .eq("id", form.id);
-
-      if (error) {
-        console.error("Failed to update event:", error.message);
-        return;
-      }
-
-    } else {
-      const { error } = await supabase
-        .from("schedule_events")
-        .insert([{ ...payload, user_id: user.id }]);
-
-      if (error) {
-        console.error("Failed to add event:", error.message);
-        return;
-      }
-    }
-
-    await fetchEvents();
-    await fetchClients();
-
-    setModalOpen(false);
-    setSelectedEvent(null);
-  };
-
-
-  // =========================================================
-  // COMPLETE EVENT -> ADVANCE LINKED PROJECT
-  // =========================================================
-
-  const handleCompleteEvent = async (event) => {
-    if (!event.project_id) return;
-
-    const { error: eventError } = await supabase
-      .from("schedule_events")
-      .update({ status: "completed" })
-      .eq("id", event.id);
-
-    if (eventError) {
-      console.error("Failed to mark event complete:", eventError.message);
-      return;
-    }
-
-    const { error: projectError } = await supabase
-      .from("projects")
-      .update({ stage: "shoot-completed" })
-      .eq("id", event.project_id);
-
-    if (projectError) {
-      console.error(
-        "Failed to advance linked project:",
-        projectError.message
-      );
-      return;
-    }
-
-    await fetchEvents();
-
-    setDetailsOpen(false);
-    setSelectedEvent(null);
-  };
-
-
-  // =========================================================
-  // REQUEST DELETE
-  // =========================================================
-
-  const requestDelete = (id) => {
-    const event = events.find((item) => item.id === id);
-
-    if (!event) {
-      return;
-    }
-
-    setEventToDelete(event);
-    setDetailsOpen(false);
-    setConfirmOpen(true);
-  };
-
-
-  // =========================================================
-  // CONFIRM DELETE
-  // =========================================================
-
-  const confirmDelete = async () => {
-    if (!eventToDelete) {
-      return;
-    }
-
-    // If this event was promoted into (or linked to) a real project in
-    // Workflow, delete that project too so it disappears from there as
-    // well, not just here.
-    if (eventToDelete.project_id) {
-      const { error: projectDeleteError } = await supabase
-        .from("projects")
-        .delete()
-        .eq("id", eventToDelete.project_id);
-
-      if (projectDeleteError) {
-        console.error(
-          "Failed to delete linked project:",
-          projectDeleteError.message
-        );
-        return;
-      }
-    }
-
-    const { error } = await supabase
-      .from("schedule_events")
-      .delete()
-      .eq("id", eventToDelete.id);
-
-    if (error) {
-      console.error("Failed to delete event:", error.message);
-      return;
-    }
-
-    await syncOrRemoveClient(eventToDelete.clientId);
-
-    await fetchEvents();
-    await fetchClients();
-
-    setConfirmOpen(false);
-    setEventToDelete(null);
-    setSelectedEvent(null);
-  };
-
-
-  // =========================================================
-  // CANCEL DELETE
-  // =========================================================
-
-  const cancelDelete = () => {
-    setConfirmOpen(false);
-    setEventToDelete(null);
-  };
-
-
-  // =========================================================
-  // SEARCH + CATEGORY FILTER
-  // =========================================================
-
-  const filteredEvents = events.filter((event) => {
-    const searchText = search.toLowerCase();
-
-    const matchesSearch =
-      event.title?.toLowerCase().includes(searchText) ||
-      event.client?.toLowerCase().includes(searchText) ||
-      event.photographer?.toLowerCase().includes(searchText);
-
-    const matchesCategory =
-      category === "All" || event.category === category;
-
-    return matchesSearch && matchesCategory;
-  });
-
-
-  // =========================================================
-  // TODAY'S EVENTS + COMING EVENTS (follow the search/category filters)
-  // =========================================================
-
-  const todayKey = formatDateForInput(new Date());
-
-  const todaysEvents = filteredEvents.filter(
-    (event) => formatDateForInput(event.start) === todayKey
-  );
-
-  const comingEvents = filteredEvents.filter(
-    (event) => formatDateForInput(event.start) > todayKey
-  );
-
-  const openEventDetails = (event) => {
-    setSelectedEvent(event);
-    setDetailsOpen(true);
-  };
-
-
-  // =========================================================
-  // CALENDAR EVENT CLICK
-  // =========================================================
-
-  const handleCalendarEventClick = (event) => {
-    setSelectedEvent(event);
-    setDetailsOpen(true);
-  };
-
-
-  // =========================================================
-  // PAGE
-  // =========================================================
-
-  return (
-    <div className="schedule-page">
-
-      <ScheduleHeader
-        onAdd={() => {
-          setSelectedDate("");
-          setSelectedEvent(null);
-          setModalOpen(true);
-        }}
-      />
-
-      <ScheduleSummary events={events} />
-
-      <ScheduleFilters
-        search={search}
-        setSearch={setSearch}
-        category={category}
-        setCategory={setCategory}
-      />
-
-      <div className="mb-4 mt-4 grid gap-4 md:grid-cols-2">
-        <EventList
-          title="Today's Events"
-          dot="bg-amber-400"
-          events={todaysEvents}
-          loading={loading}
-          emptyText="No events today."
-          onSelect={openEventDetails}
-        />
-        <EventList
-          title="Coming Events"
-          dot="bg-sky-400"
-          events={comingEvents}
-          loading={loading}
-          emptyText="No upcoming events."
-          showDate
-          onSelect={openEventDetails}
-        />
-      </div>
-
-      <Calendar
-        events={filteredEvents}
-        onSelectSlot={({ start }) => {
-          setSelectedDate(formatDateForInput(start));
-          setSelectedEvent(null);
-          setModalOpen(true);
-        }}
-        onEventClick={handleCalendarEventClick}
-      />
-
-      <AddEventModal
-        open={modalOpen}
-        onClose={() => {
-          setModalOpen(false);
-          setSelectedEvent(null);
-        }}
-        onSave={addOrUpdateEvent}
-        selectedDate={selectedDate}
-        editingEvent={selectedEvent}
-        clients={clients}
-      />
-
-      <EventDetailsModal
-        open={detailsOpen}
-        event={selectedEvent}
-        onClose={() => setDetailsOpen(false)}
-        onEdit={(event) => {
-          setDetailsOpen(false);
-          setSelectedEvent(event);
-          setModalOpen(true);
-        }}
-        onDelete={requestDelete}
-        onComplete={handleCompleteEvent}
-      />
-
-      <ConfirmModal
-        open={confirmOpen}
-        title="Delete Event"
-        message={
-          eventToDelete
-            ? `Are you sure you want to delete "${eventToDelete.title}"? This action cannot be undone.`
-            : "Are you sure you want to delete this event?"
-        }
-        onCancel={cancelDelete}
-        onConfirm={confirmDelete}
-      />
-
-    </div>
-  );
-}
-
-export default SchedulePage;
+export default EventList;

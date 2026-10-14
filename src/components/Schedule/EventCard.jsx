@@ -1,10 +1,7 @@
 import { getEventCategory, CATEGORY_LABELS, CATEGORY_BADGE_CLASSES, CATEGORY_HOVER_BORDER_CLASSES } from "./eventCategory";
 
 function EventCard({ event }) {
-  // Same detection logic Calendar.jsx uses — reads event.category /
-  // event.title instead of a `type` field that doesn't actually exist
-  // on these objects (that mismatch is why every badge was falling
-  // back to the same purple before).
+
   const category = getEventCategory(event);
 
   return (
@@ -34,7 +31,7 @@ function EventCard({ event }) {
       </div>
 
       <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-        📅 {event.date || (event.start ? new Date(event.start).toLocaleDateString(undefined, {
+        {event.date || (event.start ? new Date(event.start).toLocaleDateString(undefined, {
           month: "short",
           day: "numeric",
           year: "numeric",
@@ -42,7 +39,7 @@ function EventCard({ event }) {
       </p>
 
       <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-        🕒 {event.time || (event.start ? new Date(event.start).toLocaleTimeString([], {
+        {event.time || (event.start ? new Date(event.start).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
         }) : "No time")}

@@ -4,11 +4,10 @@ import {
   FaCalendarDay,
   FaHourglassHalf,
   FaPhotoVideo,
-  FaCoins,
   FaFolder,
+  FaCoins,
 } from "react-icons/fa";
 
-import StatCard from "./StatCard";
 import TodaySchedule from "./TodaySchedule";
 import RecentProjects from "./RecentProjects";
 import WorkflowSummary from "./WorkflowSummary";
@@ -16,12 +15,38 @@ import RevenueChart from "./RevenueChart";
 
 import { supabase } from "../../lib/supabaseClient";
 
+function plural(count, word) {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+// Same card the Schedule page uses for its overview numbers.
+function StatCard({ title, value, subtitle, icon, iconClass }) {
+  return (
+    <div className="rounded-xl border border-slate-700 bg-slate-900 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm text-slate-400">{title}</p>
+          <h3 className="mt-1 text-3xl font-bold text-white">{value}</h3>
+          <p className="mt-1 truncate text-xs text-slate-500">{subtitle}</p>
+        </div>
+
+        <div
+          className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-lg ${iconClass}`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard() {
   const [stats, setStats] = useState({
     clientsToday: 0,
     pendingClients: 0,
     editing: 0,
     totalFolders: 0,
+    monthFees: null,
   });
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -89,11 +114,42 @@ function Dashboard() {
         return;
       }
 
+      // Fees booked this month: the sum of each event's talent fee.
+      // Not essential, so a failure here just shows a dash.
+      const startOfMonth = new Date(
+        startOfToday.getFullYear(),
+        startOfToday.getMonth(),
+        1
+      );
+      const startOfNextMonth = new Date(
+        startOfToday.getFullYear(),
+        startOfToday.getMonth() + 1,
+        1
+      );
+
+      let monthFees = null;
+
+      const { data: feeRows, error: feeError } = await supabase
+        .from("schedule_events")
+        .select("talent_fee")
+        .gte("start_time", startOfMonth.toISOString())
+        .lt("start_time", startOfNextMonth.toISOString());
+
+      if (feeError) {
+        console.error("Failed to load monthly fees:", feeError.message);
+      } else {
+        monthFees = feeRows.reduce(
+          (sum, row) => sum + (Number(row.talent_fee) || 0),
+          0
+        );
+      }
+
       setStats({
         clientsToday,
         pendingClients,
         editing,
         totalFolders: folderCount || 0,
+        monthFees,
       });
       setLoadingStats(false);
     };
@@ -104,84 +160,88 @@ function Dashboard() {
   // Total Clients = Clients Today + Pending Clients
   const totalClients = stats.clientsToday + stats.pendingClients;
 
+  const show = (value) => (loadingStats ? "…" : String(value));
+
+  const dateLine = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-5">
-        <div>
-          <h2 className="text-xl font-semibold text-white">Dashboard</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
-        </div>
+      {/* Header (same pattern as the Schedule page) */}
+      <div className="mb-5">
+        <h2 className="text-3xl font-bold text-white">Dashboard</h2>
+        <p className="mt-1 text-slate-300">
+          {dateLine}
+          {!loadingStats &&
+            ` · ${
+              stats.clientsToday > 0
+                ? `${plural(stats.clientsToday, "client")} today`
+                : "Nothing scheduled today"
+            }`}
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
+      {/* Overview cards */}
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           title="Total Clients"
-          value={loadingStats ? "…" : String(totalClients)}
+          value={show(totalClients)}
+          subtitle={totalClients === 0 ? "No clients yet" : "Today + upcoming"}
           icon={<FaUsers />}
-          accent="sky"
-          subtitle={
-            totalClients === 0 ? "No clients yet" : "Today + upcoming"
-          }
+          iconClass="bg-sky-500/10 text-sky-400"
         />
-
         <StatCard
           title="Clients Today"
-          value={loadingStats ? "…" : String(stats.clientsToday)}
+          value={show(stats.clientsToday)}
+          subtitle={stats.clientsToday === 0 ? "Nothing today" : "On the schedule"}
           icon={<FaCalendarDay />}
-          accent="rose"
-          subtitle={
-            stats.clientsToday === 0 ? "Nothing today" : "To attend to"
-          }
+          iconClass="bg-amber-500/10 text-amber-400"
         />
-
         <StatCard
           title="Pending Clients"
-          value={loadingStats ? "…" : String(stats.pendingClients)}
+          value={show(stats.pendingClients)}
+          subtitle={stats.pendingClients === 0 ? "None pending" : "From tomorrow on"}
           icon={<FaHourglassHalf />}
-          accent="amber"
-          subtitle={
-            stats.pendingClients === 0 ? "None pending" : "From tomorrow on"
-          }
+          iconClass="bg-sky-500/10 text-sky-400"
         />
-
         <StatCard
           title="Projects Editing"
-          value={loadingStats ? "…" : String(stats.editing)}
+          value={show(stats.editing)}
+          subtitle={stats.editing === 0 ? "Nothing in editing" : "In progress"}
           icon={<FaPhotoVideo />}
-          accent="violet"
-          subtitle={
-            stats.editing === 0 ? "Nothing in editing" : "In progress"
-          }
+          iconClass="bg-sky-500/10 text-sky-400"
         />
-
         <StatCard
           title="Total Folders"
-          value={loadingStats ? "…" : String(stats.totalFolders)}
+          value={show(stats.totalFolders)}
+          subtitle={stats.totalFolders === 0 ? "No folders yet" : "Across Media Storage"}
           icon={<FaFolder />}
-          accent="indigo"
-          subtitle={
-            stats.totalFolders === 0 ? "No folders yet" : "Across Media Storage"
-          }
+          iconClass="bg-sky-500/10 text-sky-400"
         />
-
         <StatCard
-          title="Approx. Income"
-          value="₱0"
+          title="Fees This Month"
+          value={
+            loadingStats
+              ? "…"
+              : stats.monthFees === null
+              ? "–"
+              : `₱${stats.monthFees.toLocaleString("en-PH")}`
+          }
+          subtitle="From event fees"
           icon={<FaCoins />}
-          accent="emerald"
-          subtitle="Pricing not tracked yet"
+          iconClass="bg-sky-500/10 text-sky-400"
         />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4 mb-4">
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <TodaySchedule />
         <RecentProjects />
+      </div>
+
+      <div className="mb-4">
         <WorkflowSummary />
       </div>
 

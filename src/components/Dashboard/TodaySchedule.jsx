@@ -1,6 +1,41 @@
 import { useEffect, useMemo, useState } from "react";
-import { FaClock, FaCalendarAlt } from "react-icons/fa";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  getEventCategory,
+  CATEGORY_HEX,
+  CATEGORY_LABELS,
+} from "../Schedule/eventCategory";
+
+// Same category colors the Calendar and Schedule lists use.
+const hexToRgba = (hex, alpha = 1) => {
+  const normalized = (hex || "#d946ef").replace("#", "");
+  const safeHex =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : normalized;
+
+  const value = Number.parseInt(safeHex, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const getCategoryStyle = (event) => {
+  const category = getEventCategory(event);
+  const hex = CATEGORY_HEX[category] || CATEGORY_HEX.default;
+
+  return {
+    backgroundColor: hexToRgba(hex, 0.1),
+    borderColor: hexToRgba(hex, 0.3),
+    borderLeftColor: hex,
+    color: hex,
+  };
+};
 
 function TodaySchedule() {
   const [events, setEvents] = useState([]);
@@ -64,7 +99,7 @@ function TodaySchedule() {
   const formatTime = (date) =>
     date
       ? new Date(date).toLocaleTimeString("en-US", {
-          hour: "2-digit",
+          hour: "numeric",
           minute: "2-digit",
           hour12: true,
         })
@@ -96,52 +131,54 @@ function TodaySchedule() {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white">
+    <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+      <header className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+          <span className="h-2 w-2 rounded-full bg-sky-400" />
           Upcoming Schedule
         </h3>
-        <span className="text-xs text-slate-500">
-          {upcomingEvents.length}{" "}
-          {upcomingEvents.length === 1 ? "event" : "events"}
+        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300">
+          {upcomingEvents.length}
         </span>
-      </div>
+      </header>
 
       {loading ? (
-        <p className="text-slate-500 text-sm py-6 text-center">Loading…</p>
+        <p className="py-6 text-center text-sm text-slate-500">Loading…</p>
       ) : upcomingEvents.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <FaCalendarAlt className="text-slate-700 text-2xl mb-2" />
-          <p className="text-slate-500 text-sm">Nothing coming up.</p>
-        </div>
+        <p className="rounded-lg border border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">
+          Nothing coming up.
+        </p>
       ) : (
-        <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-          {upcomingEvents.map((event) => (
-            <div key={event.id} className="flex gap-3 items-start">
-              <div className="flex flex-col items-center justify-center bg-sky-500/10 text-sky-400 w-14 h-9 rounded-md flex-shrink-0 text-[10px] font-semibold px-1 text-center leading-tight">
-                {formatDay(event.start)}
-              </div>
+        <div className="space-y-2">
+          {upcomingEvents.map((event) => {
+            const category = getEventCategory(event);
+            const categoryLabel = CATEGORY_LABELS[category] || event.category;
 
-              <div className="min-w-0 flex-1">
-                <h4 className="text-white text-sm font-medium truncate">
-                  {event.title || "Untitled Event"}
-                </h4>
-                {event.client && (
-                  <p className="text-xs text-slate-500 truncate">
-                    {event.client}
+            return (
+              <div
+                key={event.id}
+                style={getCategoryStyle(event)}
+                className="flex items-center gap-3 rounded-lg border border-l-4 px-3 py-2"
+              >
+                <div className="w-16 flex-shrink-0 text-xs">
+                  <p className="font-semibold">{formatTime(event.start)}</p>
+                  <p className="mt-0.5 opacity-70">{formatDay(event.start)}</p>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {event.title || "Untitled Event"}
                   </p>
-                )}
-                <p className="text-xs text-slate-600 flex items-center gap-1.5 mt-0.5">
-                  <FaClock className="text-[10px]" />
-                  {formatTime(event.start)}
-                  {event.end && ` – ${formatTime(event.end)}`}
-                </p>
+                  <p className="truncate text-xs opacity-70">
+                    {[event.client, categoryLabel].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

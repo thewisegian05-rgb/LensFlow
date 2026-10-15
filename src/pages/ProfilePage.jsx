@@ -17,13 +17,43 @@ import {
   FaMinus,
 } from "react-icons/fa";
 
+import { supabase } from "../lib/supabaseClient";
+import {
+  fetchProfileBundle,
+  migrateLocalProfile,
+  saveProfileFields,
+  setAvatar,
+  createAlbum,
+  renameAlbum,
+  addAlbumPhotos,
+  deleteAlbumPhoto,
+  deleteAlbum,
+  addFeatured,
+  renameFeatured,
+  deleteFeatured,
+} from "../lib/profileApi";
 
-// DEFAULT CAROUSEL ALBUMS
-const carouselStart = [];
+const DEFAULT_PROFILE_INFO = {
+  birthday: "",
+  gender: "",
+  pronouns: "They/Them",
+  relationship: "",
+  work: "",
+  niches: [],
+  customNiche: "",
+  location: "",
+  hometown: "",
+  personalEmail: "",
+  personalNumber: "",
+  studioEmail: "",
+  studioNumber: "",
+};
 
-
-// DEFAULT FEATURED PHOTOS
-const featuredStart = [];
+// Failed saves are logged and shown, so a problem never goes unnoticed.
+function reportError(message, err) {
+  console.error(message, err);
+  window.alert(`${message}\n\n${err?.message || ""}`.trim());
+}
 
 export default function Profile() {
 
@@ -31,26 +61,12 @@ export default function Profile() {
   const [username, setUsername] = useState("LENSFLOW");
   const [bio, setBio] = useState("Gian and Friends");
 
-  const [profileInfo, setProfileInfo] = useState({
-    birthday: "",
-    gender: "",
-    pronouns: "They/Them",
-    relationship: "",
-    work: "",
-    niches: [],
-    customNiche: "",
-    location: "",
-    hometown: "",
-    personalEmail: "",
-    personalNumber: "",
-    studioEmail: "",
-    studioNumber: "",
-  });
+  const [profileInfo, setProfileInfo] = useState(DEFAULT_PROFILE_INFO);
 
   // PROFILE PICTURE & PHOTO STATES
   const [profilePicture, setProfilePicture] = useState("");
-  const [carouselAlbums, setCarouselAlbums] = useState(carouselStart);
-  const [featuredPhotos, setFeaturedPhotos] = useState(featuredStart);
+  const [carouselAlbums, setCarouselAlbums] = useState([]);
+  const [featuredPhotos, setFeaturedPhotos] = useState([]);
 
   // MODAL & EDITING STATES
   const [editProfile, setEditProfile] = useState(false);
@@ -63,7 +79,12 @@ export default function Profile() {
   const [profilePreview, setProfilePreview] = useState(false);
   const [featuredPreview, setFeaturedPreview] = useState(null);
   const [detailEditor, setDetailEditor] = useState(null);
+
+  // SUPABASE LOADING STATES
+  const [userId, setUserId] = useState(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [authMissing, setAuthMissing] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   // TEMPORARY EDITING STATES
   const [tempUsername, setTempUsername] = useState(username);
@@ -80,49 +101,78 @@ export default function Profile() {
       "Are you sure you want to delete this item? This action cannot be undone.",
     onConfirm: () => {},
   });
-  
+
   // REFS
   const scrollContainerRef = useRef(null);
   const profileContainerRef = useRef(null);
+  const avatarPathRef = useRef(null); // storage path of the current profile picture
+  const lastSavedInfo = useRef(""); // last profile_info JSON written to Supabase
+  const titleTimers = useRef({}); // debounce timers for album renames
+  const busyRef = useRef(false); // blocks double-clicks while uploading
 
 
-  // LOCAL STORAGE - SAVE PROFILE DATA
-  const saveProfileData = (updates = {}) => {
-    const saved = localStorage.getItem("lensflow_profile");
-    const current = saved ? JSON.parse(saved) : {};
-
-    localStorage.setItem(
-      "lensflow_profile",
-      JSON.stringify({
-        ...current,
-        username,
-        bio,
-        profileInfo,
-        profilePicture,
-        carouselAlbums,
-        featuredPhotos,
-        ...updates,
-      })
-    );
-  };
-
-
-  // LOAD SAVED PROFILE DATA
+  // ========================================
+  // LOAD PROFILE FROM SUPABASE
+  // ========================================
   useEffect(() => {
-    const savedProfile = localStorage.getItem("lensflow_profile");
+    let cancelled = false;
 
-    if (savedProfile) {
-      const data = JSON.parse(savedProfile);
+    const load = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (data.username) setUsername(data.username);
-      if (data.bio) setBio(data.bio);
-      if (data.profileInfo) setProfileInfo(data.profileInfo);
-      if (data.profilePicture) setProfilePicture(data.profilePicture);
-      if (data.carouselAlbums) setCarouselAlbums(data.carouselAlbums);
-      if (data.featuredPhotos) setFeaturedPhotos(data.featuredPhotos);
-    }
+        if (cancelled) return;
+
+        if (!user) {
+          setAuthMissing(true);
+          return;
+        }
+
+        setUserId(user.id);
+
+        let bundle = await fetchProfileBundle(user.id);
+
+        // First visit after the move to Supabase: bring over the old
+        // name, bio, details and picture saved in this browser.
+        if (!bundle.profile) {
+          const migrated = await migrateLocalProfile(user.id);
+          if (migrated) bundle = await fetchProfileBundle(user.id);
+        }
+
+        if (cancelled) return;
+
+        if (bundle.profile) {
+          if (bundle.profile.username != null) setUsername(bundle.profile.username);
+          if (bundle.profile.bio != null) setBio(bundle.profile.bio);
+
+          const info = { ...DEFAULT_PROFILE_INFO, ...bundle.profile.profileInfo };
+          lastSavedInfo.current = JSON.stringify(info);
+          setProfileInfo(info);
+
+          avatarPathRef.current = bundle.profile.avatarPath;
+          setProfilePicture(bundle.profile.avatarUrl);
+        } else {
+          lastSavedInfo.current = JSON.stringify(DEFAULT_PROFILE_INFO);
+        }
+
+        setCarouselAlbums(bundle.albums);
+        setFeaturedPhotos(bundle.featured);
+      } catch (err) {
+        console.error("Failed to load profile:", err);
+        if (!cancelled) setLoadError(err?.message || "Could not load your profile.");
+      } finally {
+        if (!cancelled) setProfileLoaded(true);
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
 
 
   // CLOSE PROFILE MENU WHEN CLICKING OUTSIDE
@@ -146,18 +196,28 @@ export default function Profile() {
   }, [profileMenu]);
 
 
- 
-  // AUTO-SAVE PROFILE CHANGES
+  // ========================================
+  // AUTO-SAVE PROFILE DETAILS
+  // (covers changes made directly, like removing a niche tag)
+  // ========================================
   useEffect(() => {
-    saveProfileData();
-  }, [
-    username,
-    bio,
-    profileInfo,
-    profilePicture,
-    carouselAlbums,
-    featuredPhotos,
-  ]);
+    if (!profileLoaded || !userId) return;
+
+    const serialized = JSON.stringify(profileInfo);
+    if (serialized === lastSavedInfo.current) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await saveProfileFields(userId, { profile_info: profileInfo });
+        lastSavedInfo.current = serialized;
+      } catch (err) {
+        console.error("Failed to save profile details:", err);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [profileInfo, profileLoaded, userId]);
+
 
   // OPEN EDIT PROFILE
   const openEditProfile = () => {
@@ -167,24 +227,21 @@ export default function Profile() {
   };
 
   // SAVE EDIT PROFILE
-  const saveProfile = () => {
-    const updated = {
-      username: tempUsername,
-      bio: tempBio,
-      profileInfo,
-      profilePicture,
-      carouselAlbums,
-      featuredPhotos,
-    };
+  const saveProfile = async () => {
+    if (!userId) return;
 
-    localStorage.setItem(
-      "lensflow_profile",
-      JSON.stringify(updated)
-    );
+    try {
+      await saveProfileFields(userId, {
+        username: tempUsername,
+        bio: tempBio,
+      });
 
-    setUsername(tempUsername);
-    setBio(tempBio);
-    setEditProfile(false);
+      setUsername(tempUsername);
+      setBio(tempBio);
+      setEditProfile(false);
+    } catch (err) {
+      reportError("Could not save your profile.", err);
+    }
   };
 
   // OPEN DETAIL EDITOR
@@ -194,67 +251,42 @@ export default function Profile() {
   };
 
   // SAVE DETAIL CHANGES
-  const saveDetailEditor = () => {
+  const saveDetailEditor = async () => {
+    if (!userId) return;
+
     const updated = { ...tempDetails };
 
-    setProfileInfo(updated);
+    try {
+      await saveProfileFields(userId, { profile_info: updated });
 
-    const saved = localStorage.getItem("lensflow_profile");
-    const current = saved ? JSON.parse(saved) : {};
-
-    localStorage.setItem(
-      "lensflow_profile",
-      JSON.stringify({
-        ...current,
-        username,
-        bio,
-        profileInfo: updated,
-        profilePicture,
-        carouselAlbums,
-        featuredPhotos,
-      })
-    );
-    setDetailEditor(null); };
-
-  // CHANGE PROFILE PICTURE
-  const changeProfilePictureDirect = (e) => {
-    const file = e.target.files?.[0];
-
-    if (!file) return;
-
-    const reader = new FileReader();
-
-    reader.onloadend = () => {
-      const imageData = reader.result;
-
-      setProfilePicture(imageData);
-
-      const savedProfile = localStorage.getItem("lensflow_profile");
-      const data = savedProfile ? JSON.parse(savedProfile) : {};
-
-      const updatedProfile = {
-        ...data,
-        username,
-        bio,
-        profileInfo,
-        profilePicture: imageData,
-        carouselAlbums,
-        featuredPhotos,
-      };
-
-      localStorage.setItem(
-        "lensflow_profile",
-        JSON.stringify(updatedProfile)
-      );
-    };
-
-    reader.readAsDataURL(file);
-
-    setProfileMenu(false);
-    e.target.value = "";
+      lastSavedInfo.current = JSON.stringify(updated);
+      setProfileInfo(updated);
+      setDetailEditor(null);
+    } catch (err) {
+      reportError("Could not save your details.", err);
+    }
   };
 
-  // ADD NEW CAROUSEL ALBUM
+  // CHANGE PROFILE PICTURE
+  const changeProfilePictureDirect = async (e) => {
+    const file = e.target.files?.[0];
+
+    e.target.value = "";
+    setProfileMenu(false);
+
+    if (!file || !userId) return;
+
+    try {
+      const { path, url } = await setAvatar(userId, file, avatarPathRef.current);
+
+      avatarPathRef.current = path;
+      setProfilePicture(url);
+    } catch (err) {
+      reportError("Could not update your profile picture.", err);
+    }
+  };
+
+  // ADD NEW CAROUSEL ALBUM (opens the setup modal; nothing is saved yet)
   const addNewAlbumCard = (e) => {
     const files = Array.from(e.target.files || []);
 
@@ -267,30 +299,38 @@ export default function Profile() {
         id: Date.now() + i,
         src: URL.createObjectURL(file),
         title: file.name,
+        file,
       })),
     });
 
     e.target.value = "";
   };
 
-  // CONFIRM NEW CAROUSEL ALBUM
-  const confirmCarouselSetup = () => {
-    if (!carouselSetup) return;
+  // CONFIRM NEW CAROUSEL ALBUM (uploads and saves)
+  const confirmCarouselSetup = async () => {
+    if (!carouselSetup || !userId || busyRef.current) return;
 
-    const title =
-      carouselSetup.title.trim() ||
-      `Carousel Slot ${carouselAlbums.length + 1}`;
+    busyRef.current = true;
 
-    setCarouselAlbums((albums) => [
-      ...albums,
-      {
-        ...carouselSetup,
-        title,
-      },
-    ]);
-    setCarouselSetup(null);};
+    try {
+      const title =
+        carouselSetup.title.trim() ||
+        `Carousel Slot ${carouselAlbums.length + 1}`;
 
-  // UPDATE CAROUSEL ALBUM TITLE
+      const album = await createAlbum(userId, title, carouselSetup.photos);
+
+      carouselSetup.photos.forEach((photo) => URL.revokeObjectURL(photo.src));
+
+      setCarouselAlbums((albums) => [...albums, album]);
+      setCarouselSetup(null);
+    } catch (err) {
+      reportError("Could not add the album.", err);
+    } finally {
+      busyRef.current = false;
+    }
+  };
+
+  // UPDATE CAROUSEL ALBUM TITLE (saved shortly after you stop typing)
   const updateAlbumTitle = (albumId, newTitle) => {
     setCarouselAlbums((albums) =>
       albums.map((album) =>
@@ -302,66 +342,80 @@ export default function Profile() {
           : album
       )
     );
+
+    clearTimeout(titleTimers.current[albumId]);
+    titleTimers.current[albumId] = setTimeout(async () => {
+      try {
+        await renameAlbum(albumId, newTitle);
+      } catch (err) {
+        console.error("Failed to rename album:", err);
+      }
+    }, 600);
   };
 
   // ADD PHOTOS TO CAROUSEL ALBUM
-  const addPhotosToAlbum = (albumId, e) => {
+  const addPhotosToAlbum = async (albumId, e) => {
     const files = Array.from(e.target.files || []);
 
-    if (files.length === 0) return;
-
-    setCarouselAlbums((albums) =>
-      albums.map((album) => {
-        if (album.id === albumId) {
-          const newPhotos = files.map((file, i) => ({
-            id: Date.now() + i,
-            src: URL.createObjectURL(file),
-            title: file.name,
-          }));
-
-          return {
-            ...album,
-            photos: [...album.photos, ...newPhotos],
-          };
-        }
-
-        return album;
-      })
-    );
-
     e.target.value = "";
+
+    if (files.length === 0 || !userId) return;
+
+    try {
+      const photos = await addAlbumPhotos(
+        userId,
+        albumId,
+        files.map((file) => ({ file, title: file.name }))
+      );
+
+      setCarouselAlbums((albums) =>
+        albums.map((album) =>
+          album.id === albumId
+            ? { ...album, photos: [...album.photos, ...photos] }
+            : album
+        )
+      );
+    } catch (err) {
+      reportError("Could not add those photos.", err);
+    }
   };
 
 
   // ========================================
   // DELETE PHOTO FROM CAROUSEL ALBUM
   // ========================================
-  const deletePhotoFromAlbum = (albumId, photoName) => {
+  const deletePhotoFromAlbum = (albumId, photoName, photoId) => {
     setConfirmModal({
       isOpen: true,
       title: "Delete Photo?",
       message: `Are you sure you want to delete "${photoName}"? This action cannot be undone.`,
 
-      onConfirm: () => {
-        setCarouselAlbums((albums) =>
-          albums.map((album) => {
-            if (album.id === albumId) {
-              return {
-                ...album,
-                photos: album.photos.filter(
-                  (photo) => photo.title !== photoName
-                ),
-              };
-            }
-
-            return album;
-          })
-        );
-
+      onConfirm: async () => {
         setConfirmModal((prev) => ({
           ...prev,
           isOpen: false,
         }));
+
+        const album = carouselAlbums.find((a) => a.id === albumId);
+        const target = album?.photos.find((photo) =>
+          photoId ? photo.id === photoId : photo.title === photoName
+        );
+
+        if (!target) return;
+
+        try {
+          await deleteAlbumPhoto(target);
+
+          setCarouselAlbums((albums) =>
+            albums.map((a) =>
+              a.id === albumId
+                ? { ...a, photos: a.photos.filter((p) => p.id !== target.id) }
+                : a
+            )
+          );
+        } catch (err) {
+          reportError("Could not delete that photo.", err);
+        }
       },
     });
   };
@@ -376,22 +430,31 @@ export default function Profile() {
       title: "Delete Album?",
       message: `Are you sure you want to delete album "${albumTitle}"? This action cannot be undone.`,
 
-      onConfirm: () => {
-        setCarouselAlbums((albums) =>
-          albums.filter((album) => album.id !== albumId)
-        );
-
+      onConfirm: async () => {
         setConfirmModal((prev) => ({
           ...prev,
           isOpen: false,
         }));
+
+        const album = carouselAlbums.find((a) => a.id === albumId);
+        if (!album) return;
+
+        try {
+          await deleteAlbum(album);
+
+          setCarouselAlbums((albums) =>
+            albums.filter((a) => a.id !== albumId)
+          );
+        } catch (err) {
+          reportError("Could not delete that album.", err);
+        }
       },
     });
   };
 
 
   // ========================================
-  // ADD FEATURED PHOTOS
+  // ADD FEATURED PHOTOS (opens the setup modal; nothing is saved yet)
   // ========================================
   const addFeaturedPhotos = (e) => {
     const files = Array.from(e.target.files || []);
@@ -403,6 +466,7 @@ export default function Profile() {
         id: Date.now() + i,
         src: URL.createObjectURL(file),
         title: file.name,
+        file,
       }))
     );
 
@@ -438,24 +502,35 @@ export default function Profile() {
 
 
   // ========================================
-  // POST FEATURED PHOTOS
+  // POST FEATURED PHOTOS (uploads and saves)
   // ========================================
-  const postFeaturedPhotos = () => {
-    if (featuredSetup.length === 0) return;
+  const postFeaturedPhotos = async () => {
+    if (featuredSetup.length === 0 || !userId || busyRef.current) return;
 
-    setFeaturedPhotos((photos) => [
-      ...photos,
-      ...featuredSetup,
-    ]);
+    busyRef.current = true;
 
-    setFeaturedSetup([]);
+    try {
+      const photos = await addFeatured(
+        userId,
+        featuredSetup.map((photo) => ({ file: photo.file, title: photo.title }))
+      );
+
+      featuredSetup.forEach((photo) => URL.revokeObjectURL(photo.src));
+
+      setFeaturedPhotos((existing) => [...existing, ...photos]);
+      setFeaturedSetup([]);
+    } catch (err) {
+      reportError("Could not post those photos.", err);
+    } finally {
+      busyRef.current = false;
+    }
   };
 
 
   // ========================================
   // UPDATE FEATURED PHOTO TITLE
   // ========================================
-  const updateFeaturedTitle = (photoId, newTitle) => {
+  const updateFeaturedTitle = async (photoId, newTitle) => {
     setFeaturedPhotos((photos) =>
       photos.map((photo) =>
         photo.id === photoId
@@ -466,6 +541,12 @@ export default function Profile() {
           : photo
       )
     );
+
+    try {
+      await renameFeatured(photoId, newTitle);
+    } catch (err) {
+      reportError("Could not rename that photo.", err);
+    }
   };
 
 
@@ -478,15 +559,24 @@ export default function Profile() {
       title: "Delete Featured Photo?",
       message: `Are you sure you want to delete "${photoTitle}"? This action cannot be undone.`,
 
-      onConfirm: () => {
-        setFeaturedPhotos((photos) =>
-          photos.filter((photo) => photo.id !== photoId)
-        );
-
+      onConfirm: async () => {
         setConfirmModal((prev) => ({
           ...prev,
           isOpen: false,
         }));
+
+        const target = featuredPhotos.find((photo) => photo.id === photoId);
+        if (!target) return;
+
+        try {
+          await deleteFeatured(target);
+
+          setFeaturedPhotos((photos) =>
+            photos.filter((photo) => photo.id !== photoId)
+          );
+        } catch (err) {
+          reportError("Could not delete that photo.", err);
+        }
       },
     });
   };
@@ -539,6 +629,37 @@ export default function Profile() {
   ];
 
 
+  // ========================================
+  // LOADING / SIGNED-OUT / ERROR STATES
+  // (all hooks are above, so these early returns are safe)
+  // ========================================
+  if (!profileLoaded) {
+    return (
+      <p className="mt-20 text-center text-sm text-slate-500">
+        Loading profile…
+      </p>
+    );
+  }
+
+  if (authMissing) {
+    return (
+      <p className="mt-20 text-center text-sm text-slate-500">
+        Sign in to see your profile.
+      </p>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto mt-20 max-w-md text-center">
+        <p className="text-sm text-red-400">Couldn't load your profile.</p>
+        <p className="mt-2 text-xs text-slate-500">{loadError}</p>
+        <p className="mt-2 text-xs text-slate-500">
+          If this mentions a missing table, run the profile SQL in Supabase first.
+        </p>
+      </div>
+    );
+  }
   // ========================================
   // PROFILE PAGE UI
   // ========================================

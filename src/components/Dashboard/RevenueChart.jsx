@@ -1,5 +1,3 @@
-import { FaChartLine } from "react-icons/fa";
-
 import {
   ResponsiveContainer,
   LineChart,
@@ -12,23 +10,21 @@ import {
 
 function RevenueChart({ data = [] }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white">
+    <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+      <header className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+          <span className="h-2 w-2 rounded-full bg-sky-400" />
           Revenue Overview
         </h3>
         <span className="text-xs text-slate-500">Last 6 months</span>
-      </div>
+      </header>
 
-      <div className="h-56">
-        {data.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <FaChartLine className="text-slate-700 text-2xl mb-2" />
-            <p className="text-sm text-slate-500">
-              Revenue will appear once projects are priced.
-            </p>
-          </div>
-        ) : (
+      {data.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
+          Revenue will appear once projects are priced.
+        </p>
+      ) : (
+        <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
@@ -51,9 +47,9 @@ function RevenueChart({ data = [] }) {
               />
             </LineChart>
           </ResponsiveContainer>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </section>
   );
 }
 

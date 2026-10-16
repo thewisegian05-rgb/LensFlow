@@ -9,8 +9,6 @@ import {
 } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
 
-/* ============ Settings ============ */
-const MIN_LOADING_MS = 2000; // loading always lasts at least 2 seconds
 const SMOOTH_EASE = [0.22, 1, 0.36, 1];
 
 /* ============ Stages (in order) ============ */
@@ -104,53 +102,6 @@ function isFutureEvent(item) {
 
 function sortProjects(a, b) {
   return (a.start_time || "").localeCompare(b.start_time || "");
-}
-
-/* ============ Loading skeleton ============ */
-function SkeletonCard() {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/70">
-      <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
-      <div className="mt-3 h-2 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
-      <div className="mt-2 h-2 w-2/5 rounded bg-slate-200 dark:bg-slate-700" />
-      <div className="mt-4 h-5 w-full rounded bg-slate-100 dark:bg-slate-700/50" />
-    </div>
-  );
-}
-
-function LoadingBoard() {
-  return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
-      {STAGES.map((stage, i) => (
-        <motion.div
-          key={stage.key}
-          className="w-72 flex-shrink-0 rounded-2xl border border-slate-200 bg-white/70 dark:border-slate-800 dark:bg-slate-900/70"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.05, duration: 0.4, ease: SMOOTH_EASE }}
-        >
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${stage.dot}`} />
-              <span className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700" />
-            </div>
-            <span className="h-4 w-6 rounded-full bg-slate-200 dark:bg-slate-700" />
-          </div>
-
-          {/* pulsing cards */}
-          <motion.div
-            className="space-y-2.5 px-3 pb-3"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.1 }}
-          >
-            {Array.from({ length: i % 3 === 0 ? 2 : i % 3 === 1 ? 1 : 3 }).map((_, n) => (
-              <SkeletonCard key={n} />
-            ))}
-          </motion.div>
-        </motion.div>
-      ))}
-    </div>
-  );
 }
 
 /* ============ Card ============ */
@@ -272,23 +223,14 @@ function WorkflowPage() {
 
   const [notice, setNotice] = useState("");
 
-  // Loading must last at least MIN_LOADING_MS, even if the data is ready sooner.
-  const [minElapsed, setMinElapsed] = useState(false);
   // Staggered card delays only apply to the very first reveal.
   const [introDone, setIntroDone] = useState(false);
 
-  const showLoading = loading || !minElapsed;
-
   useEffect(() => {
-    const timer = setTimeout(() => setMinElapsed(true), MIN_LOADING_MS);
+    if (loading) return;
+    const timer = setTimeout(() => setIntroDone(true), 2000);
     return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (showLoading) return;
-    const timer = setTimeout(() => setIntroDone(true), 2200);
-    return () => clearTimeout(timer);
-  }, [showLoading]);
+  }, [loading]);
 
   useEffect(() => {
     if (!notice) return;
@@ -451,18 +393,8 @@ function WorkflowPage() {
   }, [projects]);
 
   /* ============ RENDER ============ */
-  if (authLoading) {
-    return (
-      <div className="mt-24 flex flex-col items-center gap-3">
-        <motion.span
-          className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-sky-500 dark:border-slate-700 dark:border-t-sky-500"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-        />
-        <p className="text-xs text-slate-500">Loading...</p>
-      </div>
-    );
-  }
+  // No loading screen: render nothing for the brief auth check.
+  if (authLoading) return null;
 
   if (!user) {
     return (
@@ -522,114 +454,92 @@ function WorkflowPage() {
           )}
         </AnimatePresence>
 
-        {/* skeleton fades out first, then the real board fades in */}
-        <AnimatePresence mode="wait">
-          {showLoading ? (
-            <motion.div
-              key="skeleton"
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <LoadingBoard />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="board"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
-            >
-              <LayoutGroup>
-                <div className="flex gap-4 overflow-x-auto pb-4 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
-                  {STAGES.map((stage, i) => {
-                    const list = grouped[stage.key];
-                    const isOver = dragOverStage === stage.key;
+        <LayoutGroup>
+          <div className="flex gap-4 overflow-x-auto pb-4 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
+            {STAGES.map((stage, i) => {
+              const list = grouped[stage.key];
+              const isOver = dragOverStage === stage.key;
 
-                    return (
-                      <motion.div
-                        key={stage.key}
-                        className="flex-shrink-0"
-                        initial={{ opacity: 0, y: 28 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.08, duration: 0.55, ease: SMOOTH_EASE }}
+              return (
+                <motion.div
+                  key={stage.key}
+                  className="flex-shrink-0"
+                  initial={{ opacity: 0, y: 28 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.08, duration: 0.55, ease: SMOOTH_EASE }}
+                >
+                  <section
+                    onDragOver={(e) => {
+                      const dragged = projects.find((p) => p.id === draggingId);
+                      const blocked = isFutureEvent(dragged) && STAGE_INDEX[stage.key] > 0;
+                      if (blocked) {
+                        e.dataTransfer.dropEffect = "none";
+                        return;
+                      }
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverStage !== stage.key) setDragOverStage(stage.key);
+                    }}
+                    onDragLeave={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget)) setDragOverStage(null);
+                    }}
+                    onDrop={(e) => handleDrop(e, stage.key)}
+                    className={`flex max-h-[calc(100vh-12rem)] w-72 flex-shrink-0 flex-col rounded-2xl border bg-white/70 transition-all duration-300
+                    dark:bg-slate-900/70
+                    ${
+                      isOver
+                        ? "scale-[1.015] border-sky-400 bg-sky-50/70 shadow-lg shadow-sky-500/10 dark:border-sky-500/70 dark:bg-sky-500/5"
+                        : "border-slate-200 dark:border-slate-800"
+                    }`}
+                  >
+                    <header className="flex items-center justify-between gap-2 px-4 py-3">
+                      <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${stage.dot}`} />
+                        <span className="truncate">{stage.label}</span>
+                      </h3>
+
+                      <motion.span
+                        key={loading ? "loading" : list.length}
+                        initial={{ scale: 1.4 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 18 }}
+                        className={`rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold tabular-nums
+                        dark:bg-slate-800
+                        ${stage.text}`}
                       >
-                        <section
-                          onDragOver={(e) => {
-                            const dragged = projects.find((p) => p.id === draggingId);
-                            const blocked = isFutureEvent(dragged) && STAGE_INDEX[stage.key] > 0;
-                            if (blocked) {
-                              e.dataTransfer.dropEffect = "none";
-                              return;
-                            }
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = "move";
-                            if (dragOverStage !== stage.key) setDragOverStage(stage.key);
-                          }}
-                          onDragLeave={(e) => {
-                            if (!e.currentTarget.contains(e.relatedTarget)) setDragOverStage(null);
-                          }}
-                          onDrop={(e) => handleDrop(e, stage.key)}
-                          className={`flex max-h-[calc(100vh-12rem)] w-72 flex-shrink-0 flex-col rounded-2xl border bg-white/70 transition-all duration-300
-                          dark:bg-slate-900/70
-                          ${
-                            isOver
-                              ? "scale-[1.015] border-sky-400 bg-sky-50/70 shadow-lg shadow-sky-500/10 dark:border-sky-500/70 dark:bg-sky-500/5"
-                              : "border-slate-200 dark:border-slate-800"
-                          }`}
+                        {loading ? "–" : list.length}
+                      </motion.span>
+                    </header>
+
+                    <div className="min-h-[7rem] flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
+                      {loading ? null : list.length === 0 ? (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.4, delay: introDone ? 0 : 0.2 + i * 0.08 }}
+                          className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-600"
                         >
-                          <header className="flex items-center justify-between gap-2 px-4 py-3">
-                            <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                              <span className={`h-2 w-2 flex-shrink-0 rounded-full ${stage.dot}`} />
-                              <span className="truncate">{stage.label}</span>
-                            </h3>
-
-                            <motion.span
-                              key={list.length}
-                              initial={{ scale: 1.4 }}
-                              animate={{ scale: 1 }}
-                              transition={{ type: "spring", stiffness: 400, damping: 18 }}
-                              className={`rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold tabular-nums
-                              dark:bg-slate-800
-                              ${stage.text}`}
-                            >
-                              {list.length}
-                            </motion.span>
-                          </header>
-
-                          <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
-                            {list.length === 0 ? (
-                              <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ duration: 0.4, delay: introDone ? 0 : 0.3 + i * 0.08 }}
-                                className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-600"
-                              >
-                                {isOver ? "Drop here" : "Nothing here"}
-                              </motion.div>
-                            ) : (
-                              list.map((project, n) => (
-                                <ProjectCard
-                                  key={project.id}
-                                  project={project}
-                                  dragging={draggingId === project.id}
-                                  onMove={moveProject}
-                                  onDragStart={handleDragStart}
-                                  delay={introDone ? 0 : 0.2 + i * 0.08 + n * 0.07}
-                                />
-                              ))
-                            )}
-                          </div>
-                        </section>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </LayoutGroup>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                          {isOver ? "Drop here" : "Nothing here"}
+                        </motion.div>
+                      ) : (
+                        list.map((project, n) => (
+                          <ProjectCard
+                            key={project.id}
+                            project={project}
+                            dragging={draggingId === project.id}
+                            onMove={moveProject}
+                            onDragStart={handleDragStart}
+                            delay={introDone ? 0 : 0.1 + i * 0.08 + n * 0.07}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </section>
+                </motion.div>
+              );
+            })}
+          </div>
+        </LayoutGroup>
       </div>
     </MotionConfig>
   );

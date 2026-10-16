@@ -9,7 +9,9 @@ import {
 } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
 
-/* ============ Stages but in order ============ */
+const SMOOTH_EASE = [0.22, 1, 0.36, 1];
+
+/* ============ Stages (in order) ============ */
 const STAGES = [
   {
     key: "coming-events",
@@ -103,9 +105,8 @@ function sortProjects(a, b) {
 }
 
 /* ============ Card ============ */
-// Outer motion.div = animation. Inner plain div = native HTML5 draggable
-// (framer's motion.div overrides onDragStart, so they're split).
-function ProjectCard({ project, onMove, onDragStart, dragging }) {
+
+function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
   const index = STAGE_INDEX[project.stage];
   const locked = isFutureEvent(project);
   const isToday = project.event_date === todayString();
@@ -114,10 +115,15 @@ function ProjectCard({ project, onMove, onDragStart, dragging }) {
     <motion.div
       layout
       layoutId={`card-${project.id}`}
-      initial={{ opacity: 0, scale: 0.92, y: 12 }}
+      initial={{ opacity: 0, scale: 0.96, y: 18 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.92 }}
-      transition={{ type: "spring", stiffness: 380, damping: 32 }}
+      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.2 } }}
+      transition={{
+        layout: { type: "spring", stiffness: 260, damping: 30, mass: 0.9 },
+        opacity: { duration: 0.45, ease: "easeOut", delay },
+        y: { type: "spring", stiffness: 220, damping: 26, delay },
+        scale: { type: "spring", stiffness: 220, damping: 26, delay },
+      }}
     >
       <div
         draggable
@@ -212,10 +218,19 @@ function WorkflowPage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [notice, setNotice] = useState("");
+
+  // Staggered card delays only apply to the very first reveal.
+  const [introDone, setIntroDone] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+    const timer = setTimeout(() => setIntroDone(true), 2000);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     if (!notice) return;
@@ -378,18 +393,8 @@ function WorkflowPage() {
   }, [projects]);
 
   /* ============ RENDER ============ */
-  if (authLoading) {
-    return (
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: [0.4, 1, 0.4] }}
-        transition={{ duration: 1.4, repeat: Infinity }}
-        className="mt-20 text-center text-sm text-slate-500"
-      >
-        Loading...
-      </motion.p>
-    );
-  }
+  // No loading screen: render nothing for the brief auth check.
+  if (authLoading) return null;
 
   if (!user) {
     return (
@@ -410,7 +415,7 @@ function WorkflowPage() {
           className="mb-5"
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.4, ease: SMOOTH_EASE }}
         >
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white sm:text-2xl">
             Workflow
@@ -449,101 +454,92 @@ function WorkflowPage() {
           )}
         </AnimatePresence>
 
-        {loading ? (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0.4, 1, 0.4] }}
-            transition={{ duration: 1.4, repeat: Infinity }}
-            className="py-16 text-center text-sm text-slate-500"
-          >
-            Loading your shoots...
-          </motion.p>
-        ) : (
-          <LayoutGroup>
-            <div className="flex gap-4 overflow-x-auto pb-4 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
-              {STAGES.map((stage, i) => {
-                const list = grouped[stage.key];
-                const isOver = dragOverStage === stage.key;
+        <LayoutGroup>
+          <div className="flex gap-4 overflow-x-auto pb-4 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
+            {STAGES.map((stage, i) => {
+              const list = grouped[stage.key];
+              const isOver = dragOverStage === stage.key;
 
-                return (
-                  <motion.div
-                    key={stage.key}
-                    className="flex-shrink-0"
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.06, duration: 0.35, ease: "easeOut" }}
+              return (
+                <motion.div
+                  key={stage.key}
+                  className="flex-shrink-0"
+                  initial={{ opacity: 0, y: 28 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.08, duration: 0.55, ease: SMOOTH_EASE }}
+                >
+                  <section
+                    onDragOver={(e) => {
+                      const dragged = projects.find((p) => p.id === draggingId);
+                      const blocked = isFutureEvent(dragged) && STAGE_INDEX[stage.key] > 0;
+                      if (blocked) {
+                        e.dataTransfer.dropEffect = "none";
+                        return;
+                      }
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverStage !== stage.key) setDragOverStage(stage.key);
+                    }}
+                    onDragLeave={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget)) setDragOverStage(null);
+                    }}
+                    onDrop={(e) => handleDrop(e, stage.key)}
+                    className={`flex max-h-[calc(100vh-12rem)] w-72 flex-shrink-0 flex-col rounded-2xl border bg-white/70 transition-all duration-300
+                    dark:bg-slate-900/70
+                    ${
+                      isOver
+                        ? "scale-[1.015] border-sky-400 bg-sky-50/70 shadow-lg shadow-sky-500/10 dark:border-sky-500/70 dark:bg-sky-500/5"
+                        : "border-slate-200 dark:border-slate-800"
+                    }`}
                   >
-                    <section
-                      onDragOver={(e) => {
-                        const dragged = projects.find((p) => p.id === draggingId);
-                        const blocked = isFutureEvent(dragged) && STAGE_INDEX[stage.key] > 0;
-                        if (blocked) {
-                          e.dataTransfer.dropEffect = "none";
-                          return;
-                        }
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = "move";
-                        if (dragOverStage !== stage.key) setDragOverStage(stage.key);
-                      }}
-                      onDragLeave={(e) => {
-                        if (!e.currentTarget.contains(e.relatedTarget)) setDragOverStage(null);
-                      }}
-                      onDrop={(e) => handleDrop(e, stage.key)}
-                      className={`flex max-h-[calc(100vh-12rem)] w-72 flex-shrink-0 flex-col rounded-2xl border bg-white/70 transition-all duration-200
-                      dark:bg-slate-900/70
-                      ${
-                        isOver
-                          ? "scale-[1.015] border-sky-400 bg-sky-50/70 shadow-lg shadow-sky-500/10 dark:border-sky-500/70 dark:bg-sky-500/5"
-                          : "border-slate-200 dark:border-slate-800"
-                      }`}
-                    >
-                      <header className="flex items-center justify-between gap-2 px-4 py-3">
-                        <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                          <span className={`h-2 w-2 flex-shrink-0 rounded-full ${stage.dot}`} />
-                          <span className="truncate">{stage.label}</span>
-                        </h3>
+                    <header className="flex items-center justify-between gap-2 px-4 py-3">
+                      <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${stage.dot}`} />
+                        <span className="truncate">{stage.label}</span>
+                      </h3>
 
-                        <motion.span
-                          key={list.length}
-                          initial={{ scale: 1.5 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: "spring", stiffness: 500, damping: 15 }}
-                          className={`rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold tabular-nums
-                          dark:bg-slate-800
-                          ${stage.text}`}
+                      <motion.span
+                        key={loading ? "loading" : list.length}
+                        initial={{ scale: 1.4 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 18 }}
+                        className={`rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold tabular-nums
+                        dark:bg-slate-800
+                        ${stage.text}`}
+                      >
+                        {loading ? "–" : list.length}
+                      </motion.span>
+                    </header>
+
+                    <div className="min-h-[7rem] flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
+                      {loading ? null : list.length === 0 ? (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.4, delay: introDone ? 0 : 0.2 + i * 0.08 }}
+                          className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-600"
                         >
-                          {list.length}
-                        </motion.span>
-                      </header>
-
-                      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
-                        {list.length === 0 ? (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-600"
-                          >
-                            {isOver ? "Drop here" : "Nothing here"}
-                          </motion.div>
-                        ) : (
-                          list.map((project) => (
-                            <ProjectCard
-                              key={project.id}
-                              project={project}
-                              dragging={draggingId === project.id}
-                              onMove={moveProject}
-                              onDragStart={handleDragStart}
-                            />
-                          ))
-                        )}
-                      </div>
-                    </section>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </LayoutGroup>
-        )}
+                          {isOver ? "Drop here" : "Nothing here"}
+                        </motion.div>
+                      ) : (
+                        list.map((project, n) => (
+                          <ProjectCard
+                            key={project.id}
+                            project={project}
+                            dragging={draggingId === project.id}
+                            onMove={moveProject}
+                            onDragStart={handleDragStart}
+                            delay={introDone ? 0 : 0.1 + i * 0.08 + n * 0.07}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </section>
+                </motion.div>
+              );
+            })}
+          </div>
+        </LayoutGroup>
       </div>
     </MotionConfig>
   );

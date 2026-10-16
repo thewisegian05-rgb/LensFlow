@@ -1,32 +1,41 @@
 /* =========================================================
-   SCHEDULE PAGE - PRETTY ANIMATIONS
-   
+   SCHEDULE PAGE - SMOOTH ANIMATIONS
    ========================================================= */
+
+.schedule-page {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+}
 
 
 /* ---------- 1. PAGE SECTIONS CASCADE IN ---------- */
 
 .schedule-page > *:not(.fixed) {
-  animation: sectionIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: sectionIn 0.75s var(--ease-out) backwards;
+  will-change: transform, opacity;
 }
 .schedule-page > *:nth-child(1) { animation-delay: 0ms; }
-.schedule-page > *:nth-child(2) { animation-delay: 80ms; }
-.schedule-page > *:nth-child(3) { animation-delay: 160ms; }
-.schedule-page > *:nth-child(4) { animation-delay: 240ms; }
-.schedule-page > *:nth-child(5) { animation-delay: 340ms; }
-.schedule-page > *:nth-child(6) { animation-delay: 440ms; }
+.schedule-page > *:nth-child(2) { animation-delay: 70ms; }
+.schedule-page > *:nth-child(3) { animation-delay: 140ms; }
+.schedule-page > *:nth-child(4) { animation-delay: 210ms; }
+.schedule-page > *:nth-child(5) { animation-delay: 300ms; }
+.schedule-page > *:nth-child(6) { animation-delay: 390ms; }
 
 @keyframes sectionIn {
-  from { opacity: 0; transform: translateY(26px) scale(0.985); filter: blur(6px); }
-  to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  from { opacity: 0; transform: translate3d(0, 22px, 0) scale(0.99); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
+
 
 /* ---------- 2. TODAY / COMING EVENT PANELS ---------- */
 
 .event-list {
   position: relative;
   overflow: hidden;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    border-color 0.35s var(--ease-soft),
+    box-shadow 0.35s var(--ease-soft),
+    transform 0.35s var(--ease-soft);
 }
 
 .event-list:hover {
@@ -34,23 +43,23 @@
   box-shadow: 0 12px 40px -18px rgba(0, 0, 0, 0.6);
 }
 
-
+/* one-time light sheen across the panel */
 .event-list::before {
   content: "";
   position: absolute;
   top: 0;
-  left: -60%;
+  left: 0;
   width: 40%;
   height: 100%;
   background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.07), transparent);
-  transform: skewX(-20deg);
-  animation: sheenSweep 1.4s ease-out 0.6s 1 both;
+  transform: translate3d(-160%, 0, 0) skewX(-20deg);
+  animation: sheenSweep 1.5s var(--ease-soft) 0.7s 1 both;
   pointer-events: none;
 }
 
 @keyframes sheenSweep {
-  from { left: -60%; }
-  to   { left: 130%; }
+  from { transform: translate3d(-160%, 0, 0) skewX(-20deg); }
+  to   { transform: translate3d(360%, 0, 0) skewX(-20deg); }
 }
 
 /* pulsing status dot */
@@ -61,7 +70,7 @@
   inset: 0;
   border-radius: inherit;
   background: inherit;
-  animation: dotPing 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  animation: dotPing 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
 @keyframes dotPing {
@@ -69,48 +78,52 @@
   75%, 100% { transform: scale(3); opacity: 0; }
 }
 
-
 .event-count {
   display: inline-block;
-  animation: badgePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation: badgePop 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
 }
 
 @keyframes badgePop {
-  from { transform: scale(0.3); opacity: 0; }
+  from { transform: scale(0.5); opacity: 0; }
   to   { transform: scale(1); opacity: 1; }
 }
 
-/* ---------- 3. EVENT ROWS ---------- */
+
+/* ---------- 3. EVENT ROWS (pop-up of items) ---------- */
 
 .event-row {
-  animation: rowIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  animation-delay: calc(var(--i, 0) * 70ms + 250ms);
+  animation: rowIn 0.6s var(--ease-out) backwards;
+  /* stagger, capped at 8 rows so long lists still show up quickly */
+  animation-delay: calc(min(var(--i, 0), 8) * 60ms + 250ms);
   transition:
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.25s ease,
-    filter 0.25s ease;
+    transform 0.3s var(--ease-out),
+    box-shadow 0.3s var(--ease-soft),
+    filter 0.3s var(--ease-soft);
 }
 
 .event-row:hover {
-  transform: translateX(6px);
-  filter: brightness(1.2);
+  transform: translate3d(6px, 0, 0);
+  filter: brightness(1.15);
   box-shadow: 0 10px 26px -12px currentColor;
 }
 
 .event-row:active {
-  transform: translateX(3px) scale(0.98);
+  transform: translate3d(3px, 0, 0) scale(0.98);
+  transition-duration: 0.12s;
 }
 
 @keyframes rowIn {
-  from { opacity: 0; transform: translateX(-28px) scale(0.96); }
-  to   { opacity: 1; transform: translateX(0) scale(1); }
+  0%   { opacity: 0; transform: translate3d(-22px, 8px, 0) scale(0.97); }
+  70%  { opacity: 1; }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
+/* the event that was just added / edited */
 .event-row-new {
   animation:
-    rowIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards,
-    rowGlow 1.8s ease-out 0.5s 2;
-  animation-delay: 0s, 0.5s;
+    rowIn 0.6s var(--ease-out) backwards,
+    rowGlow 1.8s ease-out 0.6s 2;
+  animation-delay: 0s, 0.6s;
 }
 
 @keyframes rowGlow {
@@ -120,12 +133,13 @@
 }
 
 .event-done-badge {
-  animation: badgePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s backwards;
+  animation: badgePop 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) 0.5s backwards;
 }
 
 .event-more {
-  animation: sectionIn 0.5s ease-out 0.6s backwards;
+  animation: sectionIn 0.55s var(--ease-out) 0.6s backwards;
 }
+
 
 /* ---------- 4. LOADING SKELETON SHIMMER ---------- */
 
@@ -147,77 +161,90 @@
   to   { background-position: -200% 0; }
 }
 
+
 /* ---------- 5. CALENDAR (react-big-calendar classes) ---------- */
 
 .rbc-month-view,
 .rbc-time-view,
 .rbc-agenda-view {
-  animation: viewIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: viewIn 0.6s var(--ease-out) backwards;
 }
 
 @keyframes viewIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to   { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.985); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
 .rbc-event {
-  transition: filter 0.2s ease, box-shadow 0.2s ease;
-  animation: badgePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  transition: filter 0.25s var(--ease-soft), box-shadow 0.25s var(--ease-soft);
+  animation: badgePop 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
 }
 
 .rbc-event:hover {
-  filter: brightness(1.25);
+  filter: brightness(1.2);
   box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.55);
 }
 
-.rbc-day-bg { transition: background-color 0.2s ease; }
+.rbc-day-bg { transition: background-color 0.25s var(--ease-soft); }
 .rbc-day-bg:hover { background-color: rgba(148, 163, 184, 0.08); }
 
-.rbc-today { animation: todayBreath 3s ease-in-out infinite; }
+.rbc-today { animation: todayBreath 3.5s ease-in-out infinite; }
 
 @keyframes todayBreath {
   0%, 100% { box-shadow: inset 0 0 0 0 rgba(251, 191, 36, 0); }
   50%      { box-shadow: inset 0 0 22px 0 rgba(251, 191, 36, 0.16); }
 }
 
-/* ---------- 6. MODALS (no edits to the modal files needed) ----------*/
-  
+
+/* ---------- 6. MODALS (no edits to the modal files needed) ---------- */
+
 .schedule-page .fixed.inset-0 {
-  animation: overlayIn 0.3s ease-out backwards;
+  /* blur is static (not animated) - animating backdrop-filter is what
+     made the old version stutter. Only opacity fades in. */
   backdrop-filter: blur(6px);
+  animation: overlayIn 0.35s var(--ease-soft) backwards;
 }
 
 .schedule-page .fixed.inset-0 > *:first-child {
-  animation: modalIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation: modalIn 0.5s var(--ease-out) 0.03s backwards;
+  will-change: transform, opacity;
 }
 
 @keyframes overlayIn {
-  from { opacity: 0; backdrop-filter: blur(0); }
-  to   { opacity: 1; backdrop-filter: blur(6px); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes modalIn {
-  from { opacity: 0; transform: translateY(40px) scale(0.9); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  0%   { opacity: 0; transform: translate3d(0, 28px, 0) scale(0.96); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
 
-.schedule-page button {
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.25s ease, filter 0.2s ease;
+/* ---------- 7. BUTTONS & INPUTS ---------- */
+
+/* .event-row is excluded so it keeps its own transition from section 3
+   (a plain `.schedule-page button` rule would override it) */
+.schedule-page button:not(.event-row) {
+  transition:
+    transform 0.25s var(--ease-out),
+    box-shadow 0.3s var(--ease-soft),
+    filter 0.25s var(--ease-soft),
+    background-color 0.25s var(--ease-soft);
 }
 .schedule-page button:not(.event-row):hover {
-  transform: translateY(-2px);
+  transform: translate3d(0, -2px, 0);
   box-shadow: 0 8px 20px -8px rgba(99, 102, 241, 0.55);
 }
 .schedule-page button:not(.event-row):active {
-  transform: translateY(0) scale(0.96);
+  transform: translate3d(0, 0, 0) scale(0.97);
+  transition-duration: 0.1s;
 }
 
 .schedule-page input,
 .schedule-page select,
 .schedule-page textarea {
-  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  transition: box-shadow 0.3s var(--ease-soft), border-color 0.3s var(--ease-soft);
 }
 .schedule-page input:focus,
 .schedule-page select:focus,
@@ -227,8 +254,8 @@
   box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25);
 }
 
-/* ---------- 7. ACCESSIBILITY ---------- */
 
+/* ---------- 8. ACCESSIBILITY ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   .schedule-page *,

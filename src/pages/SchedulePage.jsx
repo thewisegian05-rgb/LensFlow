@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ScheduleHeader from "../components/Schedule/ScheduleHeader";
 import ScheduleSummary from "../components/Schedule/ScheduleSummary";
@@ -23,6 +23,9 @@ const formatDateForInput = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+// Loading display is always exactly this long, then it stops for good.
+const LOADING_DURATION_MS = 2000;
+
 function SchedulePage() {
 
   const [events, setEvents] = useState([]);
@@ -39,6 +42,7 @@ function SchedulePage() {
 
   // ANIMATION: id of the event that was just added/edited (glows briefly)
   const [newEventId, setNewEventId] = useState(null);
+  const highlightTimer = useRef(null);
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
@@ -175,10 +179,8 @@ function SchedulePage() {
   // =========================================================
   // LOAD EVENTS FROM SUPABASE
   // =========================================================
-
+  
   const fetchEvents = async () => {
-    setLoading(true);
-
     const { data, error } = await supabase
       .from("schedule_events")
       .select("*")
@@ -186,7 +188,6 @@ function SchedulePage() {
 
     if (error) {
       console.error("Failed to load events:", error.message);
-      setLoading(false);
       return;
     }
 
@@ -217,35 +218,34 @@ function SchedulePage() {
         }),
         project_id: row.project_id,
         status: row.status,
-        // Per-event fee, now actually persisted (see addOrUpdateEvent
-        // below) instead of only living on the client record.
+        // Per-event fee, persisted in addOrUpdateEvent below.
         talentFee: Number(row.talent_fee) || 0,
       };
     });
 
     setEvents(mapped);
-    setLoading(false);
   };
 
   useEffect(() => {
     fetchEvents();
     fetchClients();
+
+    // Loading display: always 2 seconds, then it stops.
+    const loadingTimer = setTimeout(
+      () => setLoading(false),
+      LOADING_DURATION_MS
+    );
+
+    return () => {
+      clearTimeout(loadingTimer);
+      clearTimeout(highlightTimer.current);
+    };
   }, []);
 
 
   // =========================================================
   // RESYNC OR REMOVE A CLIENT AFTER THEIR EVENTS CHANGE
   // =========================================================
-  //
-  // `clients.project` / `venue` / `category` are a snapshot written
-  // whenever an event is saved (see addOrUpdateEvent below) — it's
-  // what ClientPage falls back to display when a client has no
-  // *current* events. If the client still has other events left, we
-  // just refresh that snapshot to the next one. If they have none at
-  // all, the client record itself is deleted — including any manually
-  // entered contact info, email, or notes — rather than left behind
-  // as an empty shell. This is a deliberate, confirmed choice: there
-  // is no "keep the client but empty" middle ground here.
 
   const syncOrRemoveClient = async (clientId) => {
     if (!clientId) return;
@@ -401,9 +401,7 @@ function SchedulePage() {
       start_time: new Date(`${form.date}T${form.start}`).toISOString(),
       end_time: new Date(`${form.date}T${form.end}`).toISOString(),
       project_id: form.projectId || null,
-      // This was being computed above and synced onto the client, but
-      // never actually saved onto the event row itself — added here
-      // so each event keeps its own fee going forward.
+      // Each event keeps its own fee.
       talent_fee: talentFee,
     };
 
@@ -443,8 +441,10 @@ function SchedulePage() {
     setSelectedEvent(null);
 
     // ANIMATION: make the saved event glow for a few seconds
+    // (timer is cleared first so quick consecutive saves don't cut it short)
     setNewEventId(savedId);
-    setTimeout(() => setNewEventId(null), 4000);
+    clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setNewEventId(null), 4000);
   };
 
 

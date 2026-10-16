@@ -245,7 +245,7 @@ function ChangePasswordModal({
                       (prev) => !prev
                     )
                   }
-                  className="absolute right-3 top-1/2 -translate-y-1/2 border-none !bg-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white"
+                  className="login-password-toggle change-password-toggle"
                   title={
                     showCurrentPassword
                       ? "Hide password"
@@ -296,7 +296,7 @@ function ChangePasswordModal({
                       (prev) => !prev
                     )
                   }
-                  className="absolute right-3 top-1/2 -translate-y-1/2 border-none !bg-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white"
+                  className="login-password-toggle change-password-toggle"
                 >
                   {showNewPassword
                     ? <FaEyeSlash />
@@ -377,7 +377,7 @@ function ChangePasswordModal({
                       (prev) => !prev
                     )
                   }
-                  className="absolute right-3 top-1/2 -translate-y-1/2 border-none !bg-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white"
+                  className="login-password-toggle change-password-toggle"
                 >
                   {showConfirmPassword
                     ? <FaEyeSlash />

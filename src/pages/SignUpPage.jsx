@@ -10,12 +10,17 @@ import {
   FaEnvelope,
   FaLock,
   FaUserPlus,
+  FaCamera,
+  FaUsers,
+  FaEye,
+  FaEyeSlash,
 } from "react-icons/fa";
 
 function SignUpPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
+    accountType: "photographer",
     fullName: "",
     studioName: "",
     email: "",
@@ -24,9 +29,31 @@ function SignUpPage() {
   });
 
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [checkEmailMessage, setCheckEmailMessage] = useState("");
+
+  const passwordRequirements = [
+    {
+      label: "At least 8 characters",
+      met: form.password.length >= 8,
+    },
+    {
+      label: "At least 1 number",
+      met: /[0-9]/.test(form.password),
+    },
+    {
+      label: "At least 1 uppercase and lowercase letter",
+      met: /[A-Z]/.test(form.password) && /[a-z]/.test(form.password),
+    },
+    {
+      label: "At least 1 special character (!, @, #, %, &, etc.)",
+      met: /[^A-Za-z0-9]/.test(form.password),
+    },
+  ];
+
+  const passwordIsValid = passwordRequirements.every((requirement) => requirement.met);
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -39,13 +66,18 @@ function SignUpPage() {
     e.preventDefault();
     setError("");
 
+    if (!["photographer", "customer"].includes(form.accountType)) {
+      setError("Please select an account type.");
+      return;
+    }
+
     if (form.password !== form.confirmPassword) {
       setError("Passwords don't match.");
       return;
     }
 
-    if (form.password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (!passwordIsValid) {
+      setError("Please meet all password requirements before creating your account.");
       return;
     }
 
@@ -56,8 +88,13 @@ function SignUpPage() {
       password: form.password,
       options: {
         data: {
-          full_name: form.fullName,
-          studio_name: form.studioName,
+          account_type: form.accountType,
+          full_name: form.fullName.trim(),
+          // Only photographers need a studio/business name.
+          studio_name:
+            form.accountType === "photographer"
+              ? form.studioName.trim()
+              : "",
         },
       },
     });
@@ -69,12 +106,14 @@ function SignUpPage() {
       return;
     }
 
-    // If email confirmation is disabled in Supabase, signUp returns an
-    // active session immediately and we can go straight to the app.
-    // If it's enabled, there's no session yet — the user needs to
-    // confirm via email first.
     if (data.session) {
-      navigate("/dashboard");
+      // Route according to the selected account type.
+      // Ensure the customer route exists in your React Router configuration.
+      navigate(
+        form.accountType === "photographer"
+          ? "/dashboard"
+          : "/customer-dashboard"
+      );
       return;
     }
 
@@ -89,7 +128,6 @@ function SignUpPage() {
   return (
     <div className="login-page">
       <div className="login-container">
-
         <div className="login-header">
           <div className="login-brand">
             <FaCameraRetro className="login-icon" />
@@ -110,100 +148,169 @@ function SignUpPage() {
           ) : (
             <>
               <form onSubmit={handleSubmit}>
-
                 {error && <div className="login-error">{error}</div>}
 
+                {/* Account type appears first in the registration form. */}
                 <div className="input-group">
-                  <label>Full Name</label>
+                  <label htmlFor="accountType">Account Type</label>
+                  <div className="input-box signup-account-type-box">
+                    {form.accountType === "photographer" ? (
+                      <FaCamera aria-hidden="true" />
+                    ) : (
+                      <FaUsers aria-hidden="true" />
+                    )}
+                    <select
+                      id="accountType"
+                      name="accountType"
+                      value={form.accountType}
+                      onChange={handleChange}
+                      required
+                      aria-describedby="account-type-help"
+                      className="signup-account-type-select"
+                    >
+                      <option value="photographer">Photographer</option>
+                      <option value="customer">Customer</option>
+                    </select>
+                  </div>
+                  <small id="account-type-help" className="signup-field-help">
+                    Choose the type of account you want to create.
+                  </small>
+                </div>
+
+                <div className="input-group">
+                  <label htmlFor="fullName">Full Name</label>
                   <div className="input-box">
-                    <FaUser />
+                    <FaUser aria-hidden="true" />
                     <input
+                      id="fullName"
                       type="text"
                       name="fullName"
                       placeholder="Juan Dela Cruz"
                       value={form.fullName}
                       onChange={handleChange}
+                      autoComplete="name"
                       required
                     />
                   </div>
                 </div>
 
-                <div className="input-group">
-                  <label>Studio / Business Name (optional)</label>
-                  <div className="input-box">
-                    <FaBuilding />
-                    <input
-                      type="text"
-                      name="studioName"
-                      placeholder="LensFlow Studios"
-                      value={form.studioName}
-                      onChange={handleChange}
-                    />
+                {form.accountType === "photographer" && (
+                  <div className="input-group">
+                    <label htmlFor="studioName">
+                      Studio / Business Name (optional)
+                    </label>
+                    <div className="input-box">
+                      <FaBuilding aria-hidden="true" />
+                      <input
+                        id="studioName"
+                        type="text"
+                        name="studioName"
+                        placeholder="LensFlow Studios"
+                        value={form.studioName}
+                        onChange={handleChange}
+                        autoComplete="organization"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="input-group">
-                  <label>Email Address</label>
+                  <label htmlFor="email">Email Address</label>
                   <div className="input-box">
-                    <FaEnvelope />
+                    <FaEnvelope aria-hidden="true" />
                     <input
+                      id="email"
                       type="email"
                       name="email"
                       placeholder="you@example.com"
                       value={form.email}
                       onChange={handleChange}
+                      autoComplete="email"
                       required
                     />
                   </div>
                 </div>
 
                 <div className="input-group">
-                  <label>
-                    Password{" "}
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      className="forgot-btn bg-transparent hover:!bg-transparent focus:!bg-transparent active:!bg-transparent"
-                      style={{ marginLeft: 8 }}
-                    >
-                      {showPassword ? "Hide" : "Show"}
-                    </button>
-                  </label>
+                  <label htmlFor="password">Password</label>
                   <div className="input-box">
-                    <FaLock />
+                    <FaLock aria-hidden="true" />
                     <input
+                      id="password"
                       type={showPassword ? "text" : "password"}
                       name="password"
                       placeholder="At least 8 characters"
                       value={form.password}
                       onChange={handleChange}
+                      autoComplete="new-password"
                       minLength={8}
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="signup-password-toggle"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-pressed={showPassword}
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <FaEyeSlash aria-hidden="true" /> : <FaEye aria-hidden="true" />}
+                    </button>
+                  </div>
+                  <div className="signup-password-requirements" aria-live="polite">
+                    <p className="signup-password-requirements-title">Password must contain:</p>
+                    <ul>
+                      {passwordRequirements.map((requirement) => (
+                        <li
+                          key={requirement.label}
+                          className={requirement.met ? "requirement-met" : "requirement-unmet"}
+                        >
+                          <span className="signup-requirement-icon" aria-hidden="true">
+                            {requirement.met ? "✓" : "×"}
+                          </span>
+                          <span>{requirement.label}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
 
                 <div className="input-group">
-                  <label>Confirm Password</label>
+                  <label htmlFor="confirmPassword">Confirm Password</label>
                   <div className="input-box">
-                    <FaLock />
+                    <FaLock aria-hidden="true" />
                     <input
-                      type={showPassword ? "text" : "password"}
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
                       name="confirmPassword"
                       placeholder="Re-enter your password"
                       value={form.confirmPassword}
                       onChange={handleChange}
+                      autoComplete="new-password"
                       minLength={8}
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      className="signup-password-toggle"
+                      aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                      aria-pressed={showConfirmPassword}
+                      title={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPassword ? <FaEyeSlash aria-hidden="true" /> : <FaEye aria-hidden="true" />}
+                    </button>
                   </div>
                 </div>
 
-                <button type="submit" className="login-btn" disabled={submitting}>
-                  <FaUserPlus />
+                <button
+                  type="submit"
+                  className="login-btn"
+                  disabled={submitting}
+                >
+                  <FaUserPlus aria-hidden="true" />
                   {submitting ? "Creating account..." : "Create Account"}
                 </button>
-
               </form>
 
               <p className="signup-prompt">
@@ -219,7 +326,6 @@ function SignUpPage() {
         <div className="login-footer">
           © 2026 LensFlow Studio Management
         </div>
-
       </div>
     </div>
   );

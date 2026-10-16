@@ -9,7 +9,7 @@ import {
 } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
 
-/* ============ Stages but in order ============ */
+/* ============ Stages (in order) ============ */
 const STAGES = [
   {
     key: "coming-events",
@@ -100,6 +100,53 @@ function isFutureEvent(item) {
 
 function sortProjects(a, b) {
   return (a.start_time || "").localeCompare(b.start_time || "");
+}
+
+/* ============ Loading skeleton ============ */
+function SkeletonCard() {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/70">
+      <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
+      <div className="mt-3 h-2 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+      <div className="mt-2 h-2 w-2/5 rounded bg-slate-200 dark:bg-slate-700" />
+      <div className="mt-4 h-5 w-full rounded bg-slate-100 dark:bg-slate-700/50" />
+    </div>
+  );
+}
+
+function LoadingBoard() {
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-4">
+      {STAGES.map((stage, i) => (
+        <motion.div
+          key={stage.key}
+          className="w-72 flex-shrink-0 rounded-2xl border border-slate-200 bg-white/70 dark:border-slate-800 dark:bg-slate-900/70"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.05, duration: 0.3 }}
+        >
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${stage.dot}`} />
+              <span className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700" />
+            </div>
+            <span className="h-4 w-6 rounded-full bg-slate-200 dark:bg-slate-700" />
+          </div>
+
+          {/* pulsing cards */}
+          <motion.div
+            className="space-y-2.5 px-3 pb-3"
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.1 }}
+          >
+            {Array.from({ length: i % 3 === 0 ? 2 : i % 3 === 1 ? 1 : 3 }).map((_, n) => (
+              <SkeletonCard key={n} />
+            ))}
+          </motion.div>
+        </motion.div>
+      ))}
+    </div>
+  );
 }
 
 /* ============ Card ============ */
@@ -212,7 +259,7 @@ function WorkflowPage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [notice, setNotice] = useState("");
@@ -380,14 +427,14 @@ function WorkflowPage() {
   /* ============ RENDER ============ */
   if (authLoading) {
     return (
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: [0.4, 1, 0.4] }}
-        transition={{ duration: 1.4, repeat: Infinity }}
-        className="mt-20 text-center text-sm text-slate-500"
-      >
-        Loading...
-      </motion.p>
+      <div className="mt-24 flex flex-col items-center gap-3">
+        <motion.span
+          className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-sky-500 dark:border-slate-700 dark:border-t-sky-500"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+        />
+        <p className="text-xs text-slate-500">Loading...</p>
+      </div>
     );
   }
 
@@ -450,14 +497,7 @@ function WorkflowPage() {
         </AnimatePresence>
 
         {loading ? (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0.4, 1, 0.4] }}
-            transition={{ duration: 1.4, repeat: Infinity }}
-            className="py-16 text-center text-sm text-slate-500"
-          >
-            Loading your shoots...
-          </motion.p>
+          <LoadingBoard />
         ) : (
           <LayoutGroup>
             <div className="flex gap-4 overflow-x-auto pb-4 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">

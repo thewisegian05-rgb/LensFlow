@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FaUsers,
   FaCalendarDay,
@@ -19,14 +19,81 @@ function plural(count, word) {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
-// Same card the Schedule page uses for its overview numbers.
-function StatCard({ title, value, subtitle, icon, iconClass }) {
+/* ------------------------------------------------------------------ */
+/* The animates can count up from 0 to target once ready*/
+/* ------------------------------------------------------------------ */
+function useCountUp(target, ready, duration = 900) {
+  const [display, setDisplay] = useState(0);
+  const frame = useRef(null);
+
+  useEffect(() => {
+    if (!ready || target === null || target === undefined) return;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    if (reduceMotion || target === 0) {
+      setDisplay(target);
+      return;
+    }
+
+    const start = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out
+      setDisplay(Math.round(target * eased));
+      if (progress < 1) frame.current = requestAnimationFrame(tick);
+    };
+
+    frame.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame.current);
+  }, [target, ready, duration]);
+
+  return display;
+}
+
+/* -------------- Stat card ------------- */
+function StatCard({
+  title,
+  value, // number | null (null shows a dash)
+  subtitle,
+  icon,
+  iconClass,
+  loading,
+  index = 0,
+  format = (n) => String(n),
+}) {
+  const animated = useCountUp(value, !loading);
+
+  // Loading state: skeleton with the same size as the real card
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-slate-700 bg-slate-900 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="h-4 w-24 animate-pulse rounded bg-slate-700/70" />
+            <div className="mt-3 h-8 w-20 animate-pulse rounded bg-slate-700/70" />
+            <div className="mt-3 h-3 w-32 animate-pulse rounded bg-slate-800" />
+          </div>
+          <div className="h-11 w-11 flex-shrink-0 animate-pulse rounded-lg bg-slate-700/70" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-900 p-5">
+    <div
+      className="dash-reveal rounded-xl border border-slate-700 bg-slate-900 p-5"
+      style={{ animationDelay: `${index * 70}ms` }}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm text-slate-400">{title}</p>
-          <h3 className="mt-1 text-3xl font-bold text-white">{value}</h3>
+          <h3 className="mt-1 text-3xl font-bold tabular-nums text-white">
+            {value === null ? "–" : format(animated)}
+          </h3>
           <p className="mt-1 truncate text-xs text-slate-500">{subtitle}</p>
         </div>
 
@@ -36,6 +103,18 @@ function StatCard({ title, value, subtitle, icon, iconClass }) {
           {icon}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* Wrapper that fades its children in (used for the lower sections) */
+function Reveal({ delay = 0, className = "", children }) {
+  return (
+    <div
+      className={`dash-reveal ${className}`}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {children}
     </div>
   );
 }
@@ -160,8 +239,6 @@ function Dashboard() {
   // Total Clients = Clients Today + Pending Clients
   const totalClients = stats.clientsToday + stats.pendingClients;
 
-  const show = (value) => (loadingStats ? "…" : String(value));
-
   const dateLine = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -170,66 +247,83 @@ function Dashboard() {
 
   return (
     <div>
+      {/* Slim loading bar while the numbers are being fetched */}
+      {loadingStats && (
+        <div className="mb-4 h-0.5 w-full overflow-hidden rounded bg-slate-800">
+          <div className="dash-loadbar h-full w-1/3 rounded bg-sky-400" />
+        </div>
+      )}
+
       {/* Header (same pattern as the Schedule page) */}
       <div className="mb-5">
         <h2 className="text-3xl font-bold text-white">Dashboard</h2>
-        <p className="mt-1 text-slate-300">
+        <p className="mt-1 min-h-[1.5rem] text-slate-300">
           {dateLine}
-          {!loadingStats &&
-            ` · ${
-              stats.clientsToday > 0
-                ? `${plural(stats.clientsToday, "client")} today`
-                : "Nothing scheduled today"
-            }`}
+          {!loadingStats && (
+            <span className="dash-fade">
+              {` · ${
+                stats.clientsToday > 0
+                  ? `${plural(stats.clientsToday, "client")} today`
+                  : "Nothing scheduled today"
+              }`}
+            </span>
+          )}
         </p>
       </div>
 
       {/* Overview cards */}
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
+          index={0}
+          loading={loadingStats}
           title="Total Clients"
-          value={show(totalClients)}
+          value={totalClients}
           subtitle={totalClients === 0 ? "No clients yet" : "Today + upcoming"}
           icon={<FaUsers />}
           iconClass="bg-sky-500/10 text-sky-400"
         />
         <StatCard
+          index={1}
+          loading={loadingStats}
           title="Clients Today"
-          value={show(stats.clientsToday)}
+          value={stats.clientsToday}
           subtitle={stats.clientsToday === 0 ? "Nothing today" : "On the schedule"}
           icon={<FaCalendarDay />}
           iconClass="bg-amber-500/10 text-amber-400"
         />
         <StatCard
+          index={2}
+          loading={loadingStats}
           title="Pending Clients"
-          value={show(stats.pendingClients)}
+          value={stats.pendingClients}
           subtitle={stats.pendingClients === 0 ? "None pending" : "From tomorrow on"}
           icon={<FaHourglassHalf />}
           iconClass="bg-sky-500/10 text-sky-400"
         />
         <StatCard
+          index={3}
+          loading={loadingStats}
           title="Projects Editing"
-          value={show(stats.editing)}
+          value={stats.editing}
           subtitle={stats.editing === 0 ? "Nothing in editing" : "In progress"}
           icon={<FaPhotoVideo />}
           iconClass="bg-sky-500/10 text-sky-400"
         />
         <StatCard
+          index={4}
+          loading={loadingStats}
           title="Total Folders"
-          value={show(stats.totalFolders)}
+          value={stats.totalFolders}
           subtitle={stats.totalFolders === 0 ? "No folders yet" : "Across Media Storage"}
           icon={<FaFolder />}
           iconClass="bg-sky-500/10 text-sky-400"
         />
         <StatCard
+          index={5}
+          loading={loadingStats}
           title="Fees This Month"
-          value={
-            loadingStats
-              ? "…"
-              : stats.monthFees === null
-              ? "–"
-              : `₱${stats.monthFees.toLocaleString("en-PH")}`
-          }
+          value={stats.monthFees}
+          format={(n) => `₱${n.toLocaleString("en-PH")}`}
           subtitle="From event fees"
           icon={<FaCoins />}
           iconClass="bg-sky-500/10 text-sky-400"
@@ -237,15 +331,21 @@ function Dashboard() {
       </div>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <TodaySchedule />
-        <RecentProjects />
+        <Reveal delay={150}>
+          <TodaySchedule />
+        </Reveal>
+        <Reveal delay={230}>
+          <RecentProjects />
+        </Reveal>
       </div>
 
-      <div className="mb-4">
+      <Reveal delay={310} className="mb-4">
         <WorkflowSummary />
-      </div>
+      </Reveal>
 
-      <RevenueChart />
+      <Reveal delay={390}>
+        <RevenueChart />
+      </Reveal>
     </div>
   );
 }

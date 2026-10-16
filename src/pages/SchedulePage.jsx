@@ -580,7 +580,7 @@ function SchedulePage() {
 
 
   // =========================================================
-  // TODAY'S EVENTS + COMING EVENTS (follow the search/category filters)
+  // TODAY'S EVENTS + COMING EVENTS 
   // =========================================================
 
   const todayKey = formatDateForInput(new Date());

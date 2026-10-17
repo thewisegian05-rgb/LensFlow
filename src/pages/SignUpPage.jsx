@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
@@ -16,6 +17,99 @@ import {
   FaEyeSlash,
 } from "react-icons/fa";
 
+// Convert Supabase errors into user-friendly messages.
+const getSignUpErrorMessage = (error) => {
+  const message = error?.message?.toLowerCase() || "";
+
+  if (
+    message.includes("already registered") ||
+    message.includes("already exists") ||
+    message.includes("user already registered")
+  ) {
+    return "An account with this email may already exist. Try signing in instead.";
+  }
+
+  if (message.includes("invalid email")) {
+    return "Please enter a valid email address.";
+  }
+
+  if (
+    message.includes("password") &&
+    (message.includes("weak") ||
+      message.includes("characters") ||
+      message.includes("short"))
+  ) {
+    return "Your password doesn't meet the security requirements. Please choose a stronger password.";
+  }
+
+  if (
+    message.includes("rate limit") ||
+    message.includes("too many requests")
+  ) {
+    return "Too many attempts. Please wait a moment before trying again.";
+  }
+
+  if (message.includes("network") || message.includes("fetch")) {
+    return "Unable to connect to LensFlow. Check your internet connection and try again.";
+  }
+
+  return "We couldn't create your account right now. Please check your details and try again.";
+};
+
+// Determine which field should display a Supabase error.
+const getSignUpErrorField = (error) => {
+  const message = error?.message?.toLowerCase() || "";
+
+  if (
+    message.includes("email") ||
+    message.includes("registered")
+  ) {
+    return "email";
+  }
+
+  if (message.includes("password")) {
+    return "password";
+  }
+
+  return "form";
+};
+
+// Validate fields individually.
+const validateSignUpForm = (form, passwordIsValid) => {
+  const errors = {};
+
+  if (!["photographer", "customer"].includes(form.accountType)) {
+    errors.accountType = "Please select a valid account type.";
+  }
+
+  if (!form.fullName.trim()) {
+    errors.fullName = "Please enter your full name.";
+  }
+
+  if (!form.email.trim()) {
+    errors.email = "Please enter your email address.";
+  } else if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+  ) {
+    errors.email = "Please enter a valid email address.";
+  }
+
+  if (!form.password) {
+    errors.password = "Please enter a password.";
+  } else if (!passwordIsValid) {
+    errors.password =
+      "Your password does not meet all the requirements below.";
+  }
+
+  if (!form.confirmPassword) {
+    errors.confirmPassword = "Please confirm your password.";
+  } else if (form.password !== form.confirmPassword) {
+    errors.confirmPassword = "Passwords do not match.";
+  }
+
+  return errors;
+};
+
 function SignUpPage() {
   const navigate = useNavigate();
 
@@ -31,7 +125,7 @@ function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [checkEmailMessage, setCheckEmailMessage] = useState("");
 
   const passwordRequirements = [
@@ -45,7 +139,9 @@ function SignUpPage() {
     },
     {
       label: "At least 1 uppercase and lowercase letter",
-      met: /[A-Z]/.test(form.password) && /[a-z]/.test(form.password),
+      met:
+        /[A-Z]/.test(form.password) &&
+        /[a-z]/.test(form.password),
     },
     {
       label: "At least 1 special character (!, @, #, %, &, etc.)",
@@ -53,76 +149,100 @@ function SignUpPage() {
     },
   ];
 
-  const passwordIsValid = passwordRequirements.every((requirement) => requirement.met);
+  const passwordIsValid = passwordRequirements.every(
+    (requirement) => requirement.met
+  );
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
+
     setForm((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: value,
     }));
+
+    setErrors((prev) => {
+      const updated = { ...prev };
+
+      delete updated[name];
+      delete updated.form;
+
+      // Changing either password can affect both password fields.
+      if (name === "password" || name === "confirmPassword") {
+        delete updated.password;
+        delete updated.confirmPassword;
+      }
+
+      return updated;
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    setErrors({});
+    setCheckEmailMessage("");
 
-    if (!["photographer", "customer"].includes(form.accountType)) {
-      setError("Please select an account type.");
-      return;
-    }
+    const validationErrors = validateSignUpForm(
+      form,
+      passwordIsValid
+    );
 
-    if (form.password !== form.confirmPassword) {
-      setError("Passwords don't match.");
-      return;
-    }
-
-    if (!passwordIsValid) {
-      setError("Please meet all password requirements before creating your account.");
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
       return;
     }
 
     setSubmitting(true);
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: {
-          account_type: form.accountType,
-          full_name: form.fullName.trim(),
-          // Only photographers need a studio/business name.
-          studio_name:
-            form.accountType === "photographer"
-              ? form.studioName.trim()
-              : "",
-        },
-      },
-    });
+    try {
+      const { data, error: signUpError } =
+        await supabase.auth.signUp({
+          email: form.email.trim(),
+          password: form.password,
+          options: {
+            data: {
+              account_type: form.accountType,
+              full_name: form.fullName.trim(),
+              // Studio name is optional for photographers.
+              studio_name:
+                form.accountType === "photographer"
+                  ? form.studioName.trim()
+                  : "",
+            },
+          },
+        });
 
-    if (signUpError) {
-      console.error("Failed to sign up:", signUpError.message);
-      setError(signUpError.message);
-      setSubmitting(false);
-      return;
-    }
+      if (signUpError) {
+        console.error("Sign-up failed:", signUpError.message);
 
-    if (data.session) {
-      // Route according to the selected account type.
-      // Ensure the customer route exists in your React Router configuration.
-      navigate(
-        form.accountType === "photographer"
-          ? "/dashboard"
-          : "/customer-dashboard"
+        const field = getSignUpErrorField(signUpError);
+        const message = getSignUpErrorMessage(signUpError);
+
+        setErrors({ [field]: message });
+        return;
+      }
+
+      if (data.session) {
+        navigate(
+          form.accountType === "photographer"
+            ? "/dashboard"
+            : "/customer-dashboard"
+        );
+        return;
+      }
+
+      setCheckEmailMessage(
+        `Almost there! We've sent a confirmation link to ${form.email.trim()}. Verify your email to activate your account.`
       );
-      return;
-    }
+    } catch (err) {
+      console.error("Unexpected sign-up error:", err);
 
-    setCheckEmailMessage(
-      "Almost there! We've sent a confirmation link to " +
-        form.email +
-        ". Verify your email to activate your account."
-    );
-    setSubmitting(false);
+      setErrors({
+        form: "Something went wrong while creating your account. Please try again.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -139,48 +259,98 @@ function SignUpPage() {
 
         <div className="login-card">
           {checkEmailMessage ? (
-            <div style={{ textAlign: "center", padding: "12px 0" }}>
+            <div
+              className="signup-confirmation"
+              style={{ textAlign: "center", padding: "12px 0" }}
+              role="status"
+              aria-live="polite"
+            >
               <p>{checkEmailMessage}</p>
+
               <Link to="/" className="signup-link">
                 Back to Sign In
               </Link>
             </div>
           ) : (
             <>
-              <form onSubmit={handleSubmit}>
-                {error && <div className="login-error">{error}</div>}
+              <form onSubmit={handleSubmit} noValidate>
+                {errors.form && (
+                  <div className="login-error" role="alert">
+                    <span
+                      className="login-error-icon"
+                      aria-hidden="true"
+                    >
+                      !
+                    </span>
+                    <span>{errors.form}</span>
+                  </div>
+                )}
 
-                {/* Account type appears first in the registration form. */}
+                {/* Account type */}
                 <div className="input-group">
                   <label htmlFor="accountType">Account Type</label>
-                  <div className="input-box signup-account-type-box">
+
+                  <div
+                    className={`input-box signup-account-type-box ${
+                      errors.accountType ? "input-box-invalid" : ""
+                    }`}
+                  >
                     {form.accountType === "photographer" ? (
                       <FaCamera aria-hidden="true" />
                     ) : (
                       <FaUsers aria-hidden="true" />
                     )}
+
                     <select
                       id="accountType"
                       name="accountType"
                       value={form.accountType}
                       onChange={handleChange}
                       required
-                      aria-describedby="account-type-help"
+                      aria-invalid={Boolean(errors.accountType)}
+                      aria-describedby={
+                        errors.accountType
+                          ? "account-type-error"
+                          : "account-type-help"
+                      }
                       className="signup-account-type-select"
                     >
-                      <option value="photographer">Photographer</option>
+                      <option value="photographer">
+                        Photographer
+                      </option>
                       <option value="customer">Customer</option>
                     </select>
                   </div>
-                  <small id="account-type-help" className="signup-field-help">
+
+                  {errors.accountType && (
+                    <small
+                      id="account-type-error"
+                      className="field-error"
+                      role="alert"
+                    >
+                      {errors.accountType}
+                    </small>
+                  )}
+
+                  <small
+                    id="account-type-help"
+                    className="signup-field-help"
+                  >
                     Choose the type of account you want to create.
                   </small>
                 </div>
 
+                {/* Full name */}
                 <div className="input-group">
                   <label htmlFor="fullName">Full Name</label>
-                  <div className="input-box">
+
+                  <div
+                    className={`input-box ${
+                      errors.fullName ? "input-box-invalid" : ""
+                    }`}
+                  >
                     <FaUser aria-hidden="true" />
+
                     <input
                       id="fullName"
                       type="text"
@@ -190,17 +360,34 @@ function SignUpPage() {
                       onChange={handleChange}
                       autoComplete="name"
                       required
+                      aria-invalid={Boolean(errors.fullName)}
+                      aria-describedby={
+                        errors.fullName ? "fullName-error" : undefined
+                      }
                     />
                   </div>
+
+                  {errors.fullName && (
+                    <small
+                      id="fullName-error"
+                      className="field-error"
+                      role="alert"
+                    >
+                      {errors.fullName}
+                    </small>
+                  )}
                 </div>
 
+                {/* Studio name */}
                 {form.accountType === "photographer" && (
                   <div className="input-group">
                     <label htmlFor="studioName">
                       Studio / Business Name (optional)
                     </label>
+
                     <div className="input-box">
                       <FaBuilding aria-hidden="true" />
+
                       <input
                         id="studioName"
                         type="text"
@@ -214,10 +401,17 @@ function SignUpPage() {
                   </div>
                 )}
 
+                {/* Email */}
                 <div className="input-group">
                   <label htmlFor="email">Email Address</label>
-                  <div className="input-box">
+
+                  <div
+                    className={`input-box ${
+                      errors.email ? "input-box-invalid" : ""
+                    }`}
+                  >
                     <FaEnvelope aria-hidden="true" />
+
                     <input
                       id="email"
                       type="email"
@@ -227,14 +421,35 @@ function SignUpPage() {
                       onChange={handleChange}
                       autoComplete="email"
                       required
+                      aria-invalid={Boolean(errors.email)}
+                      aria-describedby={
+                        errors.email ? "email-error" : undefined
+                      }
                     />
                   </div>
+
+                  {errors.email && (
+                    <small
+                      id="email-error"
+                      className="field-error"
+                      role="alert"
+                    >
+                      {errors.email}
+                    </small>
+                  )}
                 </div>
 
+                {/* Password */}
                 <div className="input-group">
                   <label htmlFor="password">Password</label>
-                  <div className="input-box">
+
+                  <div
+                    className={`input-box ${
+                      errors.password ? "input-box-invalid" : ""
+                    }`}
+                  >
                     <FaLock aria-hidden="true" />
+
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
@@ -245,43 +460,96 @@ function SignUpPage() {
                       autoComplete="new-password"
                       minLength={8}
                       required
+                      aria-invalid={Boolean(errors.password)}
+                      aria-describedby={
+                        errors.password ? "password-error" : undefined
+                      }
                     />
+
                     <button
                       type="button"
-                      onClick={() => setShowPassword((prev) => !prev)}
+                      onClick={() =>
+                        setShowPassword((prev) => !prev)
+                      }
                       className="signup-password-toggle"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
                       aria-pressed={showPassword}
-                      title={showPassword ? "Hide password" : "Show password"}
+                      title={
+                        showPassword ? "Hide password" : "Show password"
+                      }
                     >
-                      {showPassword ? <FaEyeSlash aria-hidden="true" /> : <FaEye aria-hidden="true" />}
+                      {showPassword ? (
+                        <FaEyeSlash aria-hidden="true" />
+                      ) : (
+                        <FaEye aria-hidden="true" />
+                      )}
                     </button>
                   </div>
-                  <div className="signup-password-requirements" aria-live="polite">
-                    <p className="signup-password-requirements-title">Password must contain:</p>
+
+                  <div
+                    className="signup-password-requirements"
+                    aria-live="polite"
+                  >
+                    <p className="signup-password-requirements-title">
+                      Password must contain:
+                    </p>
+
                     <ul>
                       {passwordRequirements.map((requirement) => (
                         <li
                           key={requirement.label}
-                          className={requirement.met ? "requirement-met" : "requirement-unmet"}
+                          className={
+                            requirement.met
+                              ? "requirement-met"
+                              : "requirement-unmet"
+                          }
                         >
-                          <span className="signup-requirement-icon" aria-hidden="true">
+                          <span
+                            className="signup-requirement-icon"
+                            aria-hidden="true"
+                          >
                             {requirement.met ? "✓" : "×"}
                           </span>
+
                           <span>{requirement.label}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
+
+                  {errors.password && (
+                    <small
+                      id="password-error"
+                      className="field-error"
+                      role="alert"
+                    >
+                      {errors.password}
+                    </small>
+                  )}
                 </div>
 
+                {/* Confirm password */}
                 <div className="input-group">
-                  <label htmlFor="confirmPassword">Confirm Password</label>
-                  <div className="input-box">
+                  <label htmlFor="confirmPassword">
+                    Confirm Password
+                  </label>
+
+                  <div
+                    className={`input-box ${
+                      errors.confirmPassword
+                        ? "input-box-invalid"
+                        : ""
+                    }`}
+                  >
                     <FaLock aria-hidden="true" />
+
                     <input
                       id="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
+                      type={
+                        showConfirmPassword ? "text" : "password"
+                      }
                       name="confirmPassword"
                       placeholder="Re-enter your password"
                       value={form.confirmPassword}
@@ -289,27 +557,61 @@ function SignUpPage() {
                       autoComplete="new-password"
                       minLength={8}
                       required
+                      aria-invalid={Boolean(errors.confirmPassword)}
+                      aria-describedby={
+                        errors.confirmPassword
+                          ? "confirmPassword-error"
+                          : undefined
+                      }
                     />
+
                     <button
                       type="button"
-                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      onClick={() =>
+                        setShowConfirmPassword((prev) => !prev)
+                      }
                       className="signup-password-toggle"
-                      aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                      aria-label={
+                        showConfirmPassword
+                          ? "Hide confirm password"
+                          : "Show confirm password"
+                      }
                       aria-pressed={showConfirmPassword}
-                      title={showConfirmPassword ? "Hide password" : "Show password"}
+                      title={
+                        showConfirmPassword
+                          ? "Hide password"
+                          : "Show password"
+                      }
                     >
-                      {showConfirmPassword ? <FaEyeSlash aria-hidden="true" /> : <FaEye aria-hidden="true" />}
+                      {showConfirmPassword ? (
+                        <FaEyeSlash aria-hidden="true" />
+                      ) : (
+                        <FaEye aria-hidden="true" />
+                      )}
                     </button>
                   </div>
+
+                  {errors.confirmPassword && (
+                    <small
+                      id="confirmPassword-error"
+                      className="field-error"
+                      role="alert"
+                    >
+                      {errors.confirmPassword}
+                    </small>
+                  )}
                 </div>
 
+                {/* Submit */}
                 <button
                   type="submit"
                   className="login-btn"
                   disabled={submitting}
                 >
                   <FaUserPlus aria-hidden="true" />
-                  {submitting ? "Creating account..." : "Create Account"}
+                  {submitting
+                    ? "Creating account..."
+                    : "Create Account"}
                 </button>
               </form>
 

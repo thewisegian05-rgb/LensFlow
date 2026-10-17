@@ -237,6 +237,84 @@ body {
   opacity: 0.65;
 }
 
+
+/* Custom login and signup field validation */
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 2px 0;
+  color: #dc2626;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  animation: field-error-enter 160ms ease-out;
+}
+
+.field-error::before {
+  content: "!";
+  display: inline-flex;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Dark mode */
+.dark .field-error {
+  color: #fca5a5;
+}
+
+.dark .field-error::before {
+  background: #451a1a;
+  color: #fca5a5;
+}
+
+/* Invalid input */
+.input-box-invalid {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.input-box-invalid:focus-within {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+/* Dark mode invalid input */
+.dark .input-box-invalid {
+  border-color: #f87171 !important;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.1);
+}
+
+/* Error animation */
+@keyframes field-error-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Accessibility: respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .field-error {
+    animation: none;
+  }
+}
+
+
+
 .copyright,
 .login-footer {
   width: 100%;

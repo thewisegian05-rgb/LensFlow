@@ -30,6 +30,7 @@ function Login() {
     setShowRoleModal(true);
   };
 
+  
   const handleRoleLogin = async () => {
     if (!selectedRole) {
       setError("Please choose Photographer or Customer to continue.");
@@ -38,25 +39,48 @@ function Login() {
 
     setError("");
     setLoading(true);
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    setLoading(false);
+
+    const { data, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
     if (signInError) {
+      setLoading(false);
       setShowRoleModal(false);
       setError(signInError.message);
       return;
     }
 
-    if (data?.session) {
+    const accountType = data.user?.user_metadata?.account_type;
+
+    // Reject accounts whose registered type doesn't match the selection.
+    if (accountType !== selectedRole) {
+      await supabase.auth.signOut();
+      setLoading(false);
       setShowRoleModal(false);
-      // IMPORTANT: role-based access is not secure until roles are stored
-      // and verified against the authenticated user in Supabase.
-      navigate(selectedRole === "photographer" ? "/dashboard" : "/customer-dashboard");
+
+      setError(
+        !accountType
+          ? "This account has no account type assigned. Please update the account or register again."
+          : `This account is registered as a ${
+              accountType === "customer" ? "Customer" : "Photographer"
+            }. Please select the correct login type.`
+      );
+      return;
     }
+
+    setLoading(false);
+    setShowRoleModal(false);
+
+    navigate(
+      accountType === "photographer"
+        ? "/dashboard"
+        : "/customer"
+    );
   };
+
 
   const handleForgotPassword = async (resetEmail) => {
     setSendingReset(true);

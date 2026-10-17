@@ -15,6 +15,7 @@ import ProfilePage from "../pages/ProfilePage";
 import SettingsPage from "../pages/SettingsPage";
 import ResetPasswordPage from "../pages/ResetPasswordPage";
 import SignUpPage from "../pages/SignUpPage";
+import CustomerPage from "../pages/CustomerPage";
 
 function AppRoutes() {
   return (
@@ -38,6 +39,8 @@ function AppRoutes() {
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Route>
+
+        <Route path="/customer" element={<CustomerPage />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

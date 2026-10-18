@@ -1,9 +1,7 @@
-import {
-  FaBars,
-  FaBell,
-  FaPlus,
-  FaSearch,
-} from "react-icons/fa";
+import { FaBars, FaSearch } from "react-icons/fa";
+
+import NotificationBell from "./NotificationBell";
+import NewProjectButton from "./NewProjectButton";
 
 function Header() {
   return (
@@ -41,33 +39,11 @@ function Header() {
 
         {/* Notification */}
 
-        <button className="relative p-2 text-slate-600 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-          style={{
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            boxShadow: "none",
-            appearance: "none",
-            WebkitAppearance: "none",
-          }}>
-
-          <FaBell className="text-lg" />
-
-          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-sky-500"></span>
-
-        </button>
+        <NotificationBell />
 
         {/* New Project */}
 
-        <button className="flex items-center gap-2 rounded-lg bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-sky-600 sm:px-4">
-
-          <FaPlus />
-
-          <span className="hidden sm:inline">
-            New Project
-          </span>
-
-        </button>
+        <NewProjectButton />
 
       </div>
 

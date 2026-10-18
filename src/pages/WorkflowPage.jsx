@@ -11,6 +11,13 @@ import { supabase } from "../lib/supabaseClient";
 
 const SMOOTH_EASE = [0.22, 1, 0.36, 1];
 
+// The loading display is ALWAYS this long, then it stops for good
+
+const LOADING_DURATION_MS = 2000;
+
+// How many placeholder cards each column shows while loading.
+const SKELETON_COUNT = 3;
+
 /* ============ Stages (in order) ============ */
 const STAGES = [
   {
@@ -104,6 +111,26 @@ function sortProjects(a, b) {
   return (a.start_time || "").localeCompare(b.start_time || "");
 }
 
+/* ============ Loading placeholder ============ */
+
+function SkeletonCard({ delay = 0 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.4, ease: SMOOTH_EASE, delay }}
+      className="animate-pulse rounded-xl border border-slate-200 bg-slate-100 p-3
+        dark:border-slate-700/70 dark:bg-slate-800/50"
+    >
+      <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
+      <div className="mt-3 h-2.5 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+      <div className="mt-2 h-2.5 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
+      <div className="mt-4 h-5 w-full rounded bg-slate-200/70 dark:bg-slate-700/60" />
+    </motion.div>
+  );
+}
+
 /* ============ Card ============ */
 
 function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
@@ -115,21 +142,25 @@ function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
     <motion.div
       layout
       layoutId={`card-${project.id}`}
-      initial={{ opacity: 0, scale: 0.96, y: 18 }}
+      initial={{ opacity: 0, scale: 0.97, y: 14 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.2 } }}
+      exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.18 } }}
       transition={{
-        layout: { type: "spring", stiffness: 260, damping: 30, mass: 0.9 },
-        opacity: { duration: 0.45, ease: "easeOut", delay },
-        y: { type: "spring", stiffness: 220, damping: 26, delay },
-        scale: { type: "spring", stiffness: 220, damping: 26, delay },
+        // moving between columns: soft, slightly damped spring (no wobble)
+        layout: { type: "spring", stiffness: 300, damping: 34, mass: 0.8 },
+        // pop-up: one smooth ease for all three so it feels like one motion
+        opacity: { duration: 0.5, ease: SMOOTH_EASE, delay },
+        y: { duration: 0.6, ease: SMOOTH_EASE, delay },
+        scale: { duration: 0.6, ease: SMOOTH_EASE, delay },
       }}
+      style={{ willChange: "transform, opacity" }}
     >
       <div
         draggable
         onDragStart={(e) => onDragStart(e, project.id)}
-        className={`rounded-xl border border-slate-200 bg-white p-3 transition-all duration-200
-          hover:border-sky-400 hover:shadow-sm
+        className={`rounded-xl border border-slate-200 bg-white p-3
+          transition-[transform,opacity,border-color,box-shadow] duration-300 ease-out
+          hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-md
           dark:border-slate-700 dark:bg-slate-800/70 dark:hover:border-sky-500/50
           ${dragging ? "scale-95 opacity-40" : ""}
           cursor-grab active:cursor-grabbing`}
@@ -177,7 +208,7 @@ function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
             whileTap={index === 0 ? undefined : { scale: 0.85 }}
             onClick={() => onMove(project.id, index - 1)}
             disabled={index === 0}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors duration-200
               hover:bg-slate-100 hover:text-slate-800
               dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white
               disabled:cursor-not-allowed disabled:opacity-30
@@ -198,7 +229,7 @@ function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
             whileTap={index === STAGES.length - 1 || locked ? undefined : { scale: 0.85 }}
             onClick={() => onMove(project.id, index + 1)}
             disabled={index === STAGES.length - 1 || locked}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors duration-200
               hover:bg-sky-500 hover:text-slate-950
               dark:text-slate-400
               disabled:cursor-not-allowed disabled:opacity-30
@@ -218,14 +249,24 @@ function WorkflowPage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Fixed-length loading display: starts true, flips to false after
+  // exactly LOADING_DURATION_MS, and is never set back to true.
+  const [loading, setLoading] = useState(true);
 
   const [notice, setNotice] = useState("");
 
   // Staggered card delays only apply to the very first reveal.
   const [introDone, setIntroDone] = useState(false);
 
+  /* ---- fixed 2s loading display ---- */
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), LOADING_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  /* ---- stop staggering once the first reveal has played ---- */
   useEffect(() => {
     if (loading) return;
     const timer = setTimeout(() => setIntroDone(true), 2000);
@@ -256,8 +297,9 @@ function WorkflowPage() {
   }, []);
 
   /* ---- load scheduled shoots ---- */
+  // NOTE: no setLoading in here anymore. The loading display is the fixed
+  // 2s timer above, so refetching never brings the skeletons back.
   const loadProjects = useCallback(async () => {
-    setLoading(true);
     setError("");
 
     const { data: rows, error: eventErr } = await supabase
@@ -268,7 +310,6 @@ function WorkflowPage() {
     if (eventErr) {
       console.error("Events load failed:", eventErr);
       setError(eventErr.message);
-      setLoading(false);
       return;
     }
 
@@ -304,7 +345,6 @@ function WorkflowPage() {
     });
 
     setProjects(mapped);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -415,7 +455,7 @@ function WorkflowPage() {
           className="mb-5"
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: SMOOTH_EASE }}
+          transition={{ duration: 0.5, ease: SMOOTH_EASE }}
         >
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white sm:text-2xl">
             Workflow
@@ -433,7 +473,7 @@ function WorkflowPage() {
               initial={{ opacity: 0, y: -10, height: 0 }}
               animate={{ opacity: 1, y: 0, height: "auto" }}
               exit={{ opacity: 0, y: -10, height: 0 }}
-              transition={{ duration: 0.25 }}
+              transition={{ duration: 0.3, ease: SMOOTH_EASE }}
               className="mb-4 overflow-hidden rounded-xl border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
             >
               {notice}
@@ -464,9 +504,9 @@ function WorkflowPage() {
                 <motion.div
                   key={stage.key}
                   className="flex-shrink-0"
-                  initial={{ opacity: 0, y: 28 }}
+                  initial={{ opacity: 0, y: 24 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.08, duration: 0.55, ease: SMOOTH_EASE }}
+                  transition={{ delay: i * 0.07, duration: 0.65, ease: SMOOTH_EASE }}
                 >
                   <section
                     onDragOver={(e) => {
@@ -484,7 +524,8 @@ function WorkflowPage() {
                       if (!e.currentTarget.contains(e.relatedTarget)) setDragOverStage(null);
                     }}
                     onDrop={(e) => handleDrop(e, stage.key)}
-                    className={`flex max-h-[calc(100vh-12rem)] w-72 flex-shrink-0 flex-col rounded-2xl border bg-white/70 transition-all duration-300
+                    className={`flex max-h-[calc(100vh-12rem)] w-72 flex-shrink-0 flex-col rounded-2xl border bg-white/70
+                    transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out
                     dark:bg-slate-900/70
                     ${
                       isOver
@@ -500,9 +541,9 @@ function WorkflowPage() {
 
                       <motion.span
                         key={loading ? "loading" : list.length}
-                        initial={{ scale: 1.4 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 18 }}
+                        initial={{ scale: 1.3, opacity: 0.6 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 380, damping: 22 }}
                         className={`rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold tabular-nums
                         dark:bg-slate-800
                         ${stage.text}`}
@@ -512,11 +553,20 @@ function WorkflowPage() {
                     </header>
 
                     <div className="min-h-[7rem] flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(71_85_105)_transparent]">
-                      {loading ? null : list.length === 0 ? (
+                      {loading ? (
+                        // fixed 2s: pulsing placeholders, then the real cards pop in
+                        Array.from({ length: SKELETON_COUNT }).map((_, n) => (
+                          <SkeletonCard key={`sk-${n}`} delay={i * 0.05 + n * 0.06} />
+                        ))
+                      ) : list.length === 0 ? (
                         <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.4, delay: introDone ? 0 : 0.2 + i * 0.08 }}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{
+                            duration: 0.5,
+                            ease: SMOOTH_EASE,
+                            delay: introDone ? 0 : 0.15 + i * 0.07,
+                          }}
                           className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-600"
                         >
                           {isOver ? "Drop here" : "Nothing here"}
@@ -529,7 +579,8 @@ function WorkflowPage() {
                             dragging={draggingId === project.id}
                             onMove={moveProject}
                             onDragStart={handleDragStart}
-                            delay={introDone ? 0 : 0.1 + i * 0.08 + n * 0.07}
+                            // stagger only on first reveal, capped so long columns don't lag
+                            delay={introDone ? 0 : 0.1 + i * 0.07 + Math.min(n, 6) * 0.07}
                           />
                         ))
                       )}

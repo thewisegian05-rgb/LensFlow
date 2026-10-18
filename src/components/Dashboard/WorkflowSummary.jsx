@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
+import { motion, MotionConfig } from "framer-motion";
 import { supabase } from "../../lib/supabaseClient";
 import { STAGE_KEYS, STAGE_LABELS } from "../Workflow/workflowStages";
+
+const SMOOTH_EASE = [0.22, 1, 0.36, 1];
+
+// The loading display is ALWAYS this long, then it stops for good.
+const LOADING_DURATION_MS = 2000;
 
 // Same stage colors as the Workflow board columns.
 const STAGE_COLORS = {
@@ -18,10 +24,14 @@ function WorkflowSummary() {
   const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
 
+  // Fixed 2s loading display, independent of how fast the data arrives.
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), LOADING_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     const fetchCounts = async () => {
-      setLoading(true);
-
       const tally = {};
       STAGE_KEYS.forEach((key) => (tally[key] = 0));
 
@@ -32,7 +42,6 @@ function WorkflowSummary() {
 
       if (projectsError) {
         console.error("Failed to load workflow summary:", projectsError.message);
-        setLoading(false);
         return;
       }
 
@@ -55,14 +64,12 @@ function WorkflowSummary() {
 
       if (comingError) {
         console.error("Failed to load coming events count:", comingError.message);
-        setLoading(false);
         return;
       }
 
       tally["coming-events"] = comingCount || 0;
 
       setCounts(tally);
-      setLoading(false);
     };
 
     fetchCounts();
@@ -71,43 +78,65 @@ function WorkflowSummary() {
   const total = STAGE_KEYS.reduce((sum, key) => sum + (counts[key] || 0), 0);
 
   return (
-    <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
-      <header className="mb-4 flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-          <span className="h-2 w-2 rounded-full bg-sky-400" />
-          Workflow Summary
-        </h3>
-        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300">
-          {loading ? "…" : total}
-        </span>
-      </header>
+    <MotionConfig reducedMotion="user">
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: SMOOTH_EASE }}
+        className="rounded-xl border border-slate-700 bg-slate-900 p-4"
+      >
+        <header className="mb-4 flex items-center justify-between gap-2">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+            <span className="h-2 w-2 rounded-full bg-sky-400" />
+            Workflow Summary
+          </h3>
+          <motion.span
+            key={loading ? "loading" : total}
+            initial={{ scale: 1.3, opacity: 0.6 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 380, damping: 22 }}
+            className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300"
+          >
+            {loading ? "…" : total}
+          </motion.span>
+        </header>
 
-      <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
-        {STAGE_KEYS.map((key) => {
-          const count = counts[key] || 0;
-          const pct = total === 0 ? 0 : Math.round((count / total) * 100);
+        <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+          {STAGE_KEYS.map((key, i) => {
+            const count = counts[key] || 0;
+            const pct = total === 0 ? 0 : Math.round((count / total) * 100);
 
-          return (
-            <div key={key}>
-              <div className="mb-1.5 flex items-center justify-between text-xs">
-                <span className="text-slate-400">{STAGE_LABELS[key]}</span>
-                <span className="font-semibold text-white">
-                  {loading ? "…" : count}
-                </span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    STAGE_COLORS[key] || "bg-sky-500"
-                  }`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+            return (
+              <motion.div
+                key={key}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: SMOOTH_EASE, delay: 0.1 + i * 0.06 }}
+              >
+                <div className="mb-1.5 flex items-center justify-between text-xs">
+                  <span className="text-slate-400">{STAGE_LABELS[key]}</span>
+                  <span className="font-semibold text-white">{loading ? "…" : count}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+                  {loading ? (
+                    // shimmering placeholder bar during the fixed 2s
+                    <div className="h-full w-full animate-pulse rounded-full bg-slate-700/60" />
+                  ) : (
+                    // bar grows smoothly from 0 to its real width
+                    <motion.div
+                      className={`h-full rounded-full ${STAGE_COLORS[key] || "bg-sky-500"}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.9, ease: SMOOTH_EASE, delay: i * 0.06 }}
+                    />
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </motion.section>
+    </MotionConfig>
   );
 }
 

@@ -1,13 +1,21 @@
 /* ==========================================
+   EASING TOKENS
+========================================== */
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ==========================================
    KEYFRAMES
 ========================================== */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(28px) scale(0.97); filter: blur(6px); }
+  to   { opacity: 1; transform: translateY(0) scale(1);       filter: blur(0); }
 }
 
 @keyframes fadeDown {
-  from { opacity: 0; transform: translateY(-16px); }
+  from { opacity: 0; transform: translateY(-18px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -16,57 +24,164 @@
   to   { opacity: 1; }
 }
 
+@keyframes rowIn {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 @keyframes modalPop {
-  from { opacity: 0; transform: scale(0.92) translateY(20px); }
+  from { opacity: 0; transform: scale(0.94) translateY(24px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @keyframes pulseDot {
-  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
-  70%  { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(228, 178, 28, 0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(228, 178, 28, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(228, 178, 28, 0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
 }
 
 /* ==========================================
    PAGE LOAD
 ========================================== */
-.clients-header {
-  animation: fadeDown 0.5s ease-out backwards;
+.clients-header    { animation: fadeDown 0.7s var(--ease-out-expo) backwards; }
+.clients-toolbar   { animation: fadeIn 0.7s var(--ease-soft) 0.1s backwards; }
+.client-filter-bar { animation: fadeIn 0.7s var(--ease-soft) 0.2s backwards; }
+
+/* ==========================================
+   SKELETON LOADER (shown for exactly 2s)
+========================================== */
+.client-skeleton {
+  padding: 20px;
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  background: #ffffff;
+  border: 1px solid #dfe7f1;
+  border-radius: 12px;
+
+  animation: fadeIn 0.5s var(--ease-soft) backwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
 }
 
-.clients-toolbar {
-  animation: fadeIn 0.5s ease-out 0.1s backwards;
+.dark .client-skeleton {
+  background: #111b2e;
+  border-color: #30425f;
 }
 
-.client-filter-bar {
-  animation: fadeIn 0.5s ease-out 0.2s backwards;
+.skeleton-top {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 6px;
+}
+
+.skeleton-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+}
+
+.skeleton-btn {
+  height: 38px;
+  border-radius: 7px;
+  margin-top: 6px;
+}
+
+.w40 { width: 40%; }
+.w60 { width: 60%; }
+.w70 { width: 70%; }
+.w90 { width: 90%; }
+
+.shimmer {
+  background: linear-gradient(90deg, #e8eef5 0%, #f4f7fb 50%, #e8eef5 100%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.dark .shimmer {
+  background: linear-gradient(90deg, #17243a 0%, #22324d 50%, #17243a 100%);
+  background-size: 800px 100%;
 }
 
 /* ==========================================
-   GRID CARDS (staggered)
+   GRID CARDS (smooth staggered pop-in)
+   Animation lives on the wrapper so it never
+   fights with the card's hover transform.
 ========================================== */
+.client-card-wrap {
+  animation: fadeUp 0.8s var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+  will-change: transform, opacity;
+}
+
 .client-card {
-  animation: fadeUp 0.5s ease-out backwards;
-  animation-delay: calc(var(--i, 0) * 80ms);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transition:
+    transform 0.35s var(--ease-soft),
+    box-shadow 0.35s var(--ease-soft),
+    border-color 0.25s ease;
 }
 
 .client-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.12);
+}
+
+.dark .client-card:hover {
+  box-shadow: 0 16px 34px rgba(2, 6, 23, 0.4);
 }
 
 /* ==========================================
-   LIST ROWS (staggered)
+   LIST ROWS (smooth staggered)
+   nth-child handles the stagger, so ClientList
+   doesn't need to pass --i.
 ========================================== */
-.client-list-table tbody tr {
-  animation: fadeUp 0.4s ease-out backwards;
-  animation-delay: calc(var(--i, 0) * 60ms);
-  transition: background-color 0.2s ease;
+.client-list-container {
+  animation: fadeIn 0.6s var(--ease-soft) backwards;
 }
+
+.client-list-table tbody tr {
+  animation: rowIn 0.7s var(--ease-out-expo) backwards;
+  transition: background-color 0.25s ease;
+}
+
+.client-list-table tbody tr:nth-child(1)    { animation-delay: 0ms; }
+.client-list-table tbody tr:nth-child(2)    { animation-delay: 60ms; }
+.client-list-table tbody tr:nth-child(3)    { animation-delay: 120ms; }
+.client-list-table tbody tr:nth-child(4)    { animation-delay: 180ms; }
+.client-list-table tbody tr:nth-child(5)    { animation-delay: 240ms; }
+.client-list-table tbody tr:nth-child(6)    { animation-delay: 300ms; }
+.client-list-table tbody tr:nth-child(7)    { animation-delay: 360ms; }
+.client-list-table tbody tr:nth-child(8)    { animation-delay: 420ms; }
+.client-list-table tbody tr:nth-child(9)    { animation-delay: 480ms; }
+.client-list-table tbody tr:nth-child(n+10) { animation-delay: 540ms; }
 
 .client-list-table tbody tr:hover {
   background-color: rgba(0, 0, 0, 0.03);
+}
+
+.dark .client-list-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 /* ==========================================
@@ -78,7 +193,12 @@
 .complete-btn,
 .list-action-btn,
 .view-toggle-btn {
-  transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  transition:
+    transform 0.25s var(--ease-soft),
+    box-shadow 0.25s var(--ease-soft),
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .add-client-btn:hover,
@@ -95,14 +215,16 @@
 .complete-btn:active,
 .list-action-btn:active,
 .view-toggle-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.95);
 }
 
 /* ==========================================
-   STATUS DOT (ongoing pulses)
+   STATUS DOT (ongoing / pending pulses)
 ========================================== */
 .status-dot.ongoing,
-.list-status-dot.ongoing {
+.status-dot.pending,
+.list-status-dot.ongoing,
+.list-status-dot.pending {
   animation: pulseDot 1.8s infinite;
 }
 
@@ -110,11 +232,11 @@
    MODALS
 ========================================== */
 .modal-overlay {
-  animation: fadeIn 0.25s ease-out;
+  animation: fadeIn 0.3s var(--ease-soft);
 }
 
 .client-modal {
-  animation: modalPop 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: modalPop 0.45s var(--ease-out-expo);
 }
 
 /* ==========================================

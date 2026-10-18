@@ -15,22 +15,17 @@ import "../components/Clients/AddClientModal.css";
 import "../components/Clients/ViewClientModal.css";
 import "../components/Clients/ClientPageAnimations.css";
 
-import {
-  FiGrid,
-  FiList,
-  FiSearch,
-  FiX,
-} from "react-icons/fi";
-
+import { FiGrid, FiList, FiSearch, FiX } from "react-icons/fi";
 import { FaFilter } from "react-icons/fa6";
 
 // Key used to remember the client list's view type (grid/list) across
 // page navigations and reloads.
 const VIEW_TYPE_STORAGE_KEY = "clients:viewType";
 
+// Loading display is ALWAYS this long, no matter how fast the data arrives.
+const LOADER_DURATION_MS = 2000;
 
 function ClientPage() {
-
   // Modal States
   const [showAddClient, setShowAddClient] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -41,12 +36,8 @@ function ClientPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
 
-  // "grid" = card/block view
-  // "list" = table/list view
-  //
-  // Initialized from localStorage so navigating away and back (or
-  // reloading the page) keeps whatever view the user last picked,
-  // instead of always resetting to "grid".
+  // "grid" = card/block view, "list" = table/list view.
+  // Initialized from localStorage so the last picked view is remembered.
   const [viewType, setViewType] = useState(() => {
     if (typeof window === "undefined") return "grid";
 
@@ -68,13 +59,22 @@ function ClientPage() {
   }, [viewType]);
 
   const [clients, setClients] = useState([]);
-
   const [loadingClients, setLoadingClients] = useState(true);
+
+  // Fixed 2-second loading display.
+  const [showLoader, setShowLoader] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowLoader(false), LOADER_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   const fetchClients = async () => {
     setLoadingClients(true);
 
-    const { data: { user }, } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       setClients([]);
@@ -90,11 +90,7 @@ function ClientPage() {
       .order("created_at", { ascending: false });
 
     if (clientsError) {
-      console.error(
-        "Failed to load clients:",
-        clientsError.message
-      );
-
+      console.error("Failed to load clients:", clientsError.message);
       setLoadingClients(false);
       return;
     }
@@ -102,7 +98,8 @@ function ClientPage() {
     // Load schedule events
     const { data: eventRows, error: eventsError } = await supabase
       .from("schedule_events")
-      .select(`
+      .select(
+        `
         id,
         client_id,
         title,
@@ -112,16 +109,13 @@ function ClientPage() {
         end_time,
         status,
         project_id
-      `)
+      `
+      )
       .eq("user_id", user.id)
       .order("start_time", { ascending: true });
 
     if (eventsError) {
-      console.error(
-        "Failed to load client events:",
-        eventsError.message
-      );
-
+      console.error("Failed to load client events:", eventsError.message);
       setLoadingClients(false);
       return;
     }
@@ -129,7 +123,6 @@ function ClientPage() {
     const now = new Date();
 
     const mappedClients = clientRows.map((row) => {
-
       // All events belonging to this client
       const projects = eventRows
         .filter((event) => event.client_id === row.id)
@@ -147,21 +140,14 @@ function ClientPage() {
           status: event.status,
         }));
 
-
       // Upcoming events only
       const upcomingProjects = projects.filter(
-        (project) =>
-          new Date(project.start) >= now
+        (project) => new Date(project.start) >= now
       );
 
-
-      // Because our Supabase query is already ascending,
-      // index 0 is the nearest upcoming event.
+      // Query is already ascending, so index 0 is the nearest upcoming event.
       const activeProject =
-        upcomingProjects[0] ||
-        projects[projects.length - 1] ||
-        null;
-
+        upcomingProjects[0] || projects[projects.length - 1] || null;
 
       return {
         id: row.id,
@@ -180,19 +166,10 @@ function ClientPage() {
         // What Card/List should display
         activeProject,
 
-        // Keep these for compatibility with your
-        // existing components for now
-        project:
-          activeProject?.title ||
-          row.project,
-
-        venue:
-          activeProject?.venue ||
-          row.venue,
-
-        category:
-          activeProject?.category ||
-          row.category,
+        // Kept for compatibility with existing components
+        project: activeProject?.title || row.project,
+        venue: activeProject?.venue || row.venue,
+        category: activeProject?.category || row.category,
       };
     });
 
@@ -206,14 +183,8 @@ function ClientPage() {
 
   // Add New Client
   const handleAddClient = (newClient) => {
-
-    setClients((previousClients) => [
-      ...previousClients,
-      newClient,
-    ]);
-
+    setClients((previousClients) => [...previousClients, newClient]);
   };
-
 
   // Delete Client
   const handleDeleteClient = (id) => {
@@ -234,8 +205,7 @@ function ClientPage() {
 
     // Delete every schedule event tied to this client first. If this
     // fails we bail out before touching the client row, so we never
-    // end up with a deleted client but orphaned events still on the
-    // calendar.
+    // end up with a deleted client but orphaned events on the calendar.
     const { error: eventsDeleteError } = await supabase
       .from("schedule_events")
       .delete()
@@ -257,17 +227,12 @@ function ClientPage() {
       .eq("user_id", user.id);
 
     if (error) {
-      console.error(
-        "Failed to delete client:",
-        error.message
-      );
+      console.error("Failed to delete client:", error.message);
       return;
     }
 
     setClients((previousClients) =>
-      previousClients.filter(
-        (client) => client.id !== clientToDelete
-      )
+      previousClients.filter((client) => client.id !== clientToDelete)
     );
 
     setClientToDelete(null);
@@ -283,131 +248,114 @@ function ClientPage() {
 
   // Mark Client as Completed
   const handleCompleteClient = (id) => {
+    setClients((previousClients) =>
+      previousClients.map((client) =>
+        client.id === id ? { ...client, projectStatus: "Completed" } : client
+      )
+    );
 
-  setClients((previousClients) =>
-    previousClients.map((client) =>
-      client.id === id
-        ? { ...client, projectStatus: "Completed" }
-        : client
-    )
-  );
-
-  setSelectedClient((previousClient) =>
-    previousClient?.id === id
-      ? {
-          ...previousClient,
-          projectStatus: "Completed",
-        }
-      : previousClient
-  );
-
-};
-
-// Filter clients based on search term or selected category
-const filteredClients = clients.filter((client) => {
-  const searchText = searchTerm.toLowerCase();
-  const matchesSearch =
-    client.name?.toLowerCase().includes(searchText) ||
-    client.email?.toLowerCase().includes(searchText) ||
-    client.project?.toLowerCase().includes(searchText);
-
-  const matchesCategory =
-    selectedCategory === "All Categories" ||
-    client.category === selectedCategory;
-
-  return matchesSearch && matchesCategory;
-});
-
-// Edit Client
-const handleEditClient = async (updatedClient) => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    console.error("No authenticated user found.");
-    return;
-  }
-
-  const payload = {
-    name: updatedClient.name,
-    type: updatedClient.type,
-    contact: updatedClient.contact,
-    email: updatedClient.email,
-    project: updatedClient.project,
-    venue: updatedClient.venue,
-    category: updatedClient.category,
-    project_status: updatedClient.projectStatus,
-    talent_fee: updatedClient.talentFee,
-    initials: updatedClient.initials,
+    setSelectedClient((previousClient) =>
+      previousClient?.id === id
+        ? { ...previousClient, projectStatus: "Completed" }
+        : previousClient
+    );
   };
 
-  const { data, error } = await supabase
-    .from("clients")
-    .update(payload)
-    .eq("id", updatedClient.id)
-    .eq("user_id", user.id)
-    .select()
-    .single();
+  // Filter clients based on search term or selected category
+  const filteredClients = clients.filter((client) => {
+    const searchText = searchTerm.toLowerCase();
+    const matchesSearch =
+      client.name?.toLowerCase().includes(searchText) ||
+      client.email?.toLowerCase().includes(searchText) ||
+      client.project?.toLowerCase().includes(searchText);
 
-  if (error) {
-    console.error("Failed to update client:", error.message);
-    return;
-  }
+    const matchesCategory =
+      selectedCategory === "All Categories" ||
+      client.category === selectedCategory;
 
-  const mappedClient = {
-    id: data.id,
-    name: data.name,
-    type: data.type,
-    contact: data.contact,
-    email: data.email,
-    project: data.project,
-    venue: data.venue,
-    category: data.category,
-    projectStatus: data.project_status,
-    talentFee: data.talent_fee,
-    initials: data.initials,
+    return matchesSearch && matchesCategory;
+  });
+
+  // Edit Client
+  const handleEditClient = async (updatedClient) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.error("No authenticated user found.");
+      return;
+    }
+
+    const payload = {
+      name: updatedClient.name,
+      type: updatedClient.type,
+      contact: updatedClient.contact,
+      email: updatedClient.email,
+      project: updatedClient.project,
+      venue: updatedClient.venue,
+      category: updatedClient.category,
+      project_status: updatedClient.projectStatus,
+      talent_fee: updatedClient.talentFee,
+      initials: updatedClient.initials,
+    };
+
+    const { data, error } = await supabase
+      .from("clients")
+      .update(payload)
+      .eq("id", updatedClient.id)
+      .eq("user_id", user.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Failed to update client:", error.message);
+      return;
+    }
+
+    const mappedClient = {
+      id: data.id,
+      name: data.name,
+      type: data.type,
+      contact: data.contact,
+      email: data.email,
+      project: data.project,
+      venue: data.venue,
+      category: data.category,
+      projectStatus: data.project_status,
+      talentFee: data.talent_fee,
+      initials: data.initials,
+    };
+
+    setClients((previousClients) =>
+      previousClients.map((client) =>
+        client.id === mappedClient.id ? mappedClient : client
+      )
+    );
+
+    setSelectedClient((previousClient) =>
+      previousClient?.id === mappedClient.id ? mappedClient : previousClient
+    );
+
+    setEditingClient(null);
   };
 
-  setClients((previousClients) =>
-    previousClients.map((client) =>
-      client.id === mappedClient.id ? mappedClient : client
-    )
-  );
-
-  setSelectedClient((previousClient) =>
-    previousClient?.id === mappedClient.id
-      ? mappedClient
-      : previousClient
-  );
-
-  setEditingClient(null);
-};
-
+  const activeToggleClass =
+    "!border-sky-500 !bg-sky-500 !text-slate-950 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950";
+  const inactiveToggleClass =
+    "!border-transparent !bg-transparent !text-slate-500 hover:!bg-slate-100 hover:!text-slate-800 dark:!text-slate-500 dark:hover:!bg-slate-800 dark:hover:!text-slate-300";
 
   return (
-
     <div className="clients-page">
-
-
       {/* ==========================================
           PAGE HEADER
       ========================================== */}
 
       <div className="clients-header">
-
         <div>
-
-          <h1>
-            Client Management
-          </h1>
-
-          <p>
-            Manage your clients and their project information.
-          </p>
-
+          <h1>Client Management</h1>
+          <p>Manage your clients and their project information.</p>
         </div>
-
 
         <button
           className="add-client-btn"
@@ -415,45 +363,25 @@ const handleEditClient = async (updatedClient) => {
         >
           + Add New Client
         </button>
-
       </div>
-
-
 
       {/* ==========================================
           CLIENT TOOLBAR
       ========================================== */}
 
       <div className="clients-toolbar">
-
-
         {/* CLIENT COUNT */}
-
         <div className="client-count">
-
-          <span>
-            {filteredClients.length}
-          </span>
-
-          {" "}
-
-          {filteredClients.length === 1
-            ? "client"
-            : "clients"}
-
+          <span>{showLoader ? "–" : filteredClients.length}</span>{" "}
+          {!showLoader && filteredClients.length === 1 ? "client" : "clients"}
         </div>
-
-
 
         {/* VIEW SWITCHER */}
         <div className="view-switcher">
-
           {/* GRID */}
           <button
             className={`view-toggle-btn ${
-              viewType === "grid"
-                ? "!border-sky-500 !bg-sky-500 !text-slate-950 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950"
-                : "!border-transparent !bg-transparent !text-slate-500 hover:!bg-slate-100 hover:!text-slate-800 dark:!text-slate-500 dark:hover:!bg-slate-800 dark:hover:!text-slate-300"
+              viewType === "grid" ? activeToggleClass : inactiveToggleClass
             }`}
             onClick={() => setViewType("grid")}
             title="Block View"
@@ -461,92 +389,93 @@ const handleEditClient = async (updatedClient) => {
             <FiGrid />
           </button>
 
-
           {/* LIST */}
           <button
             className={`view-toggle-btn ${
-              viewType === "list"
-                ? "!border-sky-500 !bg-sky-500 !text-slate-950 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950"
-                : "!border-transparent !bg-transparent !text-slate-500 hover:!bg-slate-100 hover:!text-slate-800 dark:!text-slate-500 dark:hover:!bg-slate-800 dark:hover:!text-slate-300"
+              viewType === "list" ? activeToggleClass : inactiveToggleClass
             }`}
             onClick={() => setViewType("list")}
             title="List View"
           >
             <FiList />
           </button>
-
         </div>
-
       </div>
 
       {/* Search Bar and Category Filter */}
       <div className="client-filter-bar">
+        <div className="client-search">
+          <FiSearch className="search-icon" />
 
-      <div className="client-search">
+          <input
+            type="text"
+            placeholder="Search by client..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
 
-        <FiSearch className="search-icon" />
+          {searchTerm && (
+            <button
+              type="button"
+              className="clear-search-btn"
+              onClick={() => setSearchTerm("")}
+            >
+              <FiX />
+            </button>
+          )}
+        </div>
 
-        <input
-          type="text"
-          placeholder="Search by client..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        {/* Category Filter */}
+        <div className="category-filter-wrapper">
+          <FaFilter className="category-filter-icon" />
 
-        {searchTerm && (
-          <button
-            type="button"
-            className="clear-search-btn"
-            onClick={() => setSearchTerm("")}
+          <select
+            className="client-category-filter"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
           >
-            <FiX />
-          </button>
-        )}
-
+            <option value="All Categories">All Categories</option>
+            <option value="Weddings">Weddings</option>
+            <option value="Prenup">Prenup</option>
+            <option value="Couple Shoot">Couple Shoot</option>
+            <option value="Life & Family Milestones">
+              Life & Family Milestones
+            </option>
+            <option value="Portrait & Lifestyle">Portrait & Lifestyle</option>
+            <option value="Events & Performance">Events & Performance</option>
+            <option value="Corporate & Commercial">
+              Corporate & Commercial
+            </option>
+            <option value="Real Estate">Real Estate</option>
+            <option value="Product & Business">Product & Business</option>
+            <option value="Baptism">Baptism</option>
+            <option value="Pet Photography">Pet Photography</option>
+          </select>
+        </div>
       </div>
 
+      {/* ==========================================
+          LOADER (2s) / GRID / LIST
+      ========================================== */}
 
-      {/* Category Filter */}
-      <div className="category-filter-wrapper">
-
-        <FaFilter className="category-filter-icon" />
-
-        <select
-          className="client-category-filter"
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-        >
-          <option value="All Categories">All Categories</option>
-                <option value="Weddings">Weddings</option>
-                <option value="Prenup">Prenup</option>
-                <option value="Couple Shoot">Couple Shoot</option>
-                <option value="Life & Family Milestones">
-                  Life & Family Milestones
-                </option>
-                <option value="Portrait & Lifestyle">
-                  Portrait & Lifestyle
-                </option>
-                <option value="Events & Performance">
-                  Events & Performance
-                </option>
-                <option value="Corporate & Commercial">
-                  Corporate & Commercial
-                </option>
-                <option value="Real Estate">Real Estate</option>
-                <option value="Product & Business">
-                  Product & Business
-                </option>
-                <option value="Baptism">Baptism</option>
-                <option value="Pet Photography">
-                  Pet Photography
-                </option>
-        </select>
-      </div>
-    </div>
-
-      {/* GRID / BLOCK VIEW */}
-
-      {filteredClients.length === 0 ? (
+      {showLoader ? (
+        <div className="clients-grid clients-skeleton-grid" aria-busy="true">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="client-skeleton" style={{ "--i": i }}>
+              <div className="skeleton-top">
+                <div className="skeleton-avatar shimmer" />
+                <div className="skeleton-lines">
+                  <div className="skeleton-line shimmer w60" />
+                  <div className="skeleton-line shimmer w40" />
+                </div>
+              </div>
+              <div className="skeleton-line shimmer w90" />
+              <div className="skeleton-line shimmer w70" />
+              <div className="skeleton-btn shimmer" />
+            </div>
+          ))}
+        </div>
+      ) : filteredClients.length === 0 ? (
         <div className="no-clients">
           <p>No clients found.</p>
         </div>
@@ -554,15 +483,20 @@ const handleEditClient = async (updatedClient) => {
         <>
           {viewType === "grid" && (
             <div className="clients-grid">
-              {filteredClients.map((client) => (
-                <ClientCard
+              {filteredClients.map((client, index) => (
+                <div
                   key={client.id}
-                  client={client}
-                  onDelete={handleDeleteClient}
-                  onView={() => setSelectedClient(client)}
-                  onComplete={handleCompleteClient}
-                  onEdit={() => setEditingClient(client)}
-                />
+                  className="client-card-wrap"
+                  style={{ "--i": Math.min(index, 12) }}
+                >
+                  <ClientCard
+                    client={client}
+                    onDelete={handleDeleteClient}
+                    onView={() => setSelectedClient(client)}
+                    onComplete={handleCompleteClient}
+                    onEdit={() => setEditingClient(client)}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -579,25 +513,21 @@ const handleEditClient = async (updatedClient) => {
         </>
       )}
 
-
-
       {/* ==========================================
           ADD CLIENT MODAL
       ========================================== */}
 
       {showAddClient && (
-
         <AddClientModal
           onClose={() => setShowAddClient(false)}
           onAddClient={handleAddClient}
         />
-
       )}
 
       {/* ==========================================
-          VIEW CLIENT MODAL
+          VIEW / EDIT CLIENT MODALS
       ========================================== */}
-      
+
       {selectedClient && (
         <ViewClientModal
           client={selectedClient}
@@ -622,10 +552,8 @@ const handleEditClient = async (updatedClient) => {
         onCancel={() => setClientToDelete(null)}
         onConfirm={confirmDeleteClient}
       />
-
     </div>
   );
 }
-
 
 export default ClientPage;

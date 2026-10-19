@@ -1,81 +1,183 @@
-import { useEffect, useState } from "react";
+
+import { useCallback, useEffect, useState } from "react";
 import { motion, MotionConfig } from "framer-motion";
 import { supabase } from "../../lib/supabaseClient";
-import { STAGE_KEYS, STAGE_LABELS } from "../Workflow/workflowStages";
 
 const SMOOTH_EASE = [0.22, 1, 0.36, 1];
-
-// The loading display is ALWAYS this long, then it stops for good.
 const LOADING_DURATION_MS = 2000;
 
-// Same stage colors as the Workflow board columns.
-const STAGE_COLORS = {
-  "coming-events": "bg-sky-500",
-  "today-event": "bg-amber-500",
-  "shoot-completed": "bg-violet-500",
-  editing: "bg-orange-500",
-  "edit-complete": "bg-indigo-500",
-  delivered: "bg-teal-500",
-  completed: "bg-emerald-500",
-  "paid-completed": "bg-slate-500",
-};
+// Keep these stages and their order identical to Workflow.jsx.
+const STAGES = [
+  { key: "coming-events", label: "Coming Events", color: "bg-sky-500" },
+  { key: "today-event", label: "Today's Event", color: "bg-amber-500" },
+  { key: "shoot-completed", label: "Shoot Completed", color: "bg-violet-500" },
+  { key: "editing", label: "Editing", color: "bg-orange-500" },
+  { key: "edit-complete", label: "Edit Complete", color: "bg-indigo-500" },
+  { key: "delivered", label: "Delivered", color: "bg-teal-500" },
+  { key: "completed", label: "Completed", color: "bg-emerald-500" },
+];
+
+const STAGE_INDEX = Object.fromEntries(
+  STAGES.map((stage, index) => [stage.key, index])
+);
+
+function todayString() {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+// Mirrors the stage derivation used by Workflow.jsx.
+function deriveStage(event, linkedProjectStage) {
+  const eventDay = new Date(event.start_time).toLocaleDateString("en-CA");
+  const today = todayString();
+
+  // Future events always remain in Coming Events.
+  if (eventDay > today) {
+    return "coming-events";
+  }
+
+  if (event.workflow_stage in STAGE_INDEX) {
+    return event.workflow_stage;
+  }
+
+  if (
+    linkedProjectStage in STAGE_INDEX &&
+    linkedProjectStage !== "coming-events"
+  ) {
+    return linkedProjectStage;
+  }
+
+  if (event.status === "completed") {
+    return "shoot-completed";
+  }
+
+  if (eventDay === today) {
+    return "today-event";
+  }
+
+  return "shoot-completed";
+}
+
+function createEmptyCounts() {
+  return Object.fromEntries(STAGES.map(({ key }) => [key, 0]));
+}
 
 function WorkflowSummary() {
-  const [counts, setCounts] = useState({});
+  const [counts, setCounts] = useState(createEmptyCounts());
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Fixed 2s loading display, independent of how fast the data arrives.
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), LOADING_DURATION_MS);
-    return () => clearTimeout(timer);
-  }, []);
+  // Keep the loading placeholder visible for at least two seconds,
+  // while also waiting for the initial database request to finish.
+  const [minimumLoadingElapsed, setMinimumLoadingElapsed] =
+    useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  useEffect(() => {
-    const fetchCounts = async () => {
-      const tally = {};
-      STAGE_KEYS.forEach((key) => (tally[key] = 0));
+  const fetchCounts = useCallback(async (isInitialLoad = false) => {
+    if (!isInitialLoad) {
+      setRefreshing(true);
+    }
 
-      // Real pipeline stages come from `projects`.
-      const { data: projects, error: projectsError } = await supabase
-        .from("projects")
-        .select("stage");
+    try {
+      // Use the same source as the Workflow board.
+      const { data: events, error: eventsError } = await supabase
+        .from("schedule_events")
+        .select("*")
+        .order("start_time", { ascending: true });
 
-      if (projectsError) {
-        console.error("Failed to load workflow summary:", projectsError.message);
-        return;
+      if (eventsError) {
+        throw eventsError;
       }
 
-      projects.forEach((row) => {
-        if (tally[row.stage] !== undefined) tally[row.stage] += 1;
+      const rows = events || [];
+
+      // Fetch linked project stages, just as Workflow.jsx does.
+      const projectIds = [
+        ...new Set(rows.map((event) => event.project_id).filter(Boolean)),
+      ];
+
+      const projectById = {};
+
+      if (projectIds.length > 0) {
+        const { data: linkedProjects, error: projectsError } =
+          await supabase
+            .from("projects")
+            .select("id, stage")
+            .in("id", projectIds);
+
+        if (projectsError) {
+          throw projectsError;
+        }
+
+        (linkedProjects || []).forEach((project) => {
+          projectById[project.id] = project;
+        });
+      }
+
+      const tally = createEmptyCounts();
+
+      rows.forEach((event) => {
+        const linkedProject = event.project_id
+          ? projectById[event.project_id]
+          : null;
+
+        const stage = deriveStage(event, linkedProject?.stage);
+
+        if (tally[stage] !== undefined) {
+          tally[stage] += 1;
+        }
       });
 
-      // "Coming Events" is virtual — it's not a real projects.stage,
-      // it's schedule events dated today or later that haven't been
-      // promoted into a project yet. Same logic as the Workflow board's
-      // Coming Events column.
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
+      setCounts(tally);
+    } catch (error) {
+      console.error("Failed to load workflow summary:", error.message);
 
-      const { count: comingCount, error: comingError } = await supabase
-        .from("schedule_events")
-        .select("id", { count: "exact", head: true })
-        .gte("start_time", startOfToday.toISOString())
-        .is("project_id", null);
-
-      if (comingError) {
-        console.error("Failed to load coming events count:", comingError.message);
-        return;
+      // Keep the last successful counts if a later refresh fails.
+    } finally {
+      if (isInitialLoad) {
+        setInitialLoadComplete(true);
       }
 
-      tally["coming-events"] = comingCount || 0;
-
-      setCounts(tally);
-    };
-
-    fetchCounts();
+      setRefreshing(false);
+    }
   }, []);
 
-  const total = STAGE_KEYS.reduce((sum, key) => sum + (counts[key] || 0), 0);
+  // Initial fetch and minimum loading duration.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinimumLoadingElapsed(true);
+    }, LOADING_DURATION_MS);
+
+    fetchCounts(true);
+
+    return () => clearTimeout(timer);
+  }, [fetchCounts]);
+
+  useEffect(() => {
+    setLoading(!(minimumLoadingElapsed && initialLoadComplete));
+  }, [minimumLoadingElapsed, initialLoadComplete]);
+
+  // Refresh when the dashboard becomes visible again.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchCounts(false);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+    };
+  }, [fetchCounts]);
+
+  const total = STAGES.reduce(
+    (sum, { key }) => sum + (counts[key] || 0),
+    0
+  );
 
   return (
     <MotionConfig reducedMotion="user">
@@ -90,44 +192,70 @@ function WorkflowSummary() {
             <span className="h-2 w-2 rounded-full bg-sky-400" />
             Workflow Summary
           </h3>
-          <motion.span
-            key={loading ? "loading" : total}
-            initial={{ scale: 1.3, opacity: 0.6 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 380, damping: 22 }}
-            className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300"
-          >
-            {loading ? "…" : total}
-          </motion.span>
+
+          <div className="flex items-center gap-2">
+            {refreshing && !loading && (
+              <span className="text-[10px] text-slate-500">
+                Updating...
+              </span>
+            )}
+
+            <motion.span
+              key={loading ? "loading" : total}
+              initial={{ scale: 1.3, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{
+                type: "spring",
+                stiffness: 380,
+                damping: 22,
+              }}
+              className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300"
+            >
+              {loading ? "…" : total}
+            </motion.span>
+          </div>
         </header>
 
         <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
-          {STAGE_KEYS.map((key, i) => {
-            const count = counts[key] || 0;
-            const pct = total === 0 ? 0 : Math.round((count / total) * 100);
+          {STAGES.map((stage, index) => {
+            const count = counts[stage.key] || 0;
+            const percentage =
+              total === 0 ? 0 : Math.round((count / total) * 100);
 
             return (
               <motion.div
-                key={key}
+                key={stage.key}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, ease: SMOOTH_EASE, delay: 0.1 + i * 0.06 }}
+                transition={{
+                  duration: 0.5,
+                  ease: SMOOTH_EASE,
+                  delay: 0.1 + index * 0.06,
+                }}
               >
-                <div className="mb-1.5 flex items-center justify-between text-xs">
-                  <span className="text-slate-400">{STAGE_LABELS[key]}</span>
-                  <span className="font-semibold text-white">{loading ? "…" : count}</span>
+                <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
+                  <span className="text-slate-400">
+                    {stage.label}
+                  </span>
+
+                  <span className="font-semibold tabular-nums text-white">
+                    {loading ? "…" : count}
+                  </span>
                 </div>
+
                 <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
                   {loading ? (
-                    // shimmering placeholder bar during the fixed 2s
                     <div className="h-full w-full animate-pulse rounded-full bg-slate-700/60" />
                   ) : (
-                    // bar grows smoothly from 0 to its real width
                     <motion.div
-                      className={`h-full rounded-full ${STAGE_COLORS[key] || "bg-sky-500"}`}
+                      className={`h-full rounded-full ${stage.color}`}
                       initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.9, ease: SMOOTH_EASE, delay: i * 0.06 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{
+                        duration: 0.9,
+                        ease: SMOOTH_EASE,
+                        delay: index * 0.06,
+                      }}
                     />
                   )}
                 </div>

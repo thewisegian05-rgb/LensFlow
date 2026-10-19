@@ -55,6 +55,163 @@ function reportError(message, err) {
   window.alert(`${message}\n\n${err?.message || ""}`.trim());
 }
 
+// Fixed loading time (ms) para sa skeleton, kahit ready na ang data
+const LOADING_DELAY = 2000;
+
+// ========================================
+// ANIMATIONS 
+// ========================================
+const animationStyles = `
+  @keyframes parade {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-33.333%); }
+  }
+
+  .animate-parade {
+    display: flex;
+    width: max-content;
+    animation: parade 30s linear infinite;
+  }
+
+  .animate-parade:hover {
+    animation-play-state: paused;
+  }
+
+  @keyframes profileFadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes overlayFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes modalPop {
+    from { opacity: 0; transform: translateY(12px) scale(0.96); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes menuFade {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .profile-reveal {
+    opacity: 0;
+    animation: profileFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .modal-overlay-anim { animation: overlayFade 0.2s ease-out; }
+  .modal-card-pop     { animation: modalPop 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+  .menu-pop           { animation: menuFade 0.2s cubic-bezier(0.22, 1, 0.36, 1); transform-origin: top center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .profile-reveal, .modal-overlay-anim, .modal-card-pop, .menu-pop {
+      animation: none;
+      opacity: 1;
+    }
+  }
+`;
+
+
+// ========================================
+// LOADING SKELETON
+// ========================================
+function ProfileSkeleton() {
+  const bar = "rounded bg-slate-200 dark:bg-slate-700";
+
+  return (
+    <div
+      className="min-h-screen bg-slate-50 px-4 py-8 dark:bg-slate-950 md:px-8"
+      aria-busy="true"
+      aria-label="Loading profile"
+    >
+      <div className="mx-auto max-w-6xl animate-pulse">
+
+        {/* Name */}
+        <div className={`${bar} mb-6 h-7 w-40`} />
+
+        {/* Avatar + stats */}
+        <div className="flex flex-col gap-7 md:flex-row md:items-center">
+          <div className={`${bar} h-28 w-28 shrink-0 rounded-full`} />
+
+          <div className="flex-1">
+            <div className="mb-5 flex gap-8">
+              {[0, 1, 2].map((i) => (
+                <div key={i}>
+                  <div className={`${bar} mb-2 h-5 w-10`} />
+                  <div className={`${bar} h-3 w-16`} />
+                </div>
+              ))}
+            </div>
+
+            <div className={`${bar} mb-2 h-3 w-64 max-w-full`} />
+            <div className={`${bar} h-3 w-48 max-w-full`} />
+          </div>
+        </div>
+
+        {/* Edit profile button */}
+        <div className={`${bar} mt-7 h-11 w-full rounded-xl`} />
+
+        {/* About */}
+        <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className={`${bar} mb-2 h-5 w-24`} />
+              <div className={`${bar} h-3 w-56`} />
+            </div>
+            <div className={`${bar} h-9 w-24 rounded-xl`} />
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className={`${bar} h-10 w-10 shrink-0 rounded-full`} />
+                <div>
+                  <div className={`${bar} mb-2 h-3 w-20`} />
+                  <div className={`${bar} h-4 w-36`} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Carousel */}
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900/70">
+          <div className={`${bar} mb-2 h-5 w-28`} />
+          <div className={`${bar} mb-5 h-3 w-52`} />
+
+          <div className="flex gap-4 overflow-hidden">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className={`${bar} h-32 w-44 shrink-0 rounded-xl`} />
+            ))}
+          </div>
+
+          <div className={`${bar} mt-5 h-11 w-full rounded-xl`} />
+        </div>
+
+        {/* Featured photos */}
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900/70">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <div className={`${bar} mb-2 h-5 w-36`} />
+              <div className={`${bar} h-3 w-52`} />
+            </div>
+            <div className={`${bar} h-9 w-32 rounded-xl`} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i}>
+                <div className={`${bar} aspect-square w-full rounded-2xl`} />
+                <div className={`${bar} mt-2 h-4 w-32`} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function Profile() {
 
   // PROFILE INFORMATION STATES
@@ -86,6 +243,9 @@ export default function Profile() {
   const [authMissing, setAuthMissing] = useState(false);
   const [loadError, setLoadError] = useState("");
 
+  // FIXED 2s LOADING (kahit ready na ang data)
+  const [minLoadDone, setMinLoadDone] = useState(false);
+
   // TEMPORARY EDITING STATES
   const [tempUsername, setTempUsername] = useState(username);
   const [tempBio, setTempBio] = useState(bio);
@@ -109,6 +269,15 @@ export default function Profile() {
   const lastSavedInfo = useRef(""); // last profile_info JSON written to Supabase
   const titleTimers = useRef({}); // debounce timers for album renames
   const busyRef = useRef(false); // blocks double-clicks while uploading
+
+
+  // ========================================
+  // FIXED 2s LOADING TIMER
+  // ========================================
+  useEffect(() => {
+    const timer = setTimeout(() => setMinLoadDone(true), LOADING_DELAY);
+    return () => clearTimeout(timer);
+  }, []);
 
 
   // ========================================
@@ -198,7 +367,6 @@ export default function Profile() {
 
   // ========================================
   // AUTO-SAVE PROFILE DETAILS
-  // (covers changes made directly, like removing a niche tag)
   // ========================================
   useEffect(() => {
     if (!profileLoaded || !userId) return;
@@ -454,7 +622,7 @@ export default function Profile() {
 
 
   // ========================================
-  // ADD FEATURED PHOTOS (opens the setup modal; nothing is saved yet)
+  // ADD FEATURED PHOTOS 
   // ========================================
   const addFeaturedPhotos = (e) => {
     const files = Array.from(e.target.files || []);
@@ -631,14 +799,9 @@ export default function Profile() {
 
   // ========================================
   // LOADING / SIGNED-OUT / ERROR STATES
-  // (all hooks are above, so these early returns are safe)
   // ========================================
-  if (!profileLoaded) {
-    return (
-      <p className="mt-20 text-center text-sm text-slate-500">
-        Loading profile…
-      </p>
-    );
+  if (!minLoadDone || !profileLoaded) {
+    return <ProfileSkeleton />;
   }
 
   if (authMissing) {
@@ -660,6 +823,8 @@ export default function Profile() {
       </div>
     );
   }
+
+
   // ========================================
   // PROFILE PAGE UI
   // ========================================
@@ -667,24 +832,9 @@ export default function Profile() {
     <div className="profile-page min-h-screen bg-slate-50 px-4 py-8 text-slate-900 dark:bg-slate-950 dark:text-white md:px-8">
 
       {/* ========================================
-          CAROUSEL ANIMATION
+          CAROUSEL + REVEAL + MODAL ANIMATIONS
           ======================================== */}
-      <style>{`
-        @keyframes parade {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-33.333%); }
-        }
-
-        .animate-parade {
-          display: flex;
-          width: max-content;
-          animation: parade 30s linear infinite;
-        }
-
-        .animate-parade:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
+      <style>{animationStyles}</style>
 
 
       <div className="mx-auto max-w-6xl">
@@ -692,7 +842,10 @@ export default function Profile() {
         {/* ========================================
             PROFILE NAME
             ======================================== */}
-        <div className="mb-6">
+        <div
+          className="profile-reveal mb-6"
+          style={{ animationDelay: "0ms" }}
+        >
           <h1 className="text-2xl font-bold tracking-tight">
             {username}
           </h1>
@@ -702,7 +855,10 @@ export default function Profile() {
         {/* ========================================
             PROFILE HEADER & PROFILE PICTURE
             ======================================== */}
-        <div className="flex flex-col gap-7 md:flex-row md:items-center">
+        <div
+          className="profile-reveal flex flex-col gap-7 md:flex-row md:items-center"
+          style={{ animationDelay: "80ms" }}
+        >
           <div
             ref={profileContainerRef}
             className="relative shrink-0"
@@ -710,7 +866,7 @@ export default function Profile() {
             <button
               type="button"
               onClick={() => setProfileMenu(!profileMenu)}
-              className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-slate-300 bg-slate-100 shadow-lg transition hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-700 dark:bg-slate-800"
+              className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-slate-300 bg-slate-100 shadow-lg transition-all duration-300 ease-out hover:scale-105 hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-700 dark:bg-slate-800"
             >
               <img
                 src={profilePicture}
@@ -724,26 +880,28 @@ export default function Profile() {
                 PROFILE PICTURE MENU
                 ======================================== */}
             {profileMenu && (
-              <div className="absolute left-1/2 top-full z-50 mt-3 w-56 -translate-x-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfileMenu(false);
-                    setProfilePreview(true);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:hover:bg-slate-800 dark:hover:text-sky-400"
-                >
-                  <FaEye className="text-slate-500 dark:text-slate-400" />
-                  <span>View Profile Picture</span>
-                </button>
+              <div className="absolute left-1/2 top-full z-50 mt-3 w-56 -translate-x-1/2">
+                <div className="menu-pop overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileMenu(false);
+                      setProfilePreview(true);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:hover:bg-slate-800 dark:hover:text-sky-400"
+                  >
+                    <FaEye className="text-slate-500 dark:text-slate-400" />
+                    <span>View Profile Picture</span>
+                  </button>
 
-                <label
-                  htmlFor="profile-picture-upload-menu"
-                  className="flex cursor-pointer items-center gap-3 border-t border-slate-200 px-4 py-3 text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:border-slate-800 dark:hover:bg-slate-800 dark:hover:text-sky-400"
-                >
-                  <FaCamera className="text-slate-500 dark:text-slate-400" />
-                  <span>Change Profile Picture</span>
-                </label>
+                  <label
+                    htmlFor="profile-picture-upload-menu"
+                    className="flex cursor-pointer items-center gap-3 border-t border-slate-200 px-4 py-3 text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:border-slate-800 dark:hover:bg-slate-800 dark:hover:text-sky-400"
+                  >
+                    <FaCamera className="text-slate-500 dark:text-slate-400" />
+                    <span>Change Profile Picture</span>
+                  </label>
+                </div>
               </div>
             )}
 
@@ -788,7 +946,8 @@ export default function Profile() {
             ======================================== */}
         <button
           onClick={openEditProfile}
-          className="mt-7 w-full rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold transition hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+          className="profile-reveal mt-7 w-full rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold transition-colors duration-300 hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+          style={{ animationDelay: "140ms" }}
         >
           Edit Profile
         </button>
@@ -797,7 +956,10 @@ export default function Profile() {
         {/* ========================================
             ABOUT SECTION
             ======================================== */}
-        <section className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
+        <section
+          className="profile-reveal mt-8 border-t border-slate-200 pt-6 dark:border-slate-800"
+          style={{ animationDelay: "200ms" }}
+        >
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold">
@@ -812,7 +974,7 @@ export default function Profile() {
             <button
               type="button"
               onClick={() => setViewDetails(true)}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-sky-500 transition hover:border-sky-500 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-sky-400 dark:hover:bg-slate-800 dark:hover:text-white"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-sky-500 transition-colors duration-300 hover:border-sky-500 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-sky-400 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               See more
             </button>
@@ -849,7 +1011,10 @@ export default function Profile() {
         {/* ========================================
             CAROUSEL SECTION
             ======================================== */}
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900/70">
+        <section
+          className="profile-reveal mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900/70"
+          style={{ animationDelay: "260ms" }}
+        >
           <div className="mb-5">
             <h2 className="text-lg font-bold">
               Carousel
@@ -878,7 +1043,7 @@ export default function Profile() {
                       setActiveAlbum(album);
                       setCurrentPhotoIndex(0);
                     }}
-                    className="group relative h-32 w-44 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left transition-all duration-300 hover:z-50 hover:scale-125 hover:border-sky-400 hover:shadow-2xl dark:border-slate-700 dark:bg-slate-800"
+                    className="group relative h-32 w-44 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left transition-all duration-300 ease-out hover:z-50 hover:scale-125 hover:border-sky-400 hover:shadow-2xl dark:border-slate-700 dark:bg-slate-800"
                   >
                     <img
                       src={coverPhoto}
@@ -909,7 +1074,7 @@ export default function Profile() {
               ======================================== */}
           <button
             onClick={() => setCarouselManager(true)}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 transition hover:border-sky-500 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:text-white"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 transition-colors duration-300 hover:border-sky-500 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:text-white"
           >
             Update Carousel
           </button>
@@ -919,7 +1084,10 @@ export default function Profile() {
         {/* ========================================
             FEATURED PHOTOS SECTION
             ======================================== */}
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900/70">
+        <section
+          className="profile-reveal mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900/70"
+          style={{ animationDelay: "320ms" }}
+        >
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold">
@@ -938,7 +1106,7 @@ export default function Profile() {
                   ======================================== */}
               <label
                 htmlFor="featured-upload"
-                className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-sky-500 transition hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-sky-400 dark:hover:bg-slate-800"
+                className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-sky-500 transition-colors duration-300 hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-sky-400 dark:hover:bg-slate-800"
               >
                 <FaPlus className="text-[10px]" />
                 <span>Add Features</span>
@@ -949,7 +1117,7 @@ export default function Profile() {
                   ======================================== */}
               <button
                 onClick={() => setFeaturedManager(true)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-sky-500 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition-colors duration-300 hover:border-sky-500 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
               >
                 Manage
               </button>
@@ -970,15 +1138,16 @@ export default function Profile() {
               FEATURED PHOTO GRID
               ======================================== */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
-            {featuredPhotos.map((photo) => (
+            {featuredPhotos.map((photo, index) => (
               <div
                 key={photo.id}
-                className="group relative"
+                className="profile-reveal group relative"
+                style={{ animationDelay: `${400 + Math.min(index, 8) * 70}ms` }}
               >
                 <button
                   type="button"
                   onClick={() => setFeaturedPreview(photo)}
-                  className="relative block aspect-square w-full overflow-visible rounded-2xl border border-slate-200 bg-white text-left transition-all duration-300 hover:z-[35] hover:-translate-y-1 hover:scale-[1.08] hover:border-sky-400 hover:shadow-2xl focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                  className="relative block aspect-square w-full overflow-visible rounded-2xl border border-slate-200 bg-white text-left transition-all duration-300 ease-out hover:z-[35] hover:-translate-y-1 hover:scale-[1.08] hover:border-sky-400 hover:shadow-2xl focus:outline-none dark:border-slate-800 dark:bg-slate-900"
                 >
                   <img
                     src={photo.src}
@@ -1010,8 +1179,8 @@ export default function Profile() {
           ABOUT DETAILS MODAL
           ======================================== */}
       {viewDetails && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="modal-card-pop relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* ========================================
                 ABOUT MODAL HEADER
@@ -1120,74 +1289,74 @@ export default function Profile() {
                   NICHES
                   ======================================== */}
               <section className="border-t border-slate-200 pt-6 dark:border-slate-800">
-  <div className="mb-4 flex items-center justify-between">
-    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-      Niches
-    </h3>
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Niches
+                  </h3>
 
-    <button
-      type="button"
-      onClick={() => openDetailEditor("niches")}
-      className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-sky-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-sky-400"
-      title="Edit Niches"
-    >
-      <FaPencilAlt className="text-xs" />
-    </button>
-  </div>
+                  <button
+                    type="button"
+                    onClick={() => openDetailEditor("niches")}
+                    className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-sky-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-sky-400"
+                    title="Edit Niches"
+                  >
+                    <FaPencilAlt className="text-xs" />
+                  </button>
+                </div>
 
-  {profileInfo.niches?.length > 0 || profileInfo.customNiche ? (
-    <div className="flex flex-wrap gap-2">
-      {(profileInfo.niches || []).map((niche, index) => (
-        <span
-          key={`${niche}-${index}`}
-          className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-        >
-          <span>{niche}</span>
+                {profileInfo.niches?.length > 0 || profileInfo.customNiche ? (
+                  <div className="flex flex-wrap gap-2">
+                    {(profileInfo.niches || []).map((niche, index) => (
+                      <span
+                        key={`${niche}-${index}`}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        <span>{niche}</span>
 
-          <button
-            type="button"
-            onClick={() => {
-              setProfileInfo((prev) => ({
-                ...prev,
-                niches: (prev.niches || []).filter(
-                  (_, i) => i !== index
-                ),
-              }));
-            }}
-            className="text-slate-500 transition hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400"
-            title={`Remove ${niche}`}
-          >
-            <FaTimes className="text-[10px]" />
-          </button>
-        </span>
-      ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfileInfo((prev) => ({
+                              ...prev,
+                              niches: (prev.niches || []).filter(
+                                (_, i) => i !== index
+                              ),
+                            }));
+                          }}
+                          className="text-slate-500 transition hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400"
+                          title={`Remove ${niche}`}
+                        >
+                          <FaTimes className="text-[10px]" />
+                        </button>
+                      </span>
+                    ))}
 
-      {profileInfo.customNiche && (
-        <span className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-          <span>{profileInfo.customNiche}</span>
+                    {profileInfo.customNiche && (
+                      <span className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        <span>{profileInfo.customNiche}</span>
 
-          <button
-            type="button"
-            onClick={() => {
-              setProfileInfo((prev) => ({
-                ...prev,
-                customNiche: "",
-              }));
-            }}
-            className="text-slate-500 transition hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400"
-            title={`Remove ${profileInfo.customNiche}`}
-          >
-            <FaTimes className="text-[10px]" />
-          </button>
-        </span>
-      )}
-    </div>
-  ) : (
-    <p className="text-sm text-slate-500">
-      No niches added yet.
-    </p>
-  )}
-</section>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfileInfo((prev) => ({
+                              ...prev,
+                              customNiche: "",
+                            }));
+                          }}
+                          className="text-slate-500 transition hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400"
+                          title={`Remove ${profileInfo.customNiche}`}
+                        >
+                          <FaTimes className="text-[10px]" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    No niches added yet.
+                  </p>
+                )}
+              </section>
 
 
               {/* ========================================
@@ -1310,11 +1479,11 @@ export default function Profile() {
       {profilePreview && (
         <div
           onClick={() => setProfilePreview(false)}
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+          className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative max-w-lg overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
+            className="modal-card-pop relative max-w-lg overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
               <p className="text-sm font-bold text-white">
@@ -1347,11 +1516,11 @@ export default function Profile() {
       {featuredPreview && (
         <div
           onClick={() => setFeaturedPreview(null)}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+          className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
+            className="modal-card-pop relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-5 py-3">
               <p className="max-w-[75%] truncate text-sm font-bold text-white">
@@ -1383,8 +1552,8 @@ export default function Profile() {
           EDIT PROFILE MODAL
           ======================================== */}
       {editProfile && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* ========================================
                 EDIT PROFILE MODAL HEADER
@@ -1476,8 +1645,8 @@ export default function Profile() {
           CAROUSEL SETUP MODAL
           ======================================== */}
       {carouselSetup && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-          <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* Carousel Setup Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -1563,8 +1732,8 @@ export default function Profile() {
           FEATURED PHOTO SETUP MODAL
           ======================================== */}
       {featuredSetup.length > 0 && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* Featured Setup Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -1661,10 +1830,10 @@ export default function Profile() {
       {activeAlbum && (
         <div
           onClick={() => setActiveAlbum(null)}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-2 backdrop-blur-md sm:p-4"
+          className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-2 backdrop-blur-md sm:p-4"
         >
           <div
-            className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
+            className="modal-card-pop relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
 
@@ -1748,7 +1917,7 @@ export default function Profile() {
                   <button
                     key={idx}
                     onClick={() => scrollToPhoto(idx)}
-                    className={`h-1.5 rounded-full transition-all ${
+                    className={`h-1.5 rounded-full transition-all duration-300 ease-out ${
                       idx === currentPhotoIndex
                         ? "w-4 bg-sky-500"
                         : "w-1.5 bg-slate-700"
@@ -1766,8 +1935,8 @@ export default function Profile() {
           CAROUSEL MANAGER MODAL
           ======================================== */}
       {carouselManager && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* Carousel Manager Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -1927,8 +2096,8 @@ export default function Profile() {
           FEATURED PHOTOS MANAGER MODAL
           ======================================== */}
       {featuredManager && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
             {/* Featured Manager Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -1982,8 +2151,8 @@ export default function Profile() {
           DELETE CONFIRMATION MODAL
           ======================================== */}
       {confirmModal.isOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-          <div className="relative flex w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[150] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">
               {confirmModal.title}
             </h3>
@@ -2123,8 +2292,8 @@ function DetailEditor({
   // DETAIL EDITOR UI
   // ========================================
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+    <div className="modal-overlay-anim fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+      <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
 
         {/* ========================================
             DETAIL EDITOR HEADER
@@ -2260,7 +2429,7 @@ function DetailEditor({
                         work: option,
                       })
                     }
-                    className={`flex w-full items-center rounded-xl border px-4 py-3 text-left text-sm transition ${
+                    className={`flex w-full items-center rounded-xl border px-4 py-3 text-left text-sm transition-all duration-300 ease-out ${
                       details.work === option
                         ? "border-sky-500 bg-sky-500/10 text-sky-500 dark:text-sky-400"
                         : "border-slate-300 bg-slate-50 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-600"
@@ -2304,7 +2473,7 @@ function DetailEditor({
                         onClick={() =>
                           toggleNiche(niche)
                         }
-                        className={`rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                        className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-all duration-300 ease-out ${
                           selected
                             ? "border-sky-500 bg-sky-500/10 text-sky-500 dark:text-sky-400"
                             : "border-slate-300 bg-slate-50 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-600"

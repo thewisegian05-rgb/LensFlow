@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
 
-import { 
+import {
   FaSun,
   FaMoon,
   FaBug,
@@ -11,16 +11,92 @@ import {
 } from "react-icons/fa";
 
 import { useTheme } from "../context/ThemeContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import ReportProblemModal from "../components/Settings/ReportProblemModal";
 import ActiveSessionsModal from "../components/Settings/ActiveSessionsModal";
 import SignOutOthersModal from "../components/Settings/SignOutOthersModal";
-
 import ChangePasswordModal from "../components/Settings/ChangePasswordModal";
 
+/* ------------------------------------------------------------------ */
+/*                    This is the Animations                       */
+/* ------------------------------------------------------------------ */
+const animationStyles = `
+  @keyframes settingsFadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes overlayFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes modalPop {
+    from { opacity: 0; transform: translateY(12px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .settings-reveal {
+    opacity: 0;
+    animation: settingsFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .modal-overlay-anim { animation: overlayFade 0.2s ease-out; }
+  .modal-card-pop     { animation: modalPop 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .settings-reveal, .modal-overlay-anim, .modal-card-pop {
+      animation: none;
+      opacity: 1;
+    }
+  }
+`;
+
+/* ------------------------------------------------------------------ */
+/* Loading skeleton                                                    */
+/* ------------------------------------------------------------------ */
+function SettingsSkeleton() {
+  const bar = "rounded bg-slate-200 dark:bg-slate-700";
+
+  return (
+    <div
+      className="animate-pulse"
+      aria-busy="true"
+      aria-label="Loading settings"
+    >
+      <div className={`${bar} mb-3 h-7 w-40`} />
+      <div className={`${bar} mb-6 h-4 w-80 max-w-full`} />
+
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="mb-6 rounded-xl border border-slate-300 bg-white p-5 dark:border-slate-700 dark:bg-slate-800/50"
+        >
+          <div className={`${bar} mb-3 h-5 w-44`} />
+          <div className={`${bar} mb-6 h-4 w-64 max-w-full`} />
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className={`${bar} h-10 w-10 rounded-lg`} />
+              <div>
+                <div className={`${bar} mb-2 h-4 w-32`} />
+                <div className={`${bar} h-3 w-52`} />
+              </div>
+            </div>
+            <div className={`${bar} h-9 w-28 rounded-lg`} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
+
+  // Fixed 2s loading, kahit ready na ang content
+  const [isLoading, setIsLoading] = useState(true);
 
   // State for modals and settings
   const [showReportModal, setShowReportModal] = useState(false);
@@ -36,91 +112,87 @@ function SettingsPage() {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
-  const handleChangePassword = async ({
-    currentPassword,
-    newPassword,
-  }) => {
-
+  const handleChangePassword = async ({ currentPassword, newPassword }) => {
     setChangingPassword(true);
 
     try {
-
-      const { error } =
-        await supabase.auth.updateUser({
-          password: newPassword,
-          current_password: currentPassword,
-        });
-
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+        current_password: currentPassword,
+      });
 
       if (error) {
         throw error;
       }
 
-
       setShowChangePasswordModal(false);
 
       alert("Password changed successfully.");
-
     } catch (error) {
+      console.error("Password change failed:", error);
 
-      console.error(
-        "Password change failed:",
-        error
-      );
-
-      alert(
-        error.message ||
-        "Unable to change password."
-      );
-
+      alert(error.message || "Unable to change password.");
     } finally {
-
       setChangingPassword(false);
-
     }
   };
 
   const handleSignOutOtherDevices = async () => {
-  setSigningOutOthers(true);
+    setSigningOutOthers(true);
 
-  const { error } = await supabase.auth.signOut({
-    scope: "others",
-  });
+    const { error } = await supabase.auth.signOut({
+      scope: "others",
+    });
 
-  if (error) {
-    console.error(
-      "Failed to sign out other devices:",
-      error
-    );
+    if (error) {
+      console.error("Failed to sign out other devices:", error);
+
+      setSigningOutOthers(false);
+
+      // TODO: Replace with LensFlow error toast
+      alert("Unable to sign out other devices.");
+
+      return;
+    }
 
     setSigningOutOthers(false);
+    setShowSignOutOthersModal(false);
 
-    // TODO: Replace with LensFlow error toast
-    alert("Unable to sign out other devices.");
+    // TODO: Replace with LensFlow success toast
+    alert("All other devices have been signed out.");
+  };
 
-    return;
+  // Loading gate (hooks are all above, so this is safe)
+  if (isLoading) {
+    return <SettingsSkeleton />;
   }
-
-  setSigningOutOthers(false);
-  setShowSignOutOthersModal(false);
-
-  // TODO: Replace with LensFlow success toast
-  alert("All other devices have been signed out.");
-};
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-2">
-        Settings
-      </h2>
-      
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 mb-6">
-        Manage your LensFlow preferences, account security, and application settings.
-      </p>
+      <style>{animationStyles}</style>
+
+      {/* Header */}
+      <div className="settings-reveal" style={{ animationDelay: "0ms" }}>
+        <h2 className="mb-2 text-2xl font-semibold text-slate-900 dark:text-white">
+          Settings
+        </h2>
+
+        <p className="mb-6 mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Manage your LensFlow preferences, account security, and application
+          settings.
+        </p>
+      </div>
 
       {/* Appearance */}
-      <div className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-5 shadow-sm dark:shadow-none">
+      <div
+        className="settings-reveal rounded-xl border border-slate-300 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none"
+        style={{ animationDelay: "80ms" }}
+      >
         <div className="mb-5">
           <h3 className="text-xl font-semibold text-slate-900 dark:text-white">
             Appearance
@@ -146,7 +218,7 @@ function SettingsPage() {
             <button
               type="button"
               onClick={() => setTheme("light")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-300 ease-out ${
                 theme === "light"
                   ? "bg-sky-600 text-white shadow-sm"
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
@@ -159,9 +231,9 @@ function SettingsPage() {
             <button
               type="button"
               onClick={() => setTheme("dark")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-300 ease-out ${
                 theme === "dark"
-                  ? "bg-sky-600 text-slate-900 shadow-sm"
+                  ? "bg-sky-600 text-white shadow-sm"
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
               }`}
             >
@@ -173,7 +245,10 @@ function SettingsPage() {
       </div>
 
       {/* Account & Security */}
-      <div className="mt-6 rounded-xl border border-slate-300 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none">
+      <div
+        className="settings-reveal mt-6 rounded-xl border border-slate-300 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none"
+        style={{ animationDelay: "160ms" }}
+      >
         <div className="mb-5">
           <h3 className="text-xl font-semibold text-slate-900 dark:text-white">
             Account & Security
@@ -185,7 +260,6 @@ function SettingsPage() {
         </div>
 
         <div className="divide-y divide-slate-200 dark:divide-slate-700">
-
           {/* Change Password */}
           <div className="flex items-center justify-between gap-4 py-4 first:pt-0">
             <div className="flex items-center gap-4">
@@ -234,7 +308,7 @@ function SettingsPage() {
             <button
               type="button"
               onClick={() => setShowSessionsModal(true)}
-              className="shrink-0 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:border-slate-400 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="shrink-0 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               View Sessions
             </button>
@@ -266,37 +340,47 @@ function SettingsPage() {
               Sign Out Others
             </button>
           </div>
-
         </div>
       </div>
+
       {/* Experimental Features */}
-        <div className="mt-6 rounded-xl border border-slate-300 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none">
-          {/* Header */}
-          <button
-            type="button"
-            onClick={() => setShowExperimental((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-4 bg-transparent text-left outline-none focus:bg-transparent focus:outline-none focus:ring-0"
-          >
-            <div>
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">
-                Experimental Features
-              </h3>
+      <div
+        className="settings-reveal mt-6 rounded-xl border border-slate-300 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none"
+        style={{ animationDelay: "240ms" }}
+      >
+        {/* Header */}
+        <button
+          type="button"
+          onClick={() => setShowExperimental((prev) => !prev)}
+          className="flex w-full items-center justify-between gap-4 bg-transparent text-left outline-none focus:bg-transparent focus:outline-none focus:ring-0"
+        >
+          <div>
+            <h3 className="text-xl font-semibold text-slate-900 dark:text-white">
+              Experimental Features
+            </h3>
 
-              <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-400">
-                Preview features that are still being developed and tested.
-              </p>
-            </div>
+            <p className="mt-1 text-sm font-normal text-slate-600 dark:text-slate-400">
+              Preview features that are still being developed and tested.
+            </p>
+          </div>
 
-            <FaChevronDown
-              className={`shrink-0 text-slate-500 transition-transform duration-200 dark:text-slate-400 ${
-                showExperimental ? "rotate-180" : ""
-              }`}
-            />
-          </button>
+          <FaChevronDown
+            className={`shrink-0 text-slate-500 transition-transform duration-300 ease-out dark:text-slate-400 ${
+              showExperimental ? "rotate-180" : ""
+            }`}
+          />
+        </button>
 
-          {/* Hidden Experimental Settings */}
-          {showExperimental && (
-            <div className="mt-5 border-t border-slate-200 pt-5 dark:border-slate-700">
+        {/* Smooth expand/collapse (laging naka-render para may transition) */}
+        <div
+          className={`grid transition-all duration-300 ease-out ${
+            showExperimental
+              ? "mt-5 grid-rows-[1fr] opacity-100"
+              : "mt-0 grid-rows-[0fr] opacity-0"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="border-t border-slate-200 pt-5 dark:border-slate-700">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="font-medium text-slate-800 dark:text-slate-200">
@@ -312,7 +396,7 @@ function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setAuthenticatorEnabled((prev) => !prev)}
-                  className={`relative h-7 w-12 shrink-0 rounded-full border transition-all duration-200 ${
+                  className={`relative h-7 w-12 shrink-0 rounded-full border transition-all duration-300 ease-out ${
                     authenticatorEnabled
                       ? "border-sky-600 bg-sky-600 shadow-sm"
                       : "border-slate-400 bg-slate-300 shadow-inner dark:border-slate-600 dark:bg-slate-600"
@@ -320,79 +404,80 @@ function SettingsPage() {
                   aria-pressed={authenticatorEnabled}
                 >
                   <span
-                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-transform duration-200 ${
-                      authenticatorEnabled
-                        ? "translate-x-5"
-                        : "translate-x-0"
+                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-transform duration-300 ease-out ${
+                      authenticatorEnabled ? "translate-x-5" : "translate-x-0"
                     }`}
                   />
                 </button>
               </div>
             </div>
-          )}
+          </div>
+        </div>
+      </div>
+
+      {/* Support */}
+      <div
+        className="settings-reveal mt-6 rounded-xl border border-slate-300 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none"
+        style={{ animationDelay: "320ms" }}
+      >
+        <div className="mb-5">
+          <h3 className="text-xl font-semibold text-slate-900 dark:text-white">
+            Support
+          </h3>
+
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            Get help and report issues while using LensFlow.
+          </p>
         </div>
 
-        {/* Support */}
-          <div className="mt-6 rounded-xl border border-slate-300 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none">
-            <div className="mb-5">
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">
-                Support
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Get help and report issues while using LensFlow.
-              </p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
+              <FaBug />
             </div>
 
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
-                  <FaBug />
-                </div>
+            <div>
+              <p className="font-medium text-slate-800 dark:text-slate-200">
+                Report a Problem
+              </p>
 
-                <div>
-                  <p className="font-medium text-slate-800 dark:text-slate-200">
-                    Report a Problem
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    Let us know if you encounter a bug or issue while using LensFlow.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowReportModal(true)}
-                className="
-                  shrink-0 rounded-lg
-                  border border-sky-500
-                  bg-transparent
-                  px-5 py-2
-                  text-sm font-semibold text-sky-500
-                  transition
-                  hover:bg-sky-500/10
-                  hover:text-sky-600
-                  dark:border-sky-500
-                  dark:text-sky-400
-                  dark:hover:bg-sky-500/10
-                  dark:hover:text-sky-300
-                ">
-                Report
-              </button>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                Let us know if you encounter a bug or issue while using
+                LensFlow.
+              </p>
             </div>
           </div>
 
+          <button
+            type="button"
+            onClick={() => setShowReportModal(true)}
+            className="
+              shrink-0 rounded-lg
+              border border-sky-500
+              bg-transparent
+              px-5 py-2
+              text-sm font-semibold text-sky-500
+              transition
+              hover:bg-sky-500/10
+              hover:text-sky-600
+              dark:border-sky-500
+              dark:text-sky-400
+              dark:hover:bg-sky-500/10
+              dark:hover:text-sky-300
+            "
+          >
+            Report
+          </button>
+        </div>
+      </div>
+
+      {/* Modals */}
       {showReportModal && (
-        <ReportProblemModal
-          onClose={() => setShowReportModal(false)}
-        />
+        <ReportProblemModal onClose={() => setShowReportModal(false)} />
       )}
 
       {showSessionsModal && (
-        <ActiveSessionsModal
-          onClose={() => setShowSessionsModal(false)}
-        />
+        <ActiveSessionsModal onClose={() => setShowSessionsModal(false)} />
       )}
 
       {showChangePasswordModal && (

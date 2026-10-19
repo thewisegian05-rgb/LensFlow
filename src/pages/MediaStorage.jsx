@@ -12,6 +12,7 @@ import { supabase } from "../lib/supabaseClient";
 
 const PHOTOS_BUCKET = "photos";
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
+const LOADING_MAX_MS = 2000; // loading indicator never shows longer than 2s
 
 async function getSignedUrl(path) {
   if (!path) return null;
@@ -73,6 +74,18 @@ function MediaStorage() {
   const [folders, setFolders] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
+
+  // Loading indicator: hides as soon as data is ready, and never stays past 2s
+  const [showLoading, setShowLoading] = useState(false);
+  useEffect(() => {
+    if (!dataLoading) {
+      setShowLoading(false);
+      return;
+    }
+    setShowLoading(true);
+    const t = setTimeout(() => setShowLoading(false), LOADING_MAX_MS);
+    return () => clearTimeout(t);
+  }, [dataLoading]);
 
   const [path, setPath] = useState([]); // array of folder ids
 
@@ -220,7 +233,7 @@ function MediaStorage() {
     setIsAddingFolder(false);
   };
 
-  /* ---- upload a file into the current folder (or an auto "Uploads" root folder) ---- */
+  /* ---- upload a file into the current folder ---- */
   async function findOrCreateUploadsFolder() {
     const existing = folders.find((f) => f.name === "Uploads" && f.parentId === null);
     if (existing) return existing.id;
@@ -443,6 +456,33 @@ function MediaStorage() {
 
   return (
     <div className={`p-4 relative ${shellClasses}`}>
+      <style>{`
+        @keyframes mi-pop {
+          from { opacity: 0; transform: translateY(14px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes mi-fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes mi-modal {
+          from { opacity: 0; transform: translateY(12px) scale(0.95); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes mi-menu {
+          from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes mi-spin { to { transform: rotate(360deg); } }
+
+        .mi-item  { animation: mi-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .mi-fade  { animation: mi-fade 0.25s ease-out both; }
+        .mi-modal { animation: mi-modal 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .mi-menu  { animation: mi-menu 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top right; }
+        .mi-spinner { animation: mi-spin 0.8s linear infinite; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .mi-item, .mi-fade, .mi-modal, .mi-menu { animation: none; }
+        }
+      `}</style>
+
       <input
         type="file"
         ref={fileInputRef}
@@ -471,7 +511,7 @@ function MediaStorage() {
           </button>
 
           {showAddMenu && (
-            <div className={`absolute right-0 mt-2 w-36 rounded-lg border shadow-xl z-20 py-1 ${menuClasses}`}>
+            <div className={`mi-menu absolute right-0 mt-2 w-36 rounded-lg border shadow-xl z-20 py-1 ${menuClasses}`}>
               <button
                 onClick={() => {
                   setShowAddMenu(false);
@@ -539,7 +579,7 @@ function MediaStorage() {
       </p>
 
       {isAddingFolder && (
-        <form onSubmit={handleAddFolderSubmit} className={`mb-4 flex gap-2 rounded-lg border p-3 ${formClasses}`}>
+        <form onSubmit={handleAddFolderSubmit} className={`mi-fade mb-4 flex gap-2 rounded-lg border p-3 ${formClasses}`}>
           <input
             type="text"
             placeholder="Folder name..."
@@ -553,144 +593,147 @@ function MediaStorage() {
         </form>
       )}
 
-      <div className="space-y-3">
-        {dataLoading && (
-          <p className={`text-sm ${emptyTextClasses}`}>
+      {/* key re-mounts the list on folder change so the pop-in animation replays */}
+      <div key={currentFolderId ?? "root"} className="space-y-3">
+        {showLoading && (
+          <div className={`mi-fade flex items-center gap-2 text-sm ${emptyTextClasses}`}>
+            <span className="mi-spinner inline-block h-4 w-4 rounded-full border-2 border-sky-500 border-t-transparent" />
             Loading...
-          </p>
+          </div>
         )}
-        {sortedCurrentItems.map((item) => {
+        {sortedCurrentItems.map((item, index) => {
           const counts = !item.isFile ? getFolderCounts(item.id) : null;
 
           return (
             <div
-            key={`${item.isFile ? "file" : "folder"}-${item.id}`}
-            onClick={() => {
-              if (item.isFile) {
-                openFile(item);
-              } else {
-                setPath([...path, item.id]);
-              }
-            }}
-            className={`flex items-center justify-between rounded-lg border p-4 transition cursor-pointer ${itemClasses}`}
-          >
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              {item.isFile ? (
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-500/10">
-                  <FaFile className="text-lg text-sky-500 dark:text-sky-400" />
-                </div>
-              ) : (
-                <div
-                  className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl ${
-                    item.name.toLowerCase() === "culled"
-                      ? "bg-emerald-50 dark:bg-emerald-500/10"
-                      : "bg-sky-50 dark:bg-sky-500/10"
-                  }`}
-                >
-                  <FaFolder
-                    className={
-                      item.name.toLowerCase() === "culled"
-                        ? "text-xl text-emerald-500 dark:text-emerald-400"
-                        : "text-xl text-sky-500 dark:text-sky-400"
-                    }
-                  />
-                </div>
-              )}
-              {/*
-                Only stop propagation while this row is actively being
-                renamed — otherwise a click on the name should bubble up
-                to the row's onClick and navigate/open like clicking
-                anywhere else on the row. Text selection via click-drag
-                or double-click still works normally since we never call
-                preventDefault() here.
-              */}
-              <div
-                className="flex-1"
-                onClick={(e) => {
-                  if (editId === item.id) e.stopPropagation();
-                }}
-              >
-                {editId === item.id ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className={`rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500 ${inputClasses}`}
-                      autoFocus
-                    />
-                    <button onClick={() => handleSaveEdit(item.id, item.isFile)} className="rounded bg-sky-600 px-2.5 py-1 text-xs text-white hover:bg-green-500">Save</button>
-                    <button onClick={() => setEditId(null)} className={`rounded px-2.5 py-1 text-xs ${modalButtonClasses}`}>Cancel</button>
+              key={`${item.isFile ? "file" : "folder"}-${item.id}`}
+              style={{ animationDelay: `${Math.min(index, 12) * 45}ms` }}
+              onClick={() => {
+                if (item.isFile) {
+                  openFile(item);
+                } else {
+                  setPath([...path, item.id]);
+                }
+              }}
+              className={`mi-item flex items-center justify-between rounded-lg border p-4 cursor-pointer transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md ${itemClasses}`}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                {item.isFile ? (
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-500/10">
+                    <FaFile className="text-lg text-sky-500 dark:text-sky-400" />
                   </div>
                 ) : (
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="truncate font-semibold">
-                        {item.name}
-                      </h2>
-
-                      {!item.isFile && (
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={
-                              isDark
-                                ? "rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400"
-                                : "rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600"
-                            }
-                          >
-                            {counts.folders} {counts.folders === 1 ? "folder" : "folders"}
-                          </span>
-
-                          <span
-                            className={
-                              isDark
-                                ? "rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400"
-                                : "rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600"
-                            }
-                          >
-                            {counts.files} {counts.files === 1 ? "file" : "files"}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {!item.isFile && (
-                      <p className="mt-1 text-xs text-slate-500">
-                        {item.name.toLowerCase() === "culled"
-                          ? "Final selected photos"
-                          : item.name.toLowerCase() === "raw"
-                            ? "Original photo collection"
-                            : "Photo collection"}
-                      </p>
-                    )}
+                  <div
+                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl ${
+                      item.name.toLowerCase() === "culled"
+                        ? "bg-emerald-50 dark:bg-emerald-500/10"
+                        : "bg-sky-50 dark:bg-sky-500/10"
+                    }`}
+                  >
+                    <FaFolder
+                      className={
+                        item.name.toLowerCase() === "culled"
+                          ? "text-xl text-emerald-500 dark:text-emerald-400"
+                          : "text-xl text-sky-500 dark:text-sky-400"
+                      }
+                    />
                   </div>
                 )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-              {editId !== item.id && (
-                <button
-                  onClick={() => { setEditId(item.id); setEditIsFolder(!item.isFile); setEditName(item.name); }}
-                  className="rounded-lg p-2 text-slate-500 transition hover:!bg-sky-100 hover:!text-sky-600 dark:text-slate-400 dark:hover:!bg-sky-500/10 dark:hover:!text-sky-400"
-                  style={{ background: "transparent", border: "none", outline: "none", boxShadow: "none", appearance: "none", WebkitAppearance: "none" }}
-                  title="Rename"
+                {/*
+                  Only stop propagation while this row is actively being
+                  renamed — otherwise a click on the name should bubble up
+                  to the row's onClick and navigate/open like clicking
+                  anywhere else on the row. Text selection via click-drag
+                  or double-click still works normally since we never call
+                  preventDefault() here.
+                */}
+                <div
+                  className="flex-1"
+                  onClick={(e) => {
+                    if (editId === item.id) e.stopPropagation();
+                  }}
                 >
-                  <FaEdit />
+                  {editId === item.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className={`rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500 ${inputClasses}`}
+                        autoFocus
+                      />
+                      <button onClick={() => handleSaveEdit(item.id, item.isFile)} className="rounded bg-sky-600 px-2.5 py-1 text-xs text-white hover:bg-green-500">Save</button>
+                      <button onClick={() => setEditId(null)} className={`rounded px-2.5 py-1 text-xs ${modalButtonClasses}`}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="truncate font-semibold">
+                          {item.name}
+                        </h2>
+
+                        {!item.isFile && (
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={
+                                isDark
+                                  ? "rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400"
+                                  : "rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600"
+                              }
+                            >
+                              {counts.folders} {counts.folders === 1 ? "folder" : "folders"}
+                            </span>
+
+                            <span
+                              className={
+                                isDark
+                                  ? "rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400"
+                                  : "rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600"
+                              }
+                            >
+                              {counts.files} {counts.files === 1 ? "file" : "files"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {!item.isFile && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          {item.name.toLowerCase() === "culled"
+                            ? "Final selected photos"
+                            : item.name.toLowerCase() === "raw"
+                              ? "Original photo collection"
+                              : "Photo collection"}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                {editId !== item.id && (
+                  <button
+                    onClick={() => { setEditId(item.id); setEditIsFolder(!item.isFile); setEditName(item.name); }}
+                    className="rounded-lg p-2 text-slate-500 transition hover:!bg-sky-100 hover:!text-sky-600 dark:text-slate-400 dark:hover:!bg-sky-500/10 dark:hover:!text-sky-400"
+                    style={{ background: "transparent", border: "none", outline: "none", boxShadow: "none", appearance: "none", WebkitAppearance: "none" }}
+                    title="Rename"
+                  >
+                    <FaEdit />
+                  </button>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteTarget({ id: item.id, name: item.name, isFile: item.isFile });
+                  }}
+                  className="rounded-lg p-2 text-slate-500 transition hover:!bg-red-100 hover:!text-red-500 dark:text-slate-400 dark:hover:!bg-red-500/10 dark:hover:!text-red-500"
+                  style={{ background: "transparent", border: "none", outline: "none", boxShadow: "none", appearance: "none", WebkitAppearance: "none" }}
+                  title="Delete"
+                >
+                  <FaTrash />
                 </button>
-              )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteTarget({ id: item.id, name: item.name, isFile: item.isFile });
-                }}
-                className="rounded-lg p-2 text-slate-500 transition hover:!bg-red-100 hover:!text-red-500 dark:text-slate-400 dark:hover:!bg-red-500/10 dark:hover:!text-red-500"
-                style={{ background: "transparent", border: "none", outline: "none", boxShadow: "none", appearance: "none", WebkitAppearance: "none" }}
-                title="Delete"
-              >
-                <FaTrash />
-              </button>
-            </div>
+              </div>
             </div>
           );
         })}
@@ -698,8 +741,8 @@ function MediaStorage() {
 
       {/* File Preview Modal */}
       {viewingFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className={`relative max-w-4xl w-full max-h-[90vh] border rounded-xl p-4 flex flex-col shadow-2xl ${modalContentClasses}`}>
+        <div className="mi-fade fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className={`mi-modal relative max-w-4xl w-full max-h-[90vh] border rounded-xl p-4 flex flex-col shadow-2xl ${modalContentClasses}`}>
             <div className={`flex items-center justify-between pb-3 border-b mb-4 ${modalHeaderClasses}`}>
               <h3 className="font-semibold text-lg truncate">{viewingFile.name}</h3>
               <button
@@ -722,8 +765,8 @@ function MediaStorage() {
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className={`w-full max-w-sm rounded-xl border p-6 text-center shadow-xl ${modalContentClasses}`}>
+        <div className="mi-fade fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className={`mi-modal w-full max-w-sm rounded-xl border p-6 text-center shadow-xl ${modalContentClasses}`}>
             <h3 className="mb-2 text-lg font-bold">Delete Item?</h3>
             <p className={`mb-6 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
               {deleteTarget.isFile

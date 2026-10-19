@@ -114,7 +114,9 @@ function MediaStorage() {
   const itemClasses = isDark
     ? "border-slate-800 bg-slate-900/60 hover:bg-slate-800/80"
     : "border-slate-200 bg-white hover:bg-slate-100";
-  const emptyTextClasses = isDark ? "text-slate-500" : "text-slate-500";
+  const shimmerClasses = isDark
+    ? "bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800"
+    : "bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200";
   const modalContentClasses = isDark ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900";
   const modalHeaderClasses = isDark ? "border-slate-800" : "border-slate-200";
   const modalButtonClasses = isDark ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-900";
@@ -233,7 +235,7 @@ function MediaStorage() {
     setIsAddingFolder(false);
   };
 
-  /* ---- upload a file into the current folder ---- */
+  /* ---- upload a file into the current folder (or an auto "Uploads" root folder) ---- */
   async function findOrCreateUploadsFolder() {
     const existing = folders.find((f) => f.name === "Uploads" && f.parentId === null);
     if (existing) return existing.id;
@@ -471,15 +473,23 @@ function MediaStorage() {
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
         @keyframes mi-spin { to { transform: rotate(360deg); } }
+        @keyframes mi-shimmer {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
 
         .mi-item  { animation: mi-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
         .mi-fade  { animation: mi-fade 0.25s ease-out both; }
         .mi-modal { animation: mi-modal 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
         .mi-menu  { animation: mi-menu 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top right; }
         .mi-spinner { animation: mi-spin 0.8s linear infinite; }
+        .mi-shimmer {
+          background-size: 200% 100%;
+          animation: mi-shimmer 1.4s ease-in-out infinite;
+        }
 
         @media (prefers-reduced-motion: reduce) {
-          .mi-item, .mi-fade, .mi-modal, .mi-menu { animation: none; }
+          .mi-item, .mi-fade, .mi-modal, .mi-menu, .mi-shimmer { animation: none; }
         }
       `}</style>
 
@@ -595,12 +605,20 @@ function MediaStorage() {
 
       {/* key re-mounts the list on folder change so the pop-in animation replays */}
       <div key={currentFolderId ?? "root"} className="space-y-3">
-        {showLoading && (
-          <div className={`mi-fade flex items-center gap-2 text-sm ${emptyTextClasses}`}>
-            <span className="mi-spinner inline-block h-4 w-4 rounded-full border-2 border-sky-500 border-t-transparent" />
-            Loading...
-          </div>
-        )}
+        {showLoading &&
+          [0, 1, 2].map((i) => (
+            <div
+              key={`skeleton-${i}`}
+              style={{ animationDelay: `${i * 80}ms` }}
+              className={`mi-item flex items-center gap-3 rounded-lg border p-4 ${itemClasses}`}
+            >
+              <div className={`mi-shimmer h-11 w-11 flex-shrink-0 rounded-xl ${shimmerClasses}`} />
+              <div className="flex-1 space-y-2">
+                <div className={`mi-shimmer h-4 w-2/5 rounded ${shimmerClasses}`} />
+                <div className={`mi-shimmer h-3 w-1/4 rounded ${shimmerClasses}`} />
+              </div>
+            </div>
+          ))}
         {sortedCurrentItems.map((item, index) => {
           const counts = !item.isFile ? getFolderCounts(item.id) : null;
 

@@ -1,5 +1,5 @@
 /* =========================================================
-   SCHEDULE PAGE - SMOOTH ANIMATIONS
+                       SCHEDULE PAGE           
    ========================================================= */
 
 .schedule-page {
@@ -89,12 +89,14 @@
 }
 
 
-/* ---------- 3. EVENT ROWS (pop-up of items) ---------- */
+/* ---------- 3. EVENT ROWS (smoother pop-up of items) ---------- */
 
 .event-row {
-  animation: rowIn 0.6s var(--ease-out) backwards;
+  /* only opacity + transform are animated = no stutter */
+  animation: rowIn 0.8s var(--ease-out) backwards;
   /* stagger, capped at 8 rows so long lists still show up quickly */
-  animation-delay: calc(min(var(--i, 0), 8) * 60ms + 250ms);
+  animation-delay: calc(min(var(--i, 0), 8) * 80ms + 120ms);
+  will-change: transform, opacity;
   transition:
     transform 0.3s var(--ease-out),
     box-shadow 0.3s var(--ease-soft),
@@ -113,17 +115,17 @@
 }
 
 @keyframes rowIn {
-  0%   { opacity: 0; transform: translate3d(-22px, 8px, 0) scale(0.97); }
-  70%  { opacity: 1; }
+  0%   { opacity: 0; transform: translate3d(0, 24px, 0) scale(0.96); }
+  60%  { opacity: 1; }
   100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
 /* the event that was just added / edited */
 .event-row-new {
   animation:
-    rowIn 0.6s var(--ease-out) backwards,
-    rowGlow 1.8s ease-out 0.6s 2;
-  animation-delay: 0s, 0.6s;
+    rowIn 0.8s var(--ease-out) backwards,
+    rowGlow 1.8s ease-out 0.8s 2;
+  animation-delay: 0s, 0.8s;
 }
 
 @keyframes rowGlow {
@@ -141,19 +143,41 @@
 }
 
 
-/* ---------- 4. LOADING SKELETON SHIMMER ---------- */
+/* ---------- 4. LOADING SKELETON (same format as Workflow) ---------- */
 
-.event-skeleton {
-  height: 3.1rem;
-  border-radius: 0.6rem;
+.event-skel-card {
+  min-height: 112px;
+  padding: 14px 13px;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(51, 65, 85, 0.5);
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.event-skel-line,
+.event-skel-btn {
+  border-radius: 999px;
   background: linear-gradient(
     90deg,
-    rgba(51, 65, 85, 0.35) 25%,
-    rgba(100, 116, 139, 0.35) 50%,
-    rgba(51, 65, 85, 0.35) 75%
+    rgba(51, 65, 85, 0.45) 25%,
+    rgba(100, 116, 139, 0.45) 50%,
+    rgba(51, 65, 85, 0.45) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
+}
+
+.event-skel-title { height: 12px; width: 75%; }
+.event-skel-sub1  { height: 9px;  width: 50%; }
+.event-skel-sub2  { height: 9px;  width: 66%; }
+
+.event-skel-btn {
+  height: 20px;
+  width: 100%;
+  margin-top: auto;      /* always pinned to the bottom of the card */
+  border-radius: 0.4rem;
 }
 
 @keyframes shimmer {
@@ -199,8 +223,6 @@
 /* ---------- 6. MODALS (no edits to the modal files needed) ---------- */
 
 .schedule-page .fixed.inset-0 {
-  /* blur is static (not animated) - animating backdrop-filter is what
-     made the old version stutter. Only opacity fades in. */
   backdrop-filter: blur(6px);
   animation: overlayIn 0.35s var(--ease-soft) backwards;
 }
@@ -223,8 +245,6 @@
 
 /* ---------- 7. BUTTONS & INPUTS ---------- */
 
-/* .event-row is excluded so it keeps its own transition from section 3
-   (a plain `.schedule-page button` rule would override it) */
 .schedule-page button:not(.event-row) {
   transition:
     transform 0.25s var(--ease-out),

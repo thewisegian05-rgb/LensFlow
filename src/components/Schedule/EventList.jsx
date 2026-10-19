@@ -1,17 +1,20 @@
-// Save as: src/components/Schedule/EventList.jsx
 import {
   getEventCategory,
   CATEGORY_HEX,
   CATEGORY_LABELS,
 } from "./eventCategory";
 
-// Same category colors the Calendar uses, so a wedding looks the same
-// in the lists as it does on the calendar.
+// Max rows shown per panel before " more".
+const MAX_VISIBLE = 5;
+
 const hexToRgba = (hex, alpha = 1) => {
   const normalized = (hex || "#d946ef").replace("#", "");
   const safeHex =
     normalized.length === 3
-      ? normalized.split("").map((char) => char + char).join("")
+      ? normalized
+          .split("")
+          .map((char) => char + char)
+          .join("")
       : normalized;
 
   const value = Number.parseInt(safeHex, 16);
@@ -22,7 +25,7 @@ const hexToRgba = (hex, alpha = 1) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const getCategoryStyle = (event) => {
+const getCategoryStyle = (event, index) => {
   const category = getEventCategory(event);
   const hex = CATEGORY_HEX[category] || CATEGORY_HEX.default;
 
@@ -31,23 +34,53 @@ const getCategoryStyle = (event) => {
     borderColor: hexToRgba(hex, 0.3),
     borderLeftColor: hex,
     color: hex,
+    "--i": index, // stagger index for the pop-up animation
   };
 };
 
-// COMPACT EVENT LIST (Today's Events / Coming Events) - animated
+const formatTime = (date) =>
+  date
+    ? new Date(date).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : "";
+
+const formatShortDate = (date) =>
+  date
+    ? new Date(date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    : "";
+
+// Same shape as the Workflow loading card:
+// title line, two shorter lines, then a button bar at the bottom.
+function SkeletonCard() {
+  return (
+    <div className="event-skel-card">
+      <div className="event-skel-line event-skel-title" />
+      <div className="event-skel-line event-skel-sub1" />
+      <div className="event-skel-line event-skel-sub2" />
+      <div className="event-skel-btn" />
+    </div>
+  );
+}
+
 function EventList({
   title,
-  dot,
-  events,
-  loading,
-  emptyText,
+  dot = "bg-sky-400",
+  events = [],
+  loading = false,
+  skeletonCount = 2,
+  emptyText = "No events.",
   showDate = false,
-  limit = 5,
   highlightId = null,
   onSelect,
 }) {
-  const visible = events.slice(0, limit);
-  const hidden = events.length - visible.length;
+  const visible = events.slice(0, MAX_VISIBLE);
+  const hiddenCount = events.length - visible.length;
 
   return (
     <section className="event-list rounded-xl border border-slate-700 bg-slate-900 p-4">
@@ -56,20 +89,19 @@ function EventList({
           <span className={`event-dot h-2 w-2 rounded-full ${dot}`} />
           {title}
         </h3>
-        {/* key={events.length} replays the pop animation when the count changes */}
-        <span
-          key={events.length}
-          className="event-count rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300"
-        >
-          {events.length}
-        </span>
+
+        {!loading && (
+          <span className="event-count rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300">
+            {events.length}
+          </span>
+        )}
       </header>
 
       {loading ? (
-        <div className="space-y-2">
-          <div className="event-skeleton" />
-          <div className="event-skeleton" style={{ animationDelay: "0.15s" }} />
-          <div className="event-skeleton" style={{ animationDelay: "0.3s" }} />
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: skeletonCount }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       ) : events.length === 0 ? (
         <p className="event-more rounded-lg border border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">
@@ -80,38 +112,39 @@ function EventList({
           {visible.map((event, index) => {
             const category = getEventCategory(event);
             const categoryLabel = CATEGORY_LABELS[category] || event.category;
+            const isNew = event.id === highlightId;
+            const isDone = event.status === "completed";
 
             return (
               <button
                 key={event.id}
                 type="button"
-                onClick={() => onSelect(event)}
-                style={{ ...getCategoryStyle(event), "--i": index }}
-                className={`${
-                  event.id === highlightId ? "event-row-new" : "event-row"
+                onClick={() => onSelect?.(event)}
+                style={getCategoryStyle(event, index)}
+                className={`event-row ${
+                  isNew ? "event-row-new" : ""
                 } flex w-full items-center gap-3 rounded-lg border border-l-4 px-3 py-2 text-left`}
               >
                 <div className="w-16 flex-shrink-0 text-xs">
-                  <p className="font-semibold">{event.time}</p>
+                  <p className="font-semibold">{formatTime(event.start)}</p>
                   {showDate && (
                     <p className="mt-0.5 opacity-70">
-                      {event.start.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}
+                      {formatShortDate(event.start)}
                     </p>
                   )}
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{event.title}</p>
+                  <p className="truncate text-sm font-medium">
+                    {event.title || "Untitled Event"}
+                  </p>
                   <p className="truncate text-xs opacity-70">
                     {[event.client, categoryLabel].filter(Boolean).join(" · ")}
                   </p>
                 </div>
 
-                {event.status === "completed" && (
-                  <span className="event-done-badge flex-shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                {isDone && (
+                  <span className="event-done-badge flex-shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
                     Done
                   </span>
                 )}
@@ -119,9 +152,9 @@ function EventList({
             );
           })}
 
-          {hidden > 0 && (
+          {hiddenCount > 0 && (
             <p className="event-more pt-1 text-center text-xs text-slate-500">
-              +{hidden} more in the calendar below
+              +{hiddenCount} more
             </p>
           )}
         </div>

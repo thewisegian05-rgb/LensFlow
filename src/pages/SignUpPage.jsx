@@ -26,7 +26,7 @@ const getSignUpErrorMessage = (error) => {
     message.includes("already exists") ||
     message.includes("user already registered")
   ) {
-    return "An account with this email may already exist. Try signing in instead.";
+    return "Email is already registered";
   }
 
   if (message.includes("invalid email")) {
@@ -219,6 +219,11 @@ function SignUpPage() {
         const message = getSignUpErrorMessage(signUpError);
 
         setErrors({ [field]: message });
+        return;
+      }
+
+      if (data.user?.identities?.length === 0) {
+        setErrors({ email: "Email is already registered" });
         return;
       }
 

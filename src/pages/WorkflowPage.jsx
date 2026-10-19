@@ -5,18 +5,21 @@ import {
   FaChevronRight,
   FaRegCalendarAlt,
   FaUser,
-  FaMapMarkerAlt,
 } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
 
 const SMOOTH_EASE = [0.22, 1, 0.36, 1];
 
 // The loading display is ALWAYS this long, then it stops for good
-
+// (it never comes back on refetch / move).
 const LOADING_DURATION_MS = 2000;
 
 // How many placeholder cards each column shows while loading.
 const SKELETON_COUNT = 3;
+
+// ONE size for both the loading skeleton and the real card, so the
+// boxes never change size when the data pops in.
+const CARD_SIZE = "h-28"; // 7rem = 112px
 
 /* ============ Stages (in order) ============ */
 const STAGES = [
@@ -120,13 +123,15 @@ function SkeletonCard({ delay = 0 }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4, ease: SMOOTH_EASE, delay }}
-      className="animate-pulse rounded-xl border border-slate-200 bg-slate-100 p-3
-        dark:border-slate-700/70 dark:bg-slate-800/50"
+      className={`${CARD_SIZE} flex animate-pulse flex-col justify-between rounded-xl border border-slate-200 bg-slate-100 p-2.5
+        dark:border-slate-700/70 dark:bg-slate-800/50`}
     >
-      <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
-      <div className="mt-3 h-2.5 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
-      <div className="mt-2 h-2.5 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
-      <div className="mt-4 h-5 w-full rounded bg-slate-200/70 dark:bg-slate-700/60" />
+      <div>
+        <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
+        <div className="mt-2 h-2.5 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+        <div className="mt-1.5 h-2.5 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
+      </div>
+      <div className="h-6 w-full rounded bg-slate-200/70 dark:bg-slate-700/60" />
     </motion.div>
   );
 }
@@ -137,6 +142,9 @@ function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
   const index = STAGE_INDEX[project.stage];
   const locked = isFutureEvent(project);
   const isToday = project.event_date === todayString();
+
+  const dateLabel = isToday ? "Today" : formatDate(project.event_date);
+  const metaLine = [dateLabel, project.time, project.location].filter(Boolean).join(" · ");
 
   return (
     <motion.div
@@ -158,51 +166,49 @@ function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
       <div
         draggable
         onDragStart={(e) => onDragStart(e, project.id)}
-        className={`rounded-xl border border-slate-200 bg-white p-3
+        className={`${CARD_SIZE} flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-2.5
           transition-[transform,opacity,border-color,box-shadow] duration-300 ease-out
           hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-md
           dark:border-slate-700 dark:bg-slate-800/70 dark:hover:border-sky-500/50
           ${dragging ? "scale-95 opacity-40" : ""}
           cursor-grab active:cursor-grabbing`}
       >
-        <div className="flex items-start justify-between gap-2">
-          <h4 className="text-sm font-medium leading-snug text-slate-900 dark:text-white">
-            {project.name}
-          </h4>
-          {project.category && (
-            <span className="flex-shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-semibold text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
-              {project.category}
-            </span>
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <h4
+              title={project.name}
+              className="min-w-0 truncate text-sm font-medium leading-5 text-slate-900 dark:text-white"
+            >
+              {project.name}
+            </h4>
+            {project.category && (
+              <span className="flex-shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-semibold text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
+                {project.category}
+              </span>
+            )}
+          </div>
+
+          {project.client && (
+            <p className="mt-1 flex items-center gap-1.5 text-[11px] leading-4 text-slate-600 dark:text-slate-400">
+              <FaUser className="flex-shrink-0 text-[9px]" />
+              <span className="truncate">{project.client}</span>
+            </p>
           )}
+
+          <p
+            title={metaLine}
+            className={`mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 ${
+              isToday
+                ? "font-semibold text-amber-600 dark:text-amber-400"
+                : "text-slate-600 dark:text-slate-400"
+            }`}
+          >
+            <FaRegCalendarAlt className="flex-shrink-0 text-[9px]" />
+            <span className="truncate">{metaLine}</span>
+          </p>
         </div>
 
-        {project.client && (
-          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400">
-            <FaUser className="text-[9px]" />
-            <span className="truncate">{project.client}</span>
-          </p>
-        )}
-
-        <p
-          className={`mt-1 flex items-center gap-1.5 text-[11px] ${
-            isToday
-              ? "font-semibold text-amber-600 dark:text-amber-400"
-              : "text-slate-600 dark:text-slate-400"
-          }`}
-        >
-          <FaRegCalendarAlt className="text-[9px]" />
-          {isToday ? "Today" : formatDate(project.event_date)}
-          {project.time && <span className="text-slate-500">· {project.time}</span>}
-        </p>
-
-        {project.location && (
-          <p className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
-            <FaMapMarkerAlt className="text-[9px]" />
-            <span className="truncate">{project.location}</span>
-          </p>
-        )}
-
-        <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-2 dark:border-slate-700/70">
+        <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 dark:border-slate-700/70">
           <motion.button
             type="button"
             whileTap={index === 0 ? undefined : { scale: 0.85 }}

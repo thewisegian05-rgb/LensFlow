@@ -717,7 +717,14 @@ function CullingPage() {
     stage: "Preparing LensFlow...",
   });
 
-  const [path, setPath] = useState([]);
+  // CHANGE 1: restore the open folder path when the page remounts.
+  const [path, setPath] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("lensflow_path") || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [filter, setFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
   const [showDetailInfo, setShowDetailInfo] = useState(false);
@@ -1316,7 +1323,14 @@ function CullingPage() {
     });
 
     setFolders(folderState);
-    setPhotos(photoState);
+
+    // CHANGE 3: merge instead of replace, so a photo that finished uploading
+    // while this load was running isn't dropped.
+    setPhotos((prev) => {
+      const ids = new Set(photoState.map((p) => p.id));
+      return [...prev.filter((p) => !ids.has(p.id)), ...photoState];
+    });
+
     setCulls(ratingsMap);
     setAiResults(aiResultMap);
     setDataLoading(false);
@@ -1372,17 +1386,36 @@ function CullingPage() {
     };
   }, [user, dataLoading, folders, pollCullingJob]);
 
+  // CHANGE 2: don't clear state (and the saved path) while auth is still loading.
   useEffect(() => {
     if (user) {
       loadData(user.id);
-    } else {
+    } else if (!authLoading) {
       setFolders([]);
       setPhotos([]);
       setCulls({});
       setAiResults({});
       setPath([]);
     }
-  }, [user, loadData]);
+  }, [user, authLoading, loadData]);
+
+  // CHANGE 1 (continued): remember which folder is open when you leave the page.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("lensflow_path", JSON.stringify(path));
+    } catch {
+      // ignore storage errors
+    }
+  }, [path]);
+
+  // Drop stale ids (e.g. a deleted folder) once folders have loaded.
+  useEffect(() => {
+    if (dataLoading || folders.length === 0) return;
+    setPath((p) => {
+      const i = p.findIndex((id) => !folders.some((f) => f.id === id));
+      return i === -1 ? p : p.slice(0, i);
+    });
+  }, [folders, dataLoading]);
 
   useEffect(() => {
     if (!user || dataLoading || photos.length === 0) return;
@@ -1903,29 +1936,44 @@ function CullingPage() {
     [photos, currentFolderId]
   );
 
-  // Per-folder photo counts, computed once instead of filtering per folder card.
+  // CHANGE 4: per-folder counts that roll up into parent folders, so a project
+  // folder shows the photos inside its Raw / Culled subfolders.
   const folderStats = useMemo(() => {
+    const parentOf = {};
+    const nameOf = {};
+    folders.forEach((f) => {
+      parentOf[f.id] = f.parentId;
+      nameOf[f.id] = f.name.toLowerCase();
+    });
+
     const m = {};
     for (const p of photos) {
-      const s = (m[p.folderId] ||= {
-        total: 0,
-        reviewed: 0,
-        starred: 0,
-        rejected: 0,
-      });
+      const rating = culls[p.id];
+      // Culled holds copies of Raw photos, so don't count them twice in the parent.
+      const isCulled = nameOf[p.folderId] === "culled";
 
-      s.total++;
+      let id = p.folderId;
+      const seen = new Set();
 
-      if (culls[p.id] === "star") {
-        s.starred++;
-        s.reviewed++;
-      } else if (culls[p.id] === "reject") {
-        s.rejected++;
-        s.reviewed++;
+      while (id && !seen.has(id)) {
+        seen.add(id);
+        const s = (m[id] ||= { total: 0, reviewed: 0, starred: 0, rejected: 0 });
+
+        s.total++;
+        if (rating === "star") {
+          s.starred++;
+          s.reviewed++;
+        } else if (rating === "reject") {
+          s.rejected++;
+          s.reviewed++;
+        }
+
+        if (isCulled) break;
+        id = parentOf[id];
       }
     }
     return m;
-  }, [photos, culls]);
+  }, [photos, culls, folders]);
 
   const visibleImages = useMemo(
     () =>

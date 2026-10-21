@@ -35,7 +35,9 @@ import {
   getSignedUrl,
   getSignedUrlMap,
   getPreviewUrl,
+  makeThumbnail,
 } from "../lib/photoStorage";
+import { pushNotification } from "../lib/notifications";
 import {
   enqueueUploads,
   onPhotoUploaded,
@@ -77,6 +79,9 @@ function isRawFileName(fileName) {
 }
 
 const CULLING_JOB_STORAGE_KEY = "lensflow_active_culling_job";
+
+// Jobs already announced in the bell, so a reconnect can't announce one twice.
+const notifiedCullingJobs = new Set();
 
 /* ============ Helpers ============ */
 function formatPercent(value) {
@@ -774,12 +779,14 @@ function CullingPage() {
         const progressData = await progressResponse.json();
 
         if (!progressResponse.ok) {
-          if (progressResponse.status === 404) {
-            localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
-          }
-          throw new Error(
+          const progressError = new Error(
             progressData?.detail || "Unable to retrieve culling progress."
           );
+          if (progressResponse.status === 404) {
+            localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
+            progressError.stale = true; // an old job the server no longer knows about
+          }
+          throw progressError;
         }
 
         // Only update the visible progress card when this is still the
@@ -856,6 +863,22 @@ function CullingPage() {
 
           localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
 
+          if (!notifiedCullingJobs.has(jobId)) {
+            notifiedCullingJobs.add(jobId);
+
+            const results = progressData.results || [];
+            const keep = results.filter((r) => r.lensflow_decision === "KEEP").length;
+            const review = results.filter((r) => r.lensflow_decision === "REVIEW").length;
+            const reject = results.filter((r) => r.lensflow_decision === "REJECT").length;
+
+            pushNotification({
+              type: "culling",
+              title: "Culling finished",
+              body: `${results.length} photo${results.length === 1 ? "" : "s"} analyzed: ${keep} keep, ${review} review, ${reject} reject.`,
+              to: "/dashboard/culling",
+            });
+          }
+
           await sleep(500);
           completed = true;
         }
@@ -867,6 +890,16 @@ function CullingPage() {
     } catch (error) {
       console.error("Failed to poll LensFlow:", error);
       setCullingError(error.message || "Failed to run LensFlow.");
+
+      if (!error.stale && !notifiedCullingJobs.has(jobId)) {
+        notifiedCullingJobs.add(jobId);
+        pushNotification({
+          type: "culling",
+          title: "Culling failed",
+          body: error.message || "Something went wrong while analyzing.",
+          to: "/dashboard/culling",
+        });
+      }
     } finally {
       if (cullingPollingJobRef.current === jobId) {
         cullingPollingJobRef.current = null;
@@ -941,6 +974,12 @@ function CullingPage() {
       await pollCullingJob(jobId, session, currentFolderId);
     } catch (error) {
       console.error("Failed to start LensFlow:", error);
+      pushNotification({
+        type: "culling",
+        title: "Culling couldn't start",
+        body: error.message || "Check that the LensFlow backend is running.",
+        to: "/dashboard/culling",
+      });
       setCullingError(error.message || "Failed to run LensFlow.");
       localStorage.removeItem(CULLING_JOB_STORAGE_KEY);
       setCullingLoading(false);
@@ -1041,6 +1080,36 @@ function CullingPage() {
     }
   };
 
+  // Announce RAW previews once the whole batch has settled. Previews are made
+  // a couple at a time and the list re-renders as each finishes, so "done"
+  // means: nothing running for a moment after the last one.
+  const rawBatchRef = useRef({ generated: 0, failed: 0, timer: null });
+
+  const scheduleRawPreviewNotice = useCallback(() => {
+    const batch = rawBatchRef.current;
+    clearTimeout(batch.timer);
+
+    batch.timer = setTimeout(() => {
+      if (rawPreviewRunningRef.current.size > 0) return;
+
+      const { generated, failed } = batch;
+      if (generated + failed === 0) return;
+
+      batch.generated = 0;
+      batch.failed = 0;
+
+      pushNotification({
+        type: "previews",
+        title: failed > 0 ? "RAW previews finished with issues" : "RAW previews ready",
+        body:
+          failed > 0
+            ? `${generated} prepared, ${failed} failed.`
+            : `${generated} RAW preview${generated === 1 ? "" : "s"} prepared.`,
+        to: "/dashboard/culling",
+      });
+    }, 2000);
+  }, []);
+
   // Generate a browser-friendly WebP preview for RAW photos through FastAPI.
   // Browsers cannot reliably decode CR2/CR3/NEF/etc. directly, so RAW files
   // use the backend-generated thumbnail while the original RAW stays untouched.
@@ -1077,6 +1146,7 @@ function CullingPage() {
       }
 
       const thumbUrl = await getSignedUrl(data.thumb_path);
+      rawBatchRef.current.generated += 1;
 
       setPhotos((prev) =>
         prev.map((item) =>
@@ -1092,11 +1162,13 @@ function CullingPage() {
       );
     } catch (error) {
       rawPreviewFailedRef.current.add(photo.id);
+      rawBatchRef.current.failed += 1;
       console.error("RAW preview generation failed for", photo.fileName, error);
     } finally {
       rawPreviewRunningRef.current.delete(photo.id);
+      scheduleRawPreviewNotice();
     }
-  }, []);
+  }, [scheduleRawPreviewNotice]);
 
   /* ---- load folders + photos for the signed-in user ---- */
   const loadData = useCallback(async (userId) => {
@@ -1696,13 +1768,27 @@ function CullingPage() {
     await Promise.all(Array.from({ length: 2 }, () => worker()));
     backfillRunningRef.current = false;
     setBackfill({ running: false, done, total });
+
+    const failedNow = targets.filter((t) => backfillFailedRef.current.has(t.id)).length;
+    pushNotification({
+      type: "previews",
+      title: failedNow ? "Previews finished with issues" : "Previews ready",
+      body: failedNow
+        ? `${total - failedNow} of ${total} prepared. ${failedNow} failed.`
+        : `${total} photo preview${total === 1 ? "" : "s"} prepared.`,
+      to: "/dashboard/culling",
+    });
   }
 
   useEffect(() => {
     if (!user || dataLoading || backfillRunningRef.current) return;
 
     const targets = photos.filter(
-      (p) => p.previewable && !p.thumbPath && !backfillFailedRef.current.has(p.id)
+      (p) =>
+        p.previewable &&
+        !p.thumbPath &&
+        !isRawFileName(p.fileName) &&
+        !backfillFailedRef.current.has(p.id)
     );
     if (targets.length > 0) backfillThumbnails(targets);
     // eslint-disable-next-line react-hooks/exhaustive-deps

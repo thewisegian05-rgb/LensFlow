@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import ScheduleHeader from "../components/Schedule/ScheduleHeader";
 import ScheduleSummary from "../components/Schedule/ScheduleSummary";
@@ -7,12 +8,13 @@ import Calendar from "../components/Schedule/Calendar";
 import AddEventModal from "../components/Schedule/AddEventModal";
 import EventDetailsModal from "../components/Schedule/EventDetailsModal";
 import ConfirmModal from "../components/Common/ConfirmModal";
-import EventList from "../components/Schedule/EventList";
-
-import "../components/Schedule/schedule.css";
-import "../components/Schedule/schedule-animations.css";
 
 import { supabase } from "../lib/supabaseClient";
+import {
+  getEventCategory,
+  CATEGORY_HEX,
+  CATEGORY_LABELS,
+} from "../components/Schedule/eventCategory";
 
 const formatDateForInput = (date) => {
   const value = new Date(date);
@@ -23,8 +25,125 @@ const formatDateForInput = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-// Loading display is always exactly this long, then it stops for good.
-const LOADING_DURATION_MS = 2000;
+// Same category colors the Calendar uses, so a wedding looks the same
+// in the lists as it does on the calendar.
+const hexToRgba = (hex, alpha = 1) => {
+  const normalized = (hex || "#d946ef").replace("#", "");
+  const safeHex =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : normalized;
+
+  const value = Number.parseInt(safeHex, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const getCategoryStyle = (event) => {
+  const category = getEventCategory(event);
+  const hex = CATEGORY_HEX[category] || CATEGORY_HEX.default;
+
+  return {
+    backgroundColor: hexToRgba(hex, 0.1),
+    borderColor: hexToRgba(hex, 0.3),
+    borderLeftColor: hex,
+    color: hex,
+  };
+};
+
+// =========================================================
+// COMPACT EVENT LIST (Today's Events / Coming Events)
+// =========================================================
+
+function EventList({
+  title,
+  dot,
+  events,
+  loading,
+  emptyText,
+  showDate = false,
+  limit = 5,
+  onSelect,
+}) {
+  const visible = events.slice(0, limit);
+  const hidden = events.length - visible.length;
+
+  return (
+    <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+      <header className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+          <span className={`h-2 w-2 rounded-full ${dot}`} />
+          {title}
+        </h3>
+        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300">
+          {events.length}
+        </span>
+      </header>
+
+      {loading ? (
+        <p className="py-6 text-center text-sm text-slate-500">Loading...</p>
+      ) : events.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">
+          {emptyText}
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {visible.map((event) => {
+            const category = getEventCategory(event);
+            const categoryLabel = CATEGORY_LABELS[category] || event.category;
+
+            return (
+              <button
+                key={event.id}
+                type="button"
+                onClick={() => onSelect(event)}
+                style={getCategoryStyle(event)}
+                className="flex w-full items-center gap-3 rounded-lg border border-l-4 px-3 py-2 text-left transition hover:brightness-125"
+              >
+                <div className="w-16 flex-shrink-0 text-xs">
+                  <p className="font-semibold">{event.time}</p>
+                  {showDate && (
+                    <p className="mt-0.5 opacity-70">
+                      {event.start.toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{event.title}</p>
+                  <p className="truncate text-xs opacity-70">
+                    {[event.client, categoryLabel].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+
+                {event.status === "completed" && (
+                  <span className="flex-shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                    Done
+                  </span>
+                )}
+              </button>
+            );
+          })}
+
+          {hidden > 0 && (
+            <p className="pt-1 text-center text-xs text-slate-500">
+              +{hidden} more in the calendar below
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function SchedulePage() {
 
@@ -40,12 +159,21 @@ function SchedulePage() {
   const [eventToDelete, setEventToDelete] = useState(null);
   const [clients, setClients] = useState([]);
 
-  // ANIMATION: id of the event that was just added/edited (glows briefly)
-  const [newEventId, setNewEventId] = useState(null);
-  const highlightTimer = useRef(null);
-
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
+
+  // The top bar's "New Project" button sends people here with ?new=1:
+  // open the New Event form, then clear the flag from the URL.
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setSelectedDate("");
+      setSelectedEvent(null);
+      setModalOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // =========================================================
   // FETCH CLIENTS FOR SCHEDULE
@@ -179,8 +307,10 @@ function SchedulePage() {
   // =========================================================
   // LOAD EVENTS FROM SUPABASE
   // =========================================================
-  
+
   const fetchEvents = async () => {
+    setLoading(true);
+
     const { data, error } = await supabase
       .from("schedule_events")
       .select("*")
@@ -188,6 +318,7 @@ function SchedulePage() {
 
     if (error) {
       console.error("Failed to load events:", error.message);
+      setLoading(false);
       return;
     }
 
@@ -218,34 +349,35 @@ function SchedulePage() {
         }),
         project_id: row.project_id,
         status: row.status,
-        // Per-event fee, persisted in addOrUpdateEvent below.
+        // Per-event fee, now actually persisted (see addOrUpdateEvent
+        // below) instead of only living on the client record.
         talentFee: Number(row.talent_fee) || 0,
       };
     });
 
     setEvents(mapped);
+    setLoading(false);
   };
 
   useEffect(() => {
     fetchEvents();
     fetchClients();
-
-    // Loading display: always 2 seconds, then it stops.
-    const loadingTimer = setTimeout(
-      () => setLoading(false),
-      LOADING_DURATION_MS
-    );
-
-    return () => {
-      clearTimeout(loadingTimer);
-      clearTimeout(highlightTimer.current);
-    };
   }, []);
 
 
   // =========================================================
   // RESYNC OR REMOVE A CLIENT AFTER THEIR EVENTS CHANGE
   // =========================================================
+  //
+  // `clients.project` / `venue` / `category` are a snapshot written
+  // whenever an event is saved (see addOrUpdateEvent below) — it's
+  // what ClientPage falls back to display when a client has no
+  // *current* events. If the client still has other events left, we
+  // just refresh that snapshot to the next one. If they have none at
+  // all, the client record itself is deleted — including any manually
+  // entered contact info, email, or notes — rather than left behind
+  // as an empty shell. This is a deliberate, confirmed choice: there
+  // is no "keep the client but empty" middle ground here.
 
   const syncOrRemoveClient = async (clientId) => {
     if (!clientId) return;
@@ -401,11 +533,11 @@ function SchedulePage() {
       start_time: new Date(`${form.date}T${form.start}`).toISOString(),
       end_time: new Date(`${form.date}T${form.end}`).toISOString(),
       project_id: form.projectId || null,
-      // Each event keeps its own fee.
+      // This was being computed above and synced onto the client, but
+      // never actually saved onto the event row itself — added here
+      // so each event keeps its own fee going forward.
       talent_fee: talentFee,
     };
-
-    let savedId = form.id;
 
     if (form.id) {
       const { error } = await supabase
@@ -419,19 +551,14 @@ function SchedulePage() {
       }
 
     } else {
-      // ANIMATION: .select().single() returns the new row so we know its id
-      const { data: inserted, error } = await supabase
+      const { error } = await supabase
         .from("schedule_events")
-        .insert([{ ...payload, user_id: user.id }])
-        .select()
-        .single();
+        .insert([{ ...payload, user_id: user.id }]);
 
       if (error) {
         console.error("Failed to add event:", error.message);
         return;
       }
-
-      savedId = inserted.id;
     }
 
     await fetchEvents();
@@ -439,12 +566,6 @@ function SchedulePage() {
 
     setModalOpen(false);
     setSelectedEvent(null);
-
-    // ANIMATION: make the saved event glow for a few seconds
-    // (timer is cleared first so quick consecutive saves don't cut it short)
-    setNewEventId(savedId);
-    clearTimeout(highlightTimer.current);
-    highlightTimer.current = setTimeout(() => setNewEventId(null), 4000);
   };
 
 
@@ -580,7 +701,7 @@ function SchedulePage() {
 
 
   // =========================================================
-  // TODAY'S EVENTS + COMING EVENTS 
+  // TODAY'S EVENTS + COMING EVENTS (follow the search/category filters)
   // =========================================================
 
   const todayKey = formatDateForInput(new Date());
@@ -640,7 +761,6 @@ function SchedulePage() {
           events={todaysEvents}
           loading={loading}
           emptyText="No events today."
-          highlightId={newEventId}
           onSelect={openEventDetails}
         />
         <EventList
@@ -650,7 +770,6 @@ function SchedulePage() {
           loading={loading}
           emptyText="No upcoming events."
           showDate
-          highlightId={newEventId}
           onSelect={openEventDetails}
         />
       </div>

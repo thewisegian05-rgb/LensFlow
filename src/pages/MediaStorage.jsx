@@ -13,6 +13,7 @@ import { supabase } from "../lib/supabaseClient";
 const PHOTOS_BUCKET = "photos";
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 const LOADING_MAX_MS = 2000; // loading indicator never shows longer than 2s
+const DELETE_MIN_MS = 900; // delete screen stays visible at least this long so it never just flashes
 
 async function getSignedUrl(path) {
   if (!path) return null;
@@ -96,6 +97,7 @@ function MediaStorage() {
   const [editName, setEditName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, name, isFile }
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [viewingFile, setViewingFile] = useState(null); // { id, name, url, isVideo }
 
   const fileInputRef = useRef(null);
@@ -334,8 +336,8 @@ function MediaStorage() {
   };
 
   /* ---- delete (file, or folder + its whole subtree) ---- */
-  const confirmDelete = async () => {
-    if (!deleteTarget || !user) return;
+  const runDelete = async () => {
+    if (!deleteTarget || !user) return false;
 
     if (deleteTarget.isFile) {
       const photo = photos.find((p) => p.id === deleteTarget.id);
@@ -356,7 +358,7 @@ function MediaStorage() {
 
       if (error) {
         console.error("Photo delete failed:", error);
-        return;
+        return false;
       }
 
       setPhotos((prev) => prev.filter((p) => p.id !== deleteTarget.id));
@@ -371,7 +373,7 @@ function MediaStorage() {
 
       if (photoListErr) {
         console.error("Folder photo lookup failed:", photoListErr);
-        return;
+        return false;
       }
 
       const storagePaths = photoRows.map((p) => p.storage_path).filter(Boolean);
@@ -390,7 +392,7 @@ function MediaStorage() {
 
       if (photoDeleteErr) {
         console.error("Folder photo delete failed:", photoDeleteErr);
-        return;
+        return false;
       }
 
       const { error: folderDeleteErr } = await supabase
@@ -401,7 +403,7 @@ function MediaStorage() {
 
       if (folderDeleteErr) {
         console.error("Folder delete failed:", folderDeleteErr);
-        return;
+        return false;
       }
 
       setFolders((prev) => prev.filter((f) => !idsToDelete.includes(f.id)));
@@ -413,7 +415,21 @@ function MediaStorage() {
       }
     }
 
-    setDeleteTarget(null);
+    return true;
+  };
+
+  const confirmDelete = async () => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    const startedAt = Date.now();
+
+    const ok = await runDelete();
+
+    const remaining = DELETE_MIN_MS - (Date.now() - startedAt);
+    if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+
+    setIsDeleting(false);
+    if (ok) setDeleteTarget(null);
   };
 
   const handleBack = () => setPath(path.slice(0, -1));
@@ -473,6 +489,10 @@ function MediaStorage() {
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
         @keyframes mi-spin { to { transform: rotate(360deg); } }
+        @keyframes mi-bar {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(350%); }
+        }
         @keyframes mi-shimmer {
           0%   { background-position: 200% 0; }
           100% { background-position: -200% 0; }
@@ -483,13 +503,14 @@ function MediaStorage() {
         .mi-modal { animation: mi-modal 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
         .mi-menu  { animation: mi-menu 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top right; }
         .mi-spinner { animation: mi-spin 0.8s linear infinite; }
+        .mi-bar { animation: mi-bar 1.1s ease-in-out infinite; }
         .mi-shimmer {
           background-size: 200% 100%;
           animation: mi-shimmer 1.4s ease-in-out infinite;
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .mi-item, .mi-fade, .mi-modal, .mi-menu, .mi-shimmer { animation: none; }
+          .mi-item, .mi-fade, .mi-modal, .mi-menu, .mi-shimmer, .mi-bar { animation: none; }
         }
       `}</style>
 
@@ -785,27 +806,42 @@ function MediaStorage() {
       {deleteTarget && (
         <div className="mi-fade fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`mi-modal w-full max-w-sm rounded-xl border p-6 text-center shadow-xl ${modalContentClasses}`}>
-            <h3 className="mb-2 text-lg font-bold">Delete Item?</h3>
-            <p className={`mb-6 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-              {deleteTarget.isFile
-                ? <>Are you sure you want to delete <span className="font-semibold">"{deleteTarget.name}"</span>? This action cannot be undone.</>
-                : <>This will permanently delete <span className="font-semibold">"{deleteTarget.name}"</span>, every subfolder inside it, and all photos inside those. This action cannot be undone.</>
-              }
-            </p>
-            <div className="flex justify-center gap-3">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${modalButtonClasses}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
-              >
-                Yes, Delete
-              </button>
-            </div>
+            {isDeleting ? (
+              <div className="mi-fade flex flex-col items-center py-4" role="status" aria-live="polite">
+                <span className="mi-spinner mb-4 inline-block h-10 w-10 rounded-full border-4 border-red-500 border-t-transparent" />
+                <h3 className="mb-1 text-lg font-bold">Deleting...</h3>
+                <p className={`mb-5 max-w-full truncate text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {deleteTarget.name}
+                </p>
+                <div className={`relative h-1.5 w-full overflow-hidden rounded-full ${isDark ? "bg-slate-800" : "bg-slate-200"}`}>
+                  <div className="mi-bar absolute inset-y-0 left-0 w-1/3 rounded-full bg-red-500" />
+                </div>
+              </div>
+            ) : (
+              <>
+                <h3 className="mb-2 text-lg font-bold">Delete Item?</h3>
+                <p className={`mb-6 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {deleteTarget.isFile
+                    ? <>Are you sure you want to delete <span className="font-semibold">"{deleteTarget.name}"</span>? This action cannot be undone.</>
+                    : <>This will permanently delete <span className="font-semibold">"{deleteTarget.name}"</span>, every subfolder inside it, and all photos inside those. This action cannot be undone.</>
+                  }
+                </p>
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={() => setDeleteTarget(null)}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${modalButtonClasses}`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
+                  >
+                    Yes, Delete
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

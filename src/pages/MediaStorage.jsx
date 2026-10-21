@@ -13,7 +13,9 @@ import { supabase } from "../lib/supabaseClient";
 const PHOTOS_BUCKET = "photos";
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 const LOADING_MAX_MS = 2000; // loading indicator never shows longer than 2s
-const DELETE_MIN_MS = 900; // delete screen stays visible at least this long so it never just flashes
+const DELETE_MIN_MS = 800; // delete toast stays in "deleting" state at least this long so it never just flashes
+const TOAST_DONE_MS = 2500; // how long the "Deleted" toast stays
+const TOAST_ERROR_MS = 4500; // how long a failed-delete toast stays
 
 async function getSignedUrl(path) {
   if (!path) return null;
@@ -97,7 +99,9 @@ function MediaStorage() {
   const [editName, setEditName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, name, isFile }
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Background deletes: toasts shown bottom-right, rows being deleted get dimmed
+  const [toasts, setToasts] = useState([]); // { id, name, status: "deleting" | "done" | "error" }
+  const [deletingIds, setDeletingIds] = useState([]);
   const [viewingFile, setViewingFile] = useState(null); // { id, name, url, isVideo }
 
   const fileInputRef = useRef(null);
@@ -237,7 +241,7 @@ function MediaStorage() {
     setIsAddingFolder(false);
   };
 
-  /* ---- upload a file into the current folder (or an auto "Uploads" root folder) ---- */
+  /* ---- upload a file into the current folder ---- */
   async function findOrCreateUploadsFolder() {
     const existing = folders.find((f) => f.name === "Uploads" && f.parentId === null);
     if (existing) return existing.id;
@@ -336,11 +340,11 @@ function MediaStorage() {
   };
 
   /* ---- delete (file, or folder + its whole subtree) ---- */
-  const runDelete = async () => {
-    if (!deleteTarget || !user) return false;
+  const runDelete = async (target) => {
+    if (!target || !user) return false;
 
-    if (deleteTarget.isFile) {
-      const photo = photos.find((p) => p.id === deleteTarget.id);
+    if (target.isFile) {
+      const photo = photos.find((p) => p.id === target.id);
 
       if (photo?.storagePath) {
         const { error: storageErr } = await supabase.storage
@@ -353,7 +357,7 @@ function MediaStorage() {
       const { error } = await supabase
         .from("photos")
         .delete()
-        .eq("id", deleteTarget.id)
+        .eq("id", target.id)
         .eq("user_id", user.id);
 
       if (error) {
@@ -361,9 +365,9 @@ function MediaStorage() {
         return false;
       }
 
-      setPhotos((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      setPhotos((prev) => prev.filter((p) => p.id !== target.id));
     } else {
-      const idsToDelete = collectDescendantIds(folders, deleteTarget.id);
+      const idsToDelete = collectDescendantIds(folders, target.id);
 
       const { data: photoRows, error: photoListErr } = await supabase
         .from("photos")
@@ -398,7 +402,7 @@ function MediaStorage() {
       const { error: folderDeleteErr } = await supabase
         .from("folders")
         .delete()
-        .eq("id", deleteTarget.id)
+        .eq("id", target.id)
         .eq("user_id", user.id);
 
       if (folderDeleteErr) {
@@ -409,27 +413,41 @@ function MediaStorage() {
       setFolders((prev) => prev.filter((f) => !idsToDelete.includes(f.id)));
       setPhotos((prev) => prev.filter((p) => !idsToDelete.includes(p.folderId)));
 
-      if (path.some((id) => idsToDelete.includes(id))) {
-        const keepIndex = path.findIndex((id) => idsToDelete.includes(id));
-        setPath(path.slice(0, keepIndex));
-      }
+      // If the user is browsing inside the deleted subtree, pop back out of it
+      setPath((prev) => {
+        const keepIndex = prev.findIndex((id) => idsToDelete.includes(id));
+        return keepIndex === -1 ? prev : prev.slice(0, keepIndex);
+      });
     }
 
     return true;
   };
 
+  // Runs in the background: the modal closes right away so the user can keep
+  // working, and progress is shown as a toast in the lower-right corner.
   const confirmDelete = async () => {
-    if (isDeleting) return;
-    setIsDeleting(true);
-    const startedAt = Date.now();
+    const target = deleteTarget;
+    if (!target || !user) return;
 
-    const ok = await runDelete();
+    const toastId = `${Date.now()}-${target.id}`;
+    setDeleteTarget(null);
+    setDeletingIds((prev) => [...prev, target.id]);
+    setToasts((prev) => [...prev, { id: toastId, name: target.name, status: "deleting" }]);
+
+    const startedAt = Date.now();
+    const ok = await runDelete(target);
 
     const remaining = DELETE_MIN_MS - (Date.now() - startedAt);
     if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
 
-    setIsDeleting(false);
-    if (ok) setDeleteTarget(null);
+    setDeletingIds((prev) => prev.filter((id) => id !== target.id));
+    setToasts((prev) =>
+      prev.map((t) => (t.id === toastId ? { ...t, status: ok ? "done" : "error" } : t))
+    );
+    setTimeout(
+      () => setToasts((prev) => prev.filter((t) => t.id !== toastId)),
+      ok ? TOAST_DONE_MS : TOAST_ERROR_MS
+    );
   };
 
   const handleBack = () => setPath(path.slice(0, -1));
@@ -489,6 +507,10 @@ function MediaStorage() {
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
         @keyframes mi-spin { to { transform: rotate(360deg); } }
+        @keyframes mi-toast {
+          from { opacity: 0; transform: translateX(24px) scale(0.96); }
+          to   { opacity: 1; transform: translateX(0) scale(1); }
+        }
         @keyframes mi-bar {
           0%   { transform: translateX(-100%); }
           100% { transform: translateX(350%); }
@@ -503,6 +525,7 @@ function MediaStorage() {
         .mi-modal { animation: mi-modal 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
         .mi-menu  { animation: mi-menu 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top right; }
         .mi-spinner { animation: mi-spin 0.8s linear infinite; }
+        .mi-toast { animation: mi-toast 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
         .mi-bar { animation: mi-bar 1.1s ease-in-out infinite; }
         .mi-shimmer {
           background-size: 200% 100%;
@@ -510,7 +533,7 @@ function MediaStorage() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .mi-item, .mi-fade, .mi-modal, .mi-menu, .mi-shimmer, .mi-bar { animation: none; }
+          .mi-item, .mi-fade, .mi-modal, .mi-menu, .mi-shimmer, .mi-bar, .mi-toast { animation: none; }
         }
       `}</style>
 
@@ -654,7 +677,7 @@ function MediaStorage() {
                   setPath([...path, item.id]);
                 }
               }}
-              className={`mi-item flex items-center justify-between rounded-lg border p-4 cursor-pointer transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md ${itemClasses}`}
+              className={`mi-item flex items-center justify-between rounded-lg border p-4 cursor-pointer transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md ${itemClasses} ${deletingIds.includes(item.id) ? "opacity-40 pointer-events-none" : ""}`}
             >
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 {item.isFile ? (
@@ -806,45 +829,65 @@ function MediaStorage() {
       {deleteTarget && (
         <div className="mi-fade fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`mi-modal w-full max-w-sm rounded-xl border p-6 text-center shadow-xl ${modalContentClasses}`}>
-            {isDeleting ? (
-              <div className="mi-fade flex flex-col items-center py-4" role="status" aria-live="polite">
-                <span className="mi-spinner mb-4 inline-block h-10 w-10 rounded-full border-4 border-red-500 border-t-transparent" />
-                <h3 className="mb-1 text-lg font-bold">Deleting...</h3>
-                <p className={`mb-5 max-w-full truncate text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  {deleteTarget.name}
-                </p>
-                <div className={`relative h-1.5 w-full overflow-hidden rounded-full ${isDark ? "bg-slate-800" : "bg-slate-200"}`}>
-                  <div className="mi-bar absolute inset-y-0 left-0 w-1/3 rounded-full bg-red-500" />
-                </div>
-              </div>
-            ) : (
-              <>
-                <h3 className="mb-2 text-lg font-bold">Delete Item?</h3>
-                <p className={`mb-6 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  {deleteTarget.isFile
-                    ? <>Are you sure you want to delete <span className="font-semibold">"{deleteTarget.name}"</span>? This action cannot be undone.</>
-                    : <>This will permanently delete <span className="font-semibold">"{deleteTarget.name}"</span>, every subfolder inside it, and all photos inside those. This action cannot be undone.</>
-                  }
-                </p>
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={() => setDeleteTarget(null)}
-                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${modalButtonClasses}`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmDelete}
-                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
-                  >
-                    Yes, Delete
-                  </button>
-                </div>
-              </>
-            )}
+            <h3 className="mb-2 text-lg font-bold">Delete Item?</h3>
+            <p className={`mb-6 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              {deleteTarget.isFile
+                ? <>Are you sure you want to delete <span className="font-semibold">"{deleteTarget.name}"</span>? This action cannot be undone.</>
+                : <>This will permanently delete <span className="font-semibold">"{deleteTarget.name}"</span>, every subfolder inside it, and all photos inside those. This action cannot be undone.</>
+              }
+            </p>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${modalButtonClasses}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
+              >
+                Yes, Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Background delete toasts (lower right) */}
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-2">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            role="status"
+            aria-live="polite"
+            className={`mi-toast pointer-events-auto overflow-hidden rounded-xl border shadow-xl ${modalContentClasses}`}
+          >
+            <div className="flex items-center gap-3 p-3">
+              {t.status === "deleting" && (
+                <span className="mi-spinner inline-block h-5 w-5 flex-shrink-0 rounded-full border-2 border-red-500 border-t-transparent" />
+              )}
+              {t.status === "done" && (
+                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-bold text-white">✓</span>
+              )}
+              {t.status === "error" && (
+                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white">!</span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">
+                  {t.status === "deleting" ? "Deleting..." : t.status === "done" ? "Deleted" : "Delete failed"}
+                </p>
+                <p className={`truncate text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>{t.name}</p>
+              </div>
+            </div>
+            {t.status === "deleting" && (
+              <div className={`relative h-1 w-full overflow-hidden ${isDark ? "bg-slate-800" : "bg-slate-200"}`}>
+                <div className="mi-bar absolute inset-y-0 left-0 w-1/3 rounded-full bg-red-500" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

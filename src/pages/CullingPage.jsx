@@ -216,6 +216,8 @@ const FolderCard = memo(function FolderCard({
   );
 });
 
+
+
 /* ============ Photo tile ============ */
 const PhotoTile = memo(function PhotoTile({
   img,
@@ -224,21 +226,21 @@ const PhotoTile = memo(function PhotoTile({
   selected,
   onSelect,
   onRate,
+  isBestPick = false,
 }) {
-  const stateClasses =
-    selected
-      ? "ring-2 ring-sky-500 border-sky-500"
-      : state === "star"
-      ? "ring-2 ring-emerald-500 border-emerald-500"
-      : state === "reject"
-      ? "ring-2 ring-rose-500 border-rose-500"
-      : aiResult?.ai_decision === "KEEP"
-      ? "border-emerald-500/70"
-      : aiResult?.ai_decision === "REJECT"
-      ? "border-rose-500/70"
-      : aiResult?.ai_decision === "REVIEW"
-      ? "border-amber-500/70"
-      : "border-slate-300 dark:border-slate-700";
+  const stateClasses = selected
+    ? "ring-2 ring-sky-500 border-sky-500"
+    : state === "star"
+    ? "ring-2 ring-emerald-500 border-emerald-500"
+    : state === "reject"
+    ? "ring-2 ring-rose-500 border-rose-500"
+    : aiResult?.ai_decision === "KEEP"
+    ? "border-emerald-500/70"
+    : aiResult?.ai_decision === "REJECT"
+    ? "border-rose-500/70"
+    : aiResult?.ai_decision === "REVIEW"
+    ? "border-amber-500/70"
+    : "border-slate-300 dark:border-slate-700";
 
   return (
     <div
@@ -251,42 +253,63 @@ const PhotoTile = memo(function PhotoTile({
           onSelect(img.id);
         }
       }}
-      className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-200 hover:-translate-y-1 hover:border-sky-400 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900"
+      className={`group relative overflow-hidden rounded-2xl border bg-white transition-all duration-200 hover:-translate-y-1 hover:border-sky-400 hover:shadow-lg dark:bg-slate-900 ${stateClasses}`}
     >
+      {/* Photo preview */}
       {img.previewable && img.thumbUrl ? (
         <img
           src={img.thumbUrl}
           loading="lazy"
           decoding="async"
           fetchPriority="low"
-          className={`h-full w-full object-cover transition duration-200 ${state === "reject" ? "brightness-50" : ""}`}
+          className={`h-full w-full object-cover transition duration-200 ${
+            state === "reject" ? "brightness-50" : ""
+          }`}
           alt={img.fileName}
         />
       ) : (
         <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-800 px-2 text-center">
           <FaFileImage className="text-2xl text-slate-600" />
           <span className="w-full truncate text-[10px] text-slate-500">
-            {isRawFileName(img.fileName) ? "Generating RAW preview..." : "No preview"}
+            {isRawFileName(img.fileName)
+              ? "Generating RAW preview..."
+              : "No preview"}
           </span>
         </div>
       )}
 
-      <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
-        <span className="max-w-[75%] truncate rounded-md bg-white/90 px-2 py-1 font-mono text-[9px] text-slate-800 dark:bg-black/70 dark:text-white">
+      {/* Top row: filename and Best Pick */}
+      <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 p-2">
+        <span className="max-w-[60%] truncate rounded-md bg-black/70 px-2 py-1 font-mono text-[9px] text-white shadow">
           {img.fileName}
         </span>
-        {state === "star" && (
-          <span className="rounded-full bg-black/60 p-1 text-sky-400">
-            <FaStar className="text-[10px]" />
-          </span>
-        )}
-        {(state === "reject" || aiResult?.ai_decision === "REJECT") && state !== "star" && (
-          <span className="rounded-full bg-black/60 p-1 text-rose-400">
-            <FaBan className="text-[10px]" />
+
+        {isBestPick && (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/50 bg-amber-400 px-2 py-1 text-[9px] font-extrabold text-slate-950 shadow-lg"
+            title="Photographer-selected keeper"
+          >
+            <FaStar className="text-[9px]" />
+            Best Pick
           </span>
         )}
       </div>
 
+      {/* Existing star / reject status indicators */}
+      {state === "star" && (
+        <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-sky-400">
+          <FaStar className="text-[10px]" />
+        </span>
+      )}
+
+      {(state === "reject" || aiResult?.ai_decision === "REJECT") &&
+        state !== "star" && (
+          <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-rose-400">
+            <FaBan className="text-[10px]" />
+          </span>
+        )}
+
+      {/* Star / Reject controls */}
       <div className="absolute inset-x-2 bottom-2 z-10 flex translate-y-2 items-center justify-center gap-2 opacity-0 transition-[opacity,transform] duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
         <button
           type="button"
@@ -304,6 +327,7 @@ const PhotoTile = memo(function PhotoTile({
         >
           <FaStar className="text-[11px]" />
         </button>
+
         <button
           type="button"
           onClick={(event) => {
@@ -322,6 +346,7 @@ const PhotoTile = memo(function PhotoTile({
         </button>
       </div>
 
+      {/* AI decision, similarity group, and quality score */}
       {aiResult && (
         <div className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-2 transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
           <span
@@ -335,6 +360,7 @@ const PhotoTile = memo(function PhotoTile({
           >
             {aiResult.ai_decision}
           </span>
+
           <div className="flex items-center gap-1.5">
             {aiResult.similarity_group && (
               <span
@@ -346,7 +372,7 @@ const PhotoTile = memo(function PhotoTile({
             )}
 
             {aiResult.base_quality_score != null && (
-              <span className="rounded-full px-2 py-1 text-[9px] font-semibold bg-white/90 text-slate-800 dark:bg-black/70 dark:text-white">
+              <span className="rounded-full bg-white/90 px-2 py-1 text-[9px] font-semibold text-slate-800 dark:bg-black/70 dark:text-white">
                 {formatPercent(aiResult.base_quality_score)}
               </span>
             )}
@@ -357,10 +383,13 @@ const PhotoTile = memo(function PhotoTile({
   );
 });
 
+
+
 function VirtualizedPhotoGrid({
   images,
   culls,
   aiResults,
+  bestPicks,
   lightboxId,
   lightboxOpen,
   onSelect,
@@ -451,17 +480,27 @@ function VirtualizedPhotoGrid({
       style={{ gridTemplateColumns: `repeat(${range.columns}, minmax(0, 1fr))` }}
     >
       {topSpace > 0 && <div aria-hidden="true" style={{ height: topSpace, gridColumn: "1 / -1" }} />}
-      {images.slice(firstIndex, lastIndex).map((img) => (
-        <PhotoTile
-          key={img.id}
-          img={img}
-          state={culls[img.id]}
-          aiResult={aiResults[img.id]}
-          selected={lightboxId === img.id}
-          onSelect={onSelect}
-          onRate={onRate}
-        />
-      ))}
+      {images.slice(firstIndex, lastIndex).map((img) => {
+        const aiResult = aiResults[img.id];
+
+        return (
+          <PhotoTile
+            key={img.id}
+            img={img}
+            state={culls[img.id]}
+            aiResult={aiResult}
+            selected={lightboxId === img.id}
+            onSelect={onSelect}
+            onRate={onRate}
+            isBestPick={
+              Boolean(
+                aiResult?.similarity_group &&
+                bestPicks[aiResult.similarity_group] === img.id
+              )
+            }
+          />
+        );
+      })}
       {bottomSpace > 0 && <div aria-hidden="true" style={{ height: bottomSpace, gridColumn: "1 / -1" }} />}
     </div>
   );
@@ -1142,7 +1181,7 @@ function CullingPage() {
       const { data: savedResults, error: cullingErr } = await supabase
         .from("culling_results")
         .select(
-          "photo_id, similarity_group, group_rank, base_quality_score, ai_decision, decision_reason, metrics, analyzed_at"
+          "photo_id, similarity_group, group_rank, base_quality_score, ai_decision, decision_reason, metrics, analyzed_at, manual_keeper"
         )
         .in("photo_id", photoIds);
 
@@ -1958,10 +1997,68 @@ function CullingPage() {
   }, [folderImages, aiResults]);
 
   const [bestPicks, setBestPicks] = useState({});
+  const [keeperSaveState, setKeeperSaveState] = useState({});
+  const [expandedDuplicateSets, setExpandedDuplicateSets] = useState({});
   const [dupLightbox, setDupLightbox] = useState(null);
 
-  function pickBest(setId, imageId) {
+  // Restore saved photographer choices from culling_results.
+  useEffect(() => {
+    const saved = {};
+    Object.values(aiResults).forEach((result) => {
+      if (result?.manual_keeper) {
+        const groupId = result.similarity_group;
+        if (groupId) saved[groupId] = result.photo_id;
+      }
+    });
+    setBestPicks((previous) => ({ ...saved, ...previous }));
+  }, [aiResults]);
+
+  async function pickBest(setId, imageId) {
+    if (!user) return;
+    const group = duplicateSets.find((item) => item.id === setId);
+    if (!group) return;
+    const previous = bestPicks[setId];
     setBestPicks((prev) => ({ ...prev, [setId]: imageId }));
+    setKeeperSaveState((prev) => ({ ...prev, [setId]: "saving" }));
+
+    try {
+      // Persist the keeper on its photo's culling result and clear the flag
+      // for other photos in this current similarity group.
+      const updates = group.images.map((img) => ({
+        photo_id: img.id,
+        manual_keeper: img.id === imageId,
+      }));
+      for (const update of updates) {
+        const { error } = await supabase
+          .from("culling_results")
+          .update({ manual_keeper: update.manual_keeper })
+          .eq("photo_id", update.photo_id);
+        if (error) throw error;
+      }
+      setAiResults((prev) => {
+        const next = { ...prev };
+        updates.forEach((update) => {
+          if (next[update.photo_id]) {
+            next[update.photo_id] = { ...next[update.photo_id], manual_keeper: update.manual_keeper };
+          }
+        });
+        return next;
+      });
+      setKeeperSaveState((prev) => ({ ...prev, [setId]: "saved" }));
+    } catch (error) {
+      console.error("Could not save keeper selection:", error);
+      setBestPicks((prev) => {
+        if (previous) return { ...prev, [setId]: previous };
+        const next = { ...prev };
+        delete next[setId];
+        return next;
+      });
+      setKeeperSaveState((prev) => ({ ...prev, [setId]: "error" }));
+    }
+  }
+
+  function toggleDuplicateSet(setId) {
+    setExpandedDuplicateSets((prev) => ({ ...prev, [setId]: !(prev[setId] ?? true) }));
   }
 
   const dupLightboxSet = dupLightbox
@@ -2518,6 +2615,7 @@ function CullingPage() {
                             images={visibleImages}
                             culls={culls}
                             aiResults={aiResults}
+                            bestPicks={bestPicks}
                             lightboxId={lightboxId}
                             lightboxOpen={Boolean(lightboxImage)}
                             onSelect={handleSelect}
@@ -2636,22 +2734,6 @@ function CullingPage() {
                                     <li><strong>Eye Quality</strong> — eye-related checks, such as whether eyes appear closed.</li>
                                     <li><strong>Aesthetic Quality</strong> — estimated visual appeal.</li>
                                   </ul>
-                                </div>
-                                <div>
-                                  <h4 className="font-semibold text-slate-900 dark:text-white">Other details in this panel</h4>
-                                  <ul className="mt-1.5 space-y-1">
-                                    <li><strong>Similarity group</strong> — identifies photos LensFlow considers visually similar. “Independent” means the photo is not assigned to a similarity group.</li>
-                                    <li><strong>Group rank</strong> — LensFlow’s relative ranking for a photo within its similarity group; rank 1 is the top-ranked candidate.</li>
-                                    <li><strong>Sharpness</strong> — a technical measurement related to image detail and focus. It is a raw metric, not a percentage.</li>
-                                    <li><strong>Aesthetic score</strong> — LensFlow’s estimated visual-aesthetic score. Use it as a guide and review the image yourself.</li>
-                                    <li><strong>LensFlow reason</strong> — a short explanation for the AI recommendation, which may mention quality or similarity.</li>
-                                    <li><strong>Detected issues</strong> — lists potential problems identified during analysis, when any are found.</li>
-                                  </ul>
-                                </div>
-                                <div>
-                                  <h4 className="font-semibold text-slate-900 dark:text-white">Photographer decision</h4>
-                                  <p className="mt-1"><strong>Star / Keep</strong> marks the photo as your selection. <strong>Reject</strong> marks it as one you do not want to keep. <strong>Clear photographer decision</strong> removes your manual choice so the photo is no longer marked by either action.</p>
-                                  <p className="mt-1">Your manual decision is separate from LensFlow’s AI recommendation.</p>
                                 </div>
                                 <div>
                                   <h4 className="font-semibold text-slate-900 dark:text-white">Recommendations and unavailable scores</h4>
@@ -2917,129 +2999,112 @@ function CullingPage() {
 
       {/* ============ DUPLICATE REVIEW TAB ============ */}
       {mode === "duplicates" && (
-        <div>
-          <p className="text-xs text-slate-500 mb-5">
-            Each row is a set of similar shots — pick the keeper. Single photos are kept automatically.
-          </p>
+        <div className="space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Similar Photo Review</h3>
+              <p className="mt-1 max-w-2xl text-sm text-slate-400">
+                Compare similar shots, review LensFlow's suggestion, and save the photo you want to keep. Your decision won't delete any files.
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-400">
+              <span className="font-semibold text-white">{duplicateSets.length}</span> groups
+              <span className="mx-2 text-slate-600">•</span>
+              <span className="font-semibold text-white">{duplicateSets.reduce((n, set) => n + set.images.length, 0)}</span> photos
+              <span className="mx-2 text-slate-600">•</span>
+              <span className="font-semibold text-emerald-400">{duplicateSets.filter((set) => Boolean(bestPicks[set.id])).length}</span> chosen keepers
+            </div>
+          </div>
 
           {duplicateSets.length === 0 ? (
-            <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-700 rounded-xl">
-              No similar-photo groups yet. Open a folder and run LensFlow Culling first.
+            <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-16 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-sky-400"><FaLayerGroup className="text-xl" /></div>
+              <h4 className="font-semibold text-white">No similar-photo groups yet</h4>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-slate-400">Open a folder and run LensFlow Culling. Photos identified as similar will appear here for review.</p>
+              <button type="button" onClick={() => setMode("cull")} className="mt-5 rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400">Back to Culling</button>
             </div>
           ) : (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-700 text-left text-xs text-slate-400 uppercase tracking-wide">
-                    <th className="p-4 font-medium w-48">Set</th>
-                    <th className="p-4 font-medium">Photos — click to mark best</th>
-                    <th className="p-4 font-medium w-52">Best pick</th>
-                    <th className="p-4 font-medium w-40">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {duplicateSets.map((set) => {
-                    const manualBestId = bestPicks[set.id];
-                    const suggestedBestId =
-                      set.images.find((img) => img.aiResult?.group_rank === 1)?.id || null;
+            <div className="space-y-4">
+              {duplicateSets.map((set) => {
+                const manualBestId = bestPicks[set.id];
+                const suggestedBestId = set.images.find((img) => img.aiResult?.group_rank === 1)?.id || set.images[0]?.id;
+                const bestId = manualBestId || suggestedBestId;
+                const bestImage = set.images.find((img) => img.id === bestId);
+                const resolved = Boolean(manualBestId);
+                const expanded = expandedDuplicateSets[set.id] ?? true;
+                const saveState = keeperSaveState[set.id];
+                return (
+                  <section key={set.id} className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/70 shadow-sm shadow-black/10">
+                    <div className="flex flex-col gap-3 border-b border-slate-800 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                      <button type="button" onClick={() => toggleDuplicateSet(set.id)} className="flex min-w-0 items-center gap-3 text-left">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400"><FaLayerGroup /></span>
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-white">{set.label}</span>
+                          <span className="mt-0.5 block text-xs text-slate-400">{set.images.length} similar photos · {resolved ? "Keeper selected" : "Needs your review"}</span>
+                        </span>
+                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {resolved ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400"><FaCheckCircle /> Your keeper</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-300"><FaCrown /> AI suggestion</span>
+                        )}
+                        <button type="button" onClick={() => toggleDuplicateSet(set.id)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800">{expanded ? "Collapse" : "Expand"}</button>
+                      </div>
+                    </div>
 
-                    const bestId = manualBestId || suggestedBestId;
-                    const bestImage = set.images.find((img) => img.id === bestId);
-                    const resolved = Boolean(manualBestId);
-
-                    return (
-                      <tr key={set.id} className="border-b border-slate-800 last:border-b-0 align-top">
-                        <td className="p-4">
-                          <div className="flex items-center gap-2 text-white text-sm font-medium">
-                            <FaLayerGroup className="text-sky-500 text-xs flex-shrink-0" />
-                            {set.label}
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {set.images.length} photo{set.images.length !== 1 ? "s" : ""}
-                          </p>
-                        </td>
-
-                        <td className="p-4">
-                          <div className="flex flex-wrap gap-2">
-                            {set.images.map((img) => {
-                              const isBest = img.id === bestId;
-                              return (
-                                <div
-                                  key={img.id}
-                                  onClick={() => pickBest(set.id, img.id)}
-                                  className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 cursor-pointer group flex-shrink-0 transition-all ${
-                                    isBest
-                                      ? "border-sky-500 ring-2 ring-sky-500/40"
-                                      : "border-slate-700 hover:border-slate-500 opacity-80 hover:opacity-100"
-                                  }`}
-                                >
-                                  <img
-                                    src={img.thumbUrl}
-                                    alt={img.fileName}
-                                    loading="lazy"
-                                    decoding="async"
-                                    className="w-full h-full object-cover"
-                                  />
-                                  {isBest && (
-                                    <span className="absolute top-1 left-1 bg-sky-500 text-slate-900 rounded-full p-1 shadow">
-                                      <FaCrown className="text-[9px]" />
-                                    </span>
-                                  )}
-
-                                  {img.aiResult?.group_rank && (
-                                    <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded">
-                                      Rank {img.aiResult.group_rank}
-                                    </span>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDupLightbox({ setId: set.id, imageId: img.id });
-                                    }}
-                                    className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                                    title="Inspect full-size"
-                                  >
-                                    <FaSearchPlus className="text-white text-xs" />
-                                  </button>
+                    {expanded && <div className="grid gap-5 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_260px]">
+                      <div>
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Select a photo to make it the keeper</p>
+                          <span className="text-xs text-slate-500">Select Compare to inspect larger</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                          {set.images.map((img) => {
+                            const isBest = img.id === bestId;
+                            const isAiPick = img.id === suggestedBestId;
+                            return <article key={img.id} className={`group overflow-hidden rounded-xl border transition ${isBest ? "border-sky-400 ring-1 ring-sky-400/50 bg-sky-500/[0.06]" : "border-slate-700 bg-slate-950/50 hover:border-slate-500"}`}>
+                              <button type="button" onClick={() => pickBest(set.id, img.id)} aria-pressed={isBest} className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
+                                <div className="relative aspect-[4/3] overflow-hidden bg-slate-800">
+                                  {img.thumbUrl ? <img src={img.thumbUrl} alt={img.fileName} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" /> : <div className="flex h-full items-center justify-center text-xs text-slate-500">Preview unavailable</div>}
+                                  {isBest && <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-sky-400 px-2 py-1 text-[10px] font-bold text-slate-950"><FaCrown /> {resolved ? "KEEPER" : "SUGGESTED"}</span>}
+                                  {!isBest && isAiPick && <span className="absolute left-2 top-2 rounded-full bg-slate-950/80 px-2 py-1 text-[10px] font-medium text-sky-200">AI PICK</span>}
+                                  {img.aiResult?.group_rank && <span className="absolute bottom-2 left-2 rounded-md bg-black/75 px-2 py-1 text-[10px] text-white">Rank {img.aiResult.group_rank}</span>}
                                 </div>
-                              );
-                            })}
-                          </div>
-                        </td>
+                                <div className="p-3">
+                                  <p title={img.fileName} className="truncate text-xs font-medium text-slate-200">{img.fileName}</p>
+                                  <p className={`mt-1 text-[11px] ${isBest ? "text-sky-300" : "text-slate-500"}`}>{isBest ? (resolved ? "Your selected keeper" : "LensFlow's suggestion") : "Similar shot"}</p>
+                                </div>
+                              </button>
+                              <div className="flex gap-2 px-3 pb-3">
+                                <button type="button" onClick={() => setDupLightbox({ setId: set.id, imageId: img.id })} className="flex-1 rounded-lg border border-slate-700 px-2 py-2 text-xs font-medium text-slate-300 transition hover:border-sky-500/50 hover:bg-slate-800"><FaSearchPlus className="mr-1 inline" /> Compare</button>
+                                <button type="button" onClick={() => pickBest(set.id, img.id)} className={`flex-1 rounded-lg px-2 py-2 text-xs font-semibold transition ${isBest && resolved ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-800 text-slate-200 hover:bg-sky-500/15 hover:text-sky-300"}`}>{isBest && resolved ? "Selected" : "Keep this"}</button>
+                              </div>
+                            </article>;
+                          })}
+                        </div>
+                      </div>
 
-                        <td className="p-4">
-                          {bestImage ? (
-                            <div className="flex items-center gap-2">
-                              <img
-                                src={bestImage.thumbUrl}
-                                alt={bestImage.fileName}
-                                className="w-10 h-10 rounded-md object-cover border border-sky-500/50 flex-shrink-0"
-                              />
-                              <span className="text-xs text-slate-300 font-mono truncate">
-                                {bestImage.fileName}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-600 italic">Not chosen yet</span>
-                          )}
-                        </td>
-
-                        <td className="p-4">
-                          {resolved ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
-                              <FaCheckCircle /> Photographer selected
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-full">
-                              <FaCrown /> LensFlow suggestion
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      <aside className="h-fit rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Keeper summary</p>
+                        {bestImage ? <div className="mt-3 flex items-start gap-3">
+                          {bestImage.thumbUrl ? <img src={bestImage.thumbUrl} alt={bestImage.fileName} className="h-16 w-16 shrink-0 rounded-lg border border-slate-700 object-cover" /> : <div className="h-16 w-16 shrink-0 rounded-lg bg-slate-800" />}
+                          <div className="min-w-0"><p className="break-words text-sm font-semibold text-white">{bestImage.fileName}</p><p className="mt-1 text-xs text-slate-400">{resolved ? "Selected by you" : "Suggested by LensFlow"}</p></div>
+                        </div> : <p className="mt-3 text-sm text-slate-500">No keeper available.</p>}
+                        <div className="mt-4 rounded-lg bg-slate-900 p-3">
+                          <p className="text-xs font-medium text-slate-300">LensFlow reason</p>
+                          <p className="mt-1 text-xs leading-relaxed text-slate-400">{bestImage?.aiResult?.decision_reason || "Strongest-ranked candidate in this similar-photo group."}</p>
+                        </div>
+                        <div className="mt-4 space-y-2">
+                          <button type="button" disabled={!bestImage || saveState === "saving"} onClick={() => bestImage && pickBest(set.id, bestImage.id)} className="w-full rounded-lg bg-sky-500 px-3 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50">{saveState === "saving" ? "Saving keeper…" : resolved ? "Save keeper selection" : "Confirm suggested keeper"}</button>
+                          <button type="button" onClick={() => setDupLightbox({ setId: set.id, imageId: bestImage?.id || set.images[0].id })} className="w-full rounded-lg border border-slate-700 px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800"><FaSearchPlus className="mr-2 inline" /> Open comparison viewer</button>
+                        </div>
+                        <p className={`mt-3 text-xs ${saveState === "error" ? "text-rose-400" : saveState === "saved" ? "text-emerald-400" : "text-slate-500"}`} aria-live="polite">{saveState === "saving" ? "Saving your choice to LensFlow…" : saveState === "saved" ? "Keeper saved to your project." : saveState === "error" ? "Couldn't save. Check the database migration and try again." : resolved ? "Your selection is stored for this group." : "AI suggestions do not change your files."}</p>
+                      </aside>
+                    </div>}
+                  </section>
+                );
+              })}
             </div>
           )}
         </div>

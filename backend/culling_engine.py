@@ -27,7 +27,7 @@ CONFIG = {
     "face_sharpness_low": 10.0,
     "face_sharpness_high": 60.0,
     # Starting point; calibrate against representative clear/blurry face photos.
-    "face_sharpness_review_threshold": 20.0,
+    "face_sharpness_review_threshold": 12.0,
     "aesthetic_low": 2.0,
     "aesthetic_high": 5.0,
     # Base quality weights

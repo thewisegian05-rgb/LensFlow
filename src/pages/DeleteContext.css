@@ -1,0 +1,86 @@
+import { createContext, useCallback, useContext, useState } from "react";
+import { FaCheck, FaExclamationTriangle } from "react-icons/fa";
+
+const DeletionContext = createContext(null);
+
+export const useDeletion = () => {
+  const ctx = useContext(DeletionContext);
+  if (!ctx) throw new Error("useDeletion must be used inside <DeletionProvider>");
+  return ctx;
+};
+
+export function DeletionProvider({ children }) {
+  const [items, setItems] = useState([]);
+
+  // Runs the delete task here (above the router), so it keeps going and
+  // keeps showing its animation even if the calling page unmounts.
+  const runDeletion = useCallback(async ({ key, label, task }) => {
+    const id = crypto.randomUUID();
+
+    const patch = (changes) =>
+      setItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, ...changes } : item))
+      );
+    const drop = () =>
+      setItems((prev) => prev.filter((item) => item.id !== id));
+
+    setItems((prev) => [...prev, { id, key, label, status: "deleting" }]);
+
+    try {
+      await task();
+      patch({ status: "done" });
+      setTimeout(drop, 1800);
+      return true;
+    } catch (err) {
+      console.error("Deletion failed:", err?.message || err);
+      patch({ status: "error" });
+      setTimeout(drop, 4000);
+      return false;
+    }
+  }, []);
+
+  // Keys of things currently being deleted, so pages can hide them
+  // if they refetch while the delete is still in flight.
+  const pendingKeys = new Set(
+    items.filter((i) => i.status === "deleting").map((i) => i.key)
+  );
+
+  return (
+    <DeletionContext.Provider value={{ runDeletion, pendingKeys }}>
+      {children}
+
+      <style>{`
+        @keyframes deletion-toast-in {
+          from { opacity: 0; transform: translateY(12px) scale(0.96); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
+
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[9999] flex flex-col gap-2">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            style={{ animation: "deletion-toast-in 0.2s ease-out" }}
+            className="pointer-events-auto flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 shadow-lg"
+          >
+            {item.status === "deleting" && (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-rose-400" />
+            )}
+            {item.status === "done" && (
+              <FaCheck className="text-emerald-400" />
+            )}
+            {item.status === "error" && (
+              <FaExclamationTriangle className="text-amber-400" />
+            )}
+
+            <span className="text-sm text-white">
+              {item.status === "deleting" && item.label}
+              {item.status === "done" && "Deleted"}
+              {item.status === "error" && "Delete failed"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </DeletionContext.Provider>
+  );
+}

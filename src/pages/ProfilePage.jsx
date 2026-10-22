@@ -15,6 +15,10 @@ import {
   FaImages,
   FaPlus,
   FaMinus,
+  FaKey,
+  FaCopy,
+  FaCheck,
+  FaShareAlt,
 } from "react-icons/fa";
 
 import { supabase } from "../lib/supabaseClient";
@@ -243,6 +247,12 @@ export default function Profile() {
   const [authMissing, setAuthMissing] = useState(false);
   const [loadError, setLoadError] = useState("");
 
+  // PHOTOGRAPHER CLIENT CONNECTION CODE
+  const [connectionCode, setConnectionCode] = useState("");
+  const [connectionCodeLoading, setConnectionCodeLoading] = useState(true);
+  const [connectionCodeError, setConnectionCodeError] = useState("");
+  const [connectionCodeCopied, setConnectionCodeCopied] = useState(false);
+
   // FIXED 2s LOADING (kahit ready na ang data)
   const [minLoadDone, setMinLoadDone] = useState(false);
 
@@ -342,6 +352,121 @@ export default function Profile() {
       cancelled = true;
     };
   }, []);
+
+
+  // ========================================
+  // LOAD OR CREATE PHOTOGRAPHER CONNECTION CODE
+  // ========================================
+  useEffect(() => {
+    if (!userId) return;
+
+    let cancelled = false;
+
+    const loadOrCreateConnectionCode = async () => {
+      setConnectionCodeLoading(true);
+      setConnectionCodeError("");
+
+      try {
+        // Reuse the photographer's existing code if one is already saved.
+        const { data: existing, error: selectError } = await supabase
+          .from("photographer_connection_codes")
+          .select("code")
+          .eq("photographer_id", userId)
+          .maybeSingle();
+
+        if (selectError) throw selectError;
+
+        if (existing?.code) {
+          if (!cancelled) setConnectionCode(existing.code);
+          return;
+        }
+
+        // Generate a code and let the database unique constraint prevent collisions.
+        // Retry only if another account happened to generate the same code.
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const bytes = new Uint8Array(6);
+          window.crypto.getRandomValues(bytes);
+          const token = Array.from(bytes, (byte) => (byte % 36).toString(36))
+            .join("")
+            .toUpperCase();
+          const code = `LENS-${token}`;
+
+          const { data: created, error: insertError } = await supabase
+            .from("photographer_connection_codes")
+            .insert({ photographer_id: userId, code })
+            .select("code")
+            .single();
+
+          if (!insertError && created?.code) {
+            if (!cancelled) setConnectionCode(created.code);
+            return;
+          }
+
+          // A concurrent load or a code collision may have won the insert.
+          const { data: raced, error: rereadError } = await supabase
+            .from("photographer_connection_codes")
+            .select("code")
+            .eq("photographer_id", userId)
+            .maybeSingle();
+
+          if (!rereadError && raced?.code) {
+            if (!cancelled) setConnectionCode(raced.code);
+            return;
+          }
+
+          if (insertError?.code !== "23505") throw insertError;
+        }
+
+        throw new Error("Could not generate a unique code. Please reload and try again.");
+      } catch (err) {
+        console.error("Could not load or create photographer connection code:", err);
+        if (!cancelled) {
+          setConnectionCodeError(
+            err?.message || "Could not load your connection code. Check the Supabase table and policies."
+          );
+        }
+      } finally {
+        if (!cancelled) setConnectionCodeLoading(false);
+      }
+    };
+
+    loadOrCreateConnectionCode();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const copyConnectionCode = async () => {
+    if (!connectionCode) return;
+
+    try {
+      await navigator.clipboard.writeText(connectionCode);
+      setConnectionCodeCopied(true);
+      window.setTimeout(() => setConnectionCodeCopied(false), 1800);
+    } catch (err) {
+      reportError("Could not copy the connection code. Please select and copy it manually.", err);
+    }
+  };
+
+  const shareConnectionCode = async () => {
+    if (!connectionCode) return;
+    const shareData = {
+      title: "Connect with my photography portal",
+      text: `Use my LensFlow photographer code to connect with me: ${connectionCode}`,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.text);
+        setConnectionCodeCopied(true);
+        window.setTimeout(() => setConnectionCodeCopied(false), 1800);
+      }
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        reportError("Could not share the connection code.", err);
+      }
+    }
+  };
 
 
   // CLOSE PROFILE MENU WHEN CLICKING OUTSIDE
@@ -951,6 +1076,79 @@ export default function Profile() {
         >
           Edit Profile
         </button>
+
+
+        {/* ========================================
+            CLIENT CONNECTION CODE
+            ======================================== */}
+        <section
+          className="profile-reveal mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 sm:p-6"
+          style={{ animationDelay: "170ms" }}
+          aria-labelledby="connection-code-heading"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400">
+                <FaKey aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <h2 id="connection-code-heading" className="text-lg font-bold">
+                  Client Connection Code
+                </h2>
+                <p className="mt-1 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+                  Share this code with a client so they can find your photographer portal.
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex w-fit items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+              Unique to your account
+            </span>
+          </div>
+
+          <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/70">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Your code
+            </p>
+            {connectionCodeLoading ? (
+              <div className="mt-2 h-8 w-44 animate-pulse rounded-md bg-slate-200 dark:bg-slate-800" aria-label="Loading connection code" />
+            ) : connectionCode ? (
+              <p className="mt-2 break-all font-mono text-2xl font-extrabold tracking-wider text-sky-600 dark:text-sky-400 sm:text-3xl">
+                {connectionCode}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-rose-500">Your code could not be loaded.</p>
+            )}
+            {connectionCodeError && (
+              <p role="alert" className="mt-3 break-words text-sm text-rose-500">
+                {connectionCodeError}
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={copyConnectionCode}
+              disabled={!connectionCode || connectionCodeLoading}
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {connectionCodeCopied ? <FaCheck aria-hidden="true" /> : <FaCopy aria-hidden="true" />}
+              {connectionCodeCopied ? "Copied!" : "Copy Code"}
+            </button>
+            <button
+              type="button"
+              onClick={shareConnectionCode}
+              disabled={!connectionCode || connectionCodeLoading}
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold transition hover:border-sky-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              <FaShareAlt aria-hidden="true" />
+              Share Code
+            </button>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            This code identifies your photographer profile. It does not give clients access to your account.
+          </p>
+        </section>
 
 
         {/* ========================================

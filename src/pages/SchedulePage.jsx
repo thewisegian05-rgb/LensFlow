@@ -10,7 +10,6 @@ import EventDetailsModal from "../components/Schedule/EventDetailsModal";
 import ConfirmModal from "../components/Common/ConfirmModal";
 
 import { supabase } from "../lib/supabaseClient";
-import { useDeletion } from "../context/DeletionContext";
 import {
   getEventCategory,
   CATEGORY_HEX,
@@ -59,7 +58,7 @@ const getCategoryStyle = (event) => {
 };
 
 // =========================================================
-// COMPACT EVENT LIST 
+// COMPACT EVENT LIST (Today's Events / Coming Events)
 // =========================================================
 
 function EventList({
@@ -162,10 +161,6 @@ function SchedulePage() {
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
-
-  // Global deletion runner (lives above the router, so the delete
-  // animation + task keep going when you navigate to another page).
-  const { runDeletion, pendingKeys } = useDeletion();
 
   // The top bar's "New Project" button sends people here with ?new=1:
   // open the New Event form, then clear the flag from the URL.
@@ -631,54 +626,48 @@ function SchedulePage() {
   // =========================================================
   // CONFIRM DELETE
   // =========================================================
-  //
-  // The actual delete runs inside the global DeletionProvider, so the
-  // "Deleting..." animation stays visible even if the user leaves this
-  // page while it's still running.
 
-  const confirmDelete = () => {
-    if (!eventToDelete) return;
+  const confirmDelete = async () => {
+    if (!eventToDelete) {
+      return;
+    }
 
-    const event = eventToDelete;
+    // If this event was promoted into (or linked to) a real project in
+    // Workflow, delete that project too so it disappears from there as
+    // well, not just here.
+    if (eventToDelete.project_id) {
+      const { error: projectDeleteError } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", eventToDelete.project_id);
 
-    // Close the modal right away so the user can navigate freely.
+      if (projectDeleteError) {
+        console.error(
+          "Failed to delete linked project:",
+          projectDeleteError.message
+        );
+        return;
+      }
+    }
+
+    const { error } = await supabase
+      .from("schedule_events")
+      .delete()
+      .eq("id", eventToDelete.id);
+
+    if (error) {
+      console.error("Failed to delete event:", error.message);
+      return;
+    }
+
+    await syncOrRemoveClient(eventToDelete.clientId);
+
+    await fetchEvents();
+    await fetchClients();
+
     setConfirmOpen(false);
     setEventToDelete(null);
     setSelectedEvent(null);
-
-    // Optimistically remove it from the list.
-    setEvents((prev) => prev.filter((item) => item.id !== event.id));
-
-    runDeletion({
-      key: event.id,
-      label: `Deleting "${event.title}"...`,
-      task: async () => {
-        // If this event was promoted into (or linked to) a real project
-        // in Workflow, delete that project too so it disappears from
-        // there as well, not just here.
-        if (event.project_id) {
-          const { error: projectDeleteError } = await supabase
-            .from("projects")
-            .delete()
-            .eq("id", event.project_id);
-
-          if (projectDeleteError) throw projectDeleteError;
-        }
-
-        const { error } = await supabase
-          .from("schedule_events")
-          .delete()
-          .eq("id", event.id);
-
-        if (error) throw error;
-
-        await syncOrRemoveClient(event.clientId);
-      },
-    }).then(() => {
-      // Refetch whether it worked or not: on failure this restores the event.
-      fetchEvents();
-      fetchClients();
-    });
   };
 
 
@@ -696,26 +685,23 @@ function SchedulePage() {
   // SEARCH + CATEGORY FILTER
   // =========================================================
 
-  const filteredEvents = events
-    // Hide events that are still being deleted in the background.
-    .filter((event) => !pendingKeys.has(event.id))
-    .filter((event) => {
-      const searchText = search.toLowerCase();
+  const filteredEvents = events.filter((event) => {
+    const searchText = search.toLowerCase();
 
-      const matchesSearch =
-        event.title?.toLowerCase().includes(searchText) ||
-        event.client?.toLowerCase().includes(searchText) ||
-        event.photographer?.toLowerCase().includes(searchText);
+    const matchesSearch =
+      event.title?.toLowerCase().includes(searchText) ||
+      event.client?.toLowerCase().includes(searchText) ||
+      event.photographer?.toLowerCase().includes(searchText);
 
-      const matchesCategory =
-        category === "All" || event.category === category;
+    const matchesCategory =
+      category === "All" || event.category === category;
 
-      return matchesSearch && matchesCategory;
-    });
+    return matchesSearch && matchesCategory;
+  });
 
 
   // =========================================================
-  // TODAY'S EVENTS + COMING EVENTS 
+  // TODAY'S EVENTS + COMING EVENTS (follow the search/category filters)
   // =========================================================
 
   const todayKey = formatDateForInput(new Date());
@@ -734,9 +720,9 @@ function SchedulePage() {
   };
 
 
-  // ===========================
+  // =========================================================
   // CALENDAR EVENT CLICK
-  // ===========================
+  // =========================================================
 
   const handleCalendarEventClick = (event) => {
     setSelectedEvent(event);
@@ -744,9 +730,9 @@ function SchedulePage() {
   };
 
 
-  // ===========================
+  // =========================================================
   // PAGE
-  // ===========================
+  // =========================================================
 
   return (
     <div className="schedule-page">

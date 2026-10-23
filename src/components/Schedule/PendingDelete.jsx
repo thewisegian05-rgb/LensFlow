@@ -1,3 +1,4 @@
+// src/lib/pendingDeletes.js
 import { useEffect, useState } from "react";
 
 // Module-level state: components unmount when you switch pages/tabs,

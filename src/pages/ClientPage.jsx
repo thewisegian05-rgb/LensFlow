@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 import ClientCard from "../components/Clients/ClientCard.jsx";
@@ -25,12 +25,18 @@ const VIEW_TYPE_STORAGE_KEY = "clients:viewType";
 // Loading display is ALWAYS this long, no matter how fast the data arrives.
 const LOADER_DURATION_MS = 2000;
 
+// Must match the longest delete animation duration in ClientPageAnimations.css
+const DELETE_ANIM_MS = 500;
+
 function ClientPage() {
   // Modal States
   const [showAddClient, setShowAddClient] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [editingClient, setEditingClient] = useState(null);
   const [clientToDelete, setClientToDelete] = useState(null);
+
+  // Tracks which client ids are currently playing their exit animation
+  const [leavingIds, setLeavingIds] = useState(new Set());
 
   // Search and Filter States
   const [searchTerm, setSearchTerm] = useState("");
@@ -186,7 +192,8 @@ function ClientPage() {
     setClients((previousClients) => [...previousClients, newClient]);
   };
 
-  // Delete Client
+  // Delete Client — opens the confirm modal.
+  // The actual deletion (with animation) happens in confirmDeleteClient.
   const handleDeleteClient = (id) => {
     setClientToDelete(id);
   };
@@ -194,56 +201,77 @@ function ClientPage() {
   const confirmDeleteClient = async () => {
     if (!clientToDelete) return;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const id = clientToDelete;
 
-    if (!user) {
-      console.error("No authenticated user found.");
-      return;
-    }
-
-    // Delete every schedule event tied to this client first. If this
-    // fails we bail out before touching the client row, so we never
-    // end up with a deleted client but orphaned events on the calendar.
-    const { error: eventsDeleteError } = await supabase
-      .from("schedule_events")
-      .delete()
-      .eq("client_id", clientToDelete)
-      .eq("user_id", user.id);
-
-    if (eventsDeleteError) {
-      console.error(
-        "Failed to delete client's schedule events:",
-        eventsDeleteError.message
-      );
-      return;
-    }
-
-    const { error } = await supabase
-      .from("clients")
-      .delete()
-      .eq("id", clientToDelete)
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error("Failed to delete client:", error.message);
-      return;
-    }
-
-    setClients((previousClients) =>
-      previousClients.filter((client) => client.id !== clientToDelete)
-    );
-
+    // Close the confirm modal immediately so the user sees the animation
     setClientToDelete(null);
 
-    if (selectedClient?.id === clientToDelete) {
-      setSelectedClient(null);
-    }
+    // 1. Play the exit animation by marking this id as "leaving"
+    setLeavingIds((prev) => new Set([...prev, id]));
 
-    if (editingClient?.id === clientToDelete) {
-      setEditingClient(null);
-    }
+    // 2. Wait for the animation to finish, THEN hit the DB and remove from state
+    setTimeout(async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.error("No authenticated user found.");
+        setLeavingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        return;
+      }
+
+      // Delete every schedule event tied to this client first.
+      const { error: eventsDeleteError } = await supabase
+        .from("schedule_events")
+        .delete()
+        .eq("client_id", id)
+        .eq("user_id", user.id);
+
+      if (eventsDeleteError) {
+        console.error(
+          "Failed to delete client's schedule events:",
+          eventsDeleteError.message
+        );
+        setLeavingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from("clients")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Failed to delete client:", error.message);
+        setLeavingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        return;
+      }
+
+      // Remove from state and clean up the leaving set
+      setClients((prev) => prev.filter((client) => client.id !== id));
+      setLeavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+
+      if (selectedClient?.id === id) setSelectedClient(null);
+      if (editingClient?.id === id) setEditingClient(null);
+    }, DELETE_ANIM_MS);
   };
 
   // Mark Client as Completed
@@ -486,7 +514,9 @@ function ClientPage() {
               {filteredClients.map((client, index) => (
                 <div
                   key={client.id}
-                  className="client-card-wrap"
+                  className={`client-card-wrap${
+                    leavingIds.has(client.id) ? " client-leaving" : ""
+                  }`}
                   style={{ "--i": Math.min(index, 12) }}
                 >
                   <ClientCard
@@ -495,6 +525,7 @@ function ClientPage() {
                     onView={() => setSelectedClient(client)}
                     onComplete={handleCompleteClient}
                     onEdit={() => setEditingClient(client)}
+                    isLeaving={leavingIds.has(client.id)}
                   />
                 </div>
               ))}
@@ -508,6 +539,7 @@ function ClientPage() {
               onView={(client) => setSelectedClient(client)}
               onEdit={(client) => setEditingClient(client)}
               onComplete={handleCompleteClient}
+              leavingIds={leavingIds}
             />
           )}
         </>

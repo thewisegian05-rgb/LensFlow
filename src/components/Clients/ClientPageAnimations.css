@@ -7,7 +7,7 @@
 }
 
 /* ==========================================
-   KEYFRAMES
+   KEYFRAMES — ENTRANCES
 ========================================== */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(28px) scale(0.97); filter: blur(6px); }
@@ -43,6 +43,21 @@
 @keyframes shimmer {
   0%   { background-position: -400px 0; }
   100% { background-position: 400px 0; }
+}
+
+/* ==========================================
+   KEYFRAMES — EXITS (delete animation)
+========================================== */
+@keyframes clientOut {
+  0%   { opacity: 1;   transform: scale(1)      translateY(0);    filter: blur(0); }
+  35%  { opacity: 0.7; transform: scale(0.96)   translateY(-6px); filter: blur(1px); }
+  100% { opacity: 0;   transform: scale(0.84)   translateY(20px); filter: blur(5px); }
+}
+
+@keyframes clientRowOut {
+  0%   { opacity: 1;   transform: translateX(0);    max-height: 80px; }
+  30%  { opacity: 0.6; transform: translateX(-10px); }
+  100% { opacity: 0;   transform: translateX(70px); max-height: 0; }
 }
 
 /* ==========================================
@@ -125,7 +140,7 @@
 }
 
 /* ==========================================
-   GRID CARDS (smooth staggered pop-in)
+   GRID CARDS — entrance
    Animation lives on the wrapper so it never
    fights with the card's hover transform.
 ========================================== */
@@ -152,9 +167,17 @@
 }
 
 /* ==========================================
-   LIST ROWS (smooth staggered)
-   nth-child handles the stagger, so ClientList
-   doesn't need to pass --i.
+   GRID CARDS — DELETE EXIT
+   Class goes on the wrapper (.client-card-wrap),
+   not the card itself, so it doesn't fight hover.
+========================================== */
+.client-card-wrap.client-leaving {
+  pointer-events: none;
+  animation: clientOut 0.5s var(--ease-soft) forwards !important;
+}
+
+/* ==========================================
+   LIST ROWS — entrance (nth-child stagger)
 ========================================== */
 .client-list-container {
   animation: fadeIn 0.6s var(--ease-soft) backwards;
@@ -182,6 +205,15 @@
 
 .dark .client-list-table tbody tr:hover {
   background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* ==========================================
+   LIST ROWS — DELETE EXIT
+========================================== */
+.client-list-table tbody tr.client-leaving {
+  pointer-events: none;
+  overflow: hidden;
+  animation: clientRowOut 0.45s var(--ease-soft) forwards !important;
 }
 
 /* ==========================================

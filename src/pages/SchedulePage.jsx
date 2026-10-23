@@ -12,10 +12,17 @@ import ConfirmModal from "../components/Common/ConfirmModal";
 
 import { supabase } from "../lib/supabaseClient";
 import {
+  markDeleting,
+  unmarkDeleting,
+  usePendingDeletes,
+} from "../lib/pendingDeletes";
+import {
   getEventCategory,
   CATEGORY_HEX,
   CATEGORY_LABELS,
 } from "../components/Schedule/eventCategory";
+
+const DELETE_ANIMATION_MS = 450;
 
 const formatDateForInput = (date) => {
   const value = new Date(date);
@@ -71,6 +78,7 @@ function EventList({
   showDate = false,
   limit = 5,
   onSelect,
+  leavingIds,
 }) {
   const visible = events.slice(0, limit);
   const hidden = events.length - visible.length;
@@ -98,6 +106,7 @@ function EventList({
           {visible.map((event) => {
             const category = getEventCategory(event);
             const categoryLabel = CATEGORY_LABELS[category] || event.category;
+            const isLeaving = leavingIds?.has(event.id);
 
             return (
               <button
@@ -105,7 +114,9 @@ function EventList({
                 type="button"
                 onClick={() => onSelect(event)}
                 style={getCategoryStyle(event)}
-                className="flex w-full items-center gap-3 rounded-lg border border-l-4 px-3 py-2 text-left transition hover:brightness-125"
+                className={`flex w-full items-center gap-3 rounded-lg border border-l-4 px-3 py-2 text-left transition hover:brightness-125 ${
+                  isLeaving ? "event-row-leaving" : ""
+                }`}
               >
                 <div className="w-16 flex-shrink-0 text-xs">
                   <p className="font-semibold">{event.time}</p>
@@ -162,6 +173,10 @@ function SchedulePage() {
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
+
+  // IDs of events currently being deleted. Lives in a shared module,
+  // so it survives switching to another page and coming back.
+  const pendingIds = usePendingDeletes();
 
   // The top bar's "New Project" button sends people here with ?new=1:
   // open the New Event form, then clear the flag from the URL.
@@ -309,8 +324,10 @@ function SchedulePage() {
   // LOAD EVENTS FROM SUPABASE
   // =========================================================
 
-  const fetchEvents = async () => {
-    setLoading(true);
+  // `silent` skips the "Loading..." state so refetches after a delete
+  // don't flash the lists.
+  const fetchEvents = async (silent = false) => {
+    if (!silent) setLoading(true);
 
     const { data, error } = await supabase
       .from("schedule_events")
@@ -369,7 +386,7 @@ function SchedulePage() {
   // just accepted show up without a manual refresh.
   useEffect(() => {
     const refresh = () => {
-      fetchEvents();
+      fetchEvents(true);
       fetchClients();
     };
 
@@ -637,50 +654,68 @@ function SchedulePage() {
 
 
   // =========================================================
-  // CONFIRM DELETE
+  // CONFIRM DELETE 
   // =========================================================
+  //
+  // The "deleting" flag lives in lib/pendingDeletes.js, not in this
+  // component's state. That way, if you switch to another page while
+  // the delete is running, the animation state isn't lost — and other
+  // pages (TodaySchedule) can play the same animation.
 
   const confirmDelete = async () => {
     if (!eventToDelete) {
       return;
     }
 
-    // If this event was promoted into (or linked to) a real project in
-    // Workflow, delete that project too so it disappears from there as
-    // well, not just here.
-    if (eventToDelete.project_id) {
-      const { error: projectDeleteError } = await supabase
-        .from("projects")
-        .delete()
-        .eq("id", eventToDelete.project_id);
+    const target = eventToDelete;
 
-      if (projectDeleteError) {
-        console.error(
-          "Failed to delete linked project:",
-          projectDeleteError.message
-        );
-        return;
-      }
-    }
-
-    const { error } = await supabase
-      .from("schedule_events")
-      .delete()
-      .eq("id", eventToDelete.id);
-
-    if (error) {
-      console.error("Failed to delete event:", error.message);
-      return;
-    }
-
-    await syncOrRemoveClient(eventToDelete.clientId);
-
-    await fetchEvents();
-    await fetchClients();
-
+    // close the modal right away, then let the row animate out
     setConfirmOpen(false);
     setEventToDelete(null);
     setSelectedEvent(null);
+
+    markDeleting(target.id);
+
+    // make sure the animation always plays fully,
+    // even if the DB responds faster than the animation duration
+    const animationDone = new Promise((resolve) =>
+      setTimeout(resolve, DELETE_ANIMATION_MS)
+    );
+
+    try {
+      // If this event was promoted into (or linked to) a real project in
+      // Workflow, delete that project too so it disappears from there as
+      // well, not just here.
+      if (target.project_id) {
+        const { error: projectDeleteError } = await supabase
+          .from("projects")
+          .delete()
+          .eq("id", target.project_id);
+
+        if (projectDeleteError) throw projectDeleteError;
+      }
+
+      const { error } = await supabase
+        .from("schedule_events")
+        .delete()
+        .eq("id", target.id);
+
+      if (error) throw error;
+
+      await syncOrRemoveClient(target.clientId);
+    } catch (err) {
+      console.error("Failed to delete event:", err.message);
+      // failed: bring the row back
+      unmarkDeleting(target.id);
+      return;
+    }
+
+    await animationDone;
+    await fetchEvents(true);
+    await fetchClients();
+
+    // only now un-mark, so the row never flickers back
+    unmarkDeleting(target.id);
   };
 
 
@@ -714,7 +749,7 @@ function SchedulePage() {
 
 
   // =========================================================
-  // TODAY'S EVENTS + COMING EVENTS (follow the search/category filters)
+  // TODAY'S EVENTS + COMING EVENTS 
   // =========================================================
 
   const todayKey = formatDateForInput(new Date());
@@ -743,9 +778,9 @@ function SchedulePage() {
   };
 
 
-  // =========================================================
+  // ============================
   // PAGE
-  // =========================================================
+  // ============================
 
   return (
     <div className="schedule-page">
@@ -777,6 +812,7 @@ function SchedulePage() {
           loading={loading}
           emptyText="No events today."
           onSelect={openEventDetails}
+          leavingIds={pendingIds}
         />
         <EventList
           title="Coming Events"
@@ -786,6 +822,7 @@ function SchedulePage() {
           emptyText="No upcoming events."
           showDate
           onSelect={openEventDetails}
+          leavingIds={pendingIds}
         />
       </div>
 

@@ -143,6 +143,39 @@
 }
 
 
+/* ---------- 3b. DELETE ANIMATION ----------
+   Used by both the Schedule page lists and TodaySchedule (other
+   pages), so it does NOT depend on any .schedule-page variable.
+   `forwards` keeps the row hidden until the refetch removes it. */
+
+.event-row-leaving {
+  overflow: hidden;
+  pointer-events: none;
+  animation: rowOut 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+}
+
+@keyframes rowOut {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    max-height: 90px;
+  }
+  35% {
+    opacity: 0.8;
+    transform: translate3d(-8px, 0, 0) scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(60px, 0, 0) scale(0.95);
+    max-height: 0;
+    margin-top: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+  }
+}
+
+
 /* ---------- 4. LOADING SKELETON (same format as Workflow) ---------- */
 
 .event-skel-card {
@@ -284,5 +317,11 @@
   .rbc-month-view, .rbc-time-view, .rbc-agenda-view, .rbc-event, .rbc-today {
     animation: none !important;
     transition: none !important;
+  }
+
+  /* no animation, but a deleting row still disappears instantly */
+  .event-row-leaving {
+    animation: none !important;
+    opacity: 0;
   }
 }

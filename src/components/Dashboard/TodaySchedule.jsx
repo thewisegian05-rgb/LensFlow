@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import { usePendingDeletes } from "../../lib/pendingDeletes";
 import {
   getEventCategory,
   CATEGORY_HEX,
@@ -41,41 +42,57 @@ function TodaySchedule() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      setLoading(true);
+  // Events currently being deleted (from the Schedule page, even if
+  // you've already switched away from it).
+  const pendingIds = usePendingDeletes();
+  const prevPendingCount = useRef(pendingIds.size);
 
-      const { data, error } = await supabase
-        .from("schedule_events")
-        .select("*")
-        .order("start_time", { ascending: true });
+  // `silent` = refetch without flashing the "Loading…" state.
+  const fetchEvents = async (silent = false) => {
+    if (!silent) setLoading(true);
 
-      if (error) {
-        console.error("Failed to load schedule events:", error.message);
-        setEvents([]);
-        setLoading(false);
-        return;
-      }
+    const { data, error } = await supabase
+      .from("schedule_events")
+      .select("*")
+      .order("start_time", { ascending: true });
 
-      const mapped = data.map((row) => ({
-        id: row.id,
-        title: row.title,
-        client: row.client,
-        category: row.category,
-        status: row.status,
-        start: new Date(row.start_time),
-        end: new Date(row.end_time),
-      }));
-
-      setEvents(mapped);
+    if (error) {
+      console.error("Failed to load schedule events:", error.message);
+      setEvents([]);
       setLoading(false);
-    };
+      return;
+    }
 
+    const mapped = data.map((row) => ({
+      id: row.id,
+      title: row.title,
+      client: row.client,
+      category: row.category,
+      status: row.status,
+      start: new Date(row.start_time),
+      end: new Date(row.end_time),
+    }));
+
+    setEvents(mapped);
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchEvents();
   }, []);
 
+  // Refetch ONLY when a delete finishes (count goes down). If we
+  // refetched when it started, the row could vanish before its exit
+  // animation had a chance to play.
+  useEffect(() => {
+    if (pendingIds.size < prevPendingCount.current) {
+      fetchEvents(true);
+    }
+    prevPendingCount.current = pendingIds.size;
+  }, [pendingIds]);
+
   // =========================================================
-  // NEXT 5 UPCOMING EVENTS (today onward, not yet completed)
+  // NEXT 5 UPCOMING EVENTS 
   // =========================================================
 
   const upcomingEvents = useMemo(() => {
@@ -158,7 +175,9 @@ function TodaySchedule() {
               <div
                 key={event.id}
                 style={getCategoryStyle(event)}
-                className="flex items-center gap-3 rounded-lg border border-l-4 px-3 py-2"
+                className={`flex items-center gap-3 rounded-lg border border-l-4 px-3 py-2 ${
+                  pendingIds.has(event.id) ? "event-row-leaving" : ""
+                }`}
               >
                 <div className="w-16 flex-shrink-0 text-xs">
                   <p className="font-semibold">{formatTime(event.start)}</p>

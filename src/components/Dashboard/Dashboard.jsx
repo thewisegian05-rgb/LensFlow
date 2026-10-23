@@ -12,6 +12,7 @@ import TodaySchedule from "./TodaySchedule";
 import RecentProjects from "./RecentProjects";
 import WorkflowSummary from "./WorkflowSummary";
 import RevenueChart from "./RevenueChart";
+import BookingRequests from "../Schedule/BookingRequests";
 
 import { supabase } from "../../lib/supabaseClient";
 
@@ -270,6 +271,9 @@ function Dashboard() {
           )}
         </p>
       </div>
+
+      {/* New client booking requests */}
+      <BookingRequests />
 
       {/* Overview cards */}
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

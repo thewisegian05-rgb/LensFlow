@@ -13,6 +13,8 @@ import {
 } from "react-icons/fa";
 
 import Calendar from "../components/Schedule/Calendar";
+import BookingModal from "../components/Schedule/BookingModal";
+import MyBookings from "../components/Schedule/MyBookings";
 import { supabase } from "../lib/supabaseClient";
 
 const PORTFOLIO_BUCKET = "portfolio";
@@ -303,6 +305,8 @@ function ClientPortalPage() {
   const [reviewError, setReviewError] = useState("");
 
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [bookingDate, setBookingDate] = useState(null);
+  const [bookingsKey, setBookingsKey] = useState(0);
 
   /* ---- auth ---- */
   useEffect(() => {
@@ -386,7 +390,7 @@ function ClientPortalPage() {
 
       if (error) throw error;
       if (!data) throw new Error("The photographer portal returned no data.");
-      
+
       const featuredPhotos = await Promise.all(
         (data?.featured_photos || []).map(async (photo) => ({
           ...photo,
@@ -398,10 +402,6 @@ function ClientPortalPage() {
         ...data,
         featured_photos: featuredPhotos,
       });
-
-
-      console.log("Photographer portal loaded:", data);
-      setPortal(data);
     } catch (err) {
       console.error("Failed to load portal:", err.message || err);
       setPortalError(err.message || "Failed to load photographer portal.");
@@ -413,6 +413,7 @@ function ClientPortalPage() {
 
   useEffect(() => {
     setLightboxIndex(null);
+    setBookingDate(null);
     if (activeId) loadPortal(activeId);
     else setPortal(null);
   }, [activeId, loadPortal]);
@@ -516,7 +517,7 @@ function ClientPortalPage() {
         ...photo,
         id: photo.id ?? photo.photo_id ?? `${index}-${photo.storage_path || photo.image_path || photo.photo_url || "photo"}`,
         image_path:
-          photo.image_path || photo.storage_path || photo.photo_url || photo.photo_path || null,
+          photo.photo_url || photo.image_path || photo.storage_path || photo.photo_path || null,
         caption: photo.caption || photo.title || photo.photo_name || "",
       })).filter((photo) => Boolean(photo.image_path))
     : [];
@@ -539,6 +540,16 @@ function ClientPortalPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxIndex, featured.length]);
+
+  /* ---- calendar date click -> open the booking form ---- */
+  const handleSelectSlot = ({ start }) => {
+    const d = new Date(start);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+    const todayKey = new Date().toLocaleDateString("en-CA");
+    if (key >= todayKey) setBookingDate(key);
+  };
 
   /* ============ RENDER ============ */
   if (authLoading) {
@@ -724,15 +735,24 @@ function ClientPortalPage() {
             {/* Calendar */}
             <Section title="Availability" dot="bg-sky-400">
               <p className="mb-3 text-xs text-slate-500">
-                Days with a booking are already taken. Details of other clients' events are kept private.
+                Click an open date to send a booking request. Days with a booking are already taken. Details of other clients' events are kept private.
               </p>
               <div className="min-w-0 max-w-full overflow-x-auto rounded-lg">
                 <Calendar
                   events={calendarEvents}
-                  onSelectSlot={() => {}}
+                  onSelectSlot={handleSelectSlot}
                   onEventClick={() => {}}
                 />
               </div>
+            </Section>
+
+            {/* My bookings */}
+            <Section title="My Bookings" dot="bg-violet-400">
+              <MyBookings
+                photographerId={activeId}
+                refreshKey={bookingsKey}
+                onChanged={() => loadPortal(activeId)}
+              />
             </Section>
 
             {/* Ratings */}
@@ -798,6 +818,16 @@ function ClientPortalPage() {
           <p className="mt-1 text-xs text-slate-500">The connection is active, but the portal did not return a profile to display.</p>
         </div>
       )}
+
+      {/* Booking popup */}
+      <BookingModal
+        open={!!bookingDate}
+        date={bookingDate}
+        photographerId={activeId}
+        events={calendarEvents}
+        onClose={() => setBookingDate(null)}
+        onChanged={() => setBookingsKey((k) => k + 1)}
+      />
 
       {/* Lightbox */}
       {lightboxIndex !== null && featured[lightboxIndex] && (

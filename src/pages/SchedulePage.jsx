@@ -7,6 +7,7 @@ import ScheduleFilters from "../components/Schedule/ScheduleFilters";
 import Calendar from "../components/Schedule/Calendar";
 import AddEventModal from "../components/Schedule/AddEventModal";
 import EventDetailsModal from "../components/Schedule/EventDetailsModal";
+import BookingRequests from "../components/Schedule/BookingRequests";
 import ConfirmModal from "../components/Common/ConfirmModal";
 
 import { supabase } from "../lib/supabaseClient";
@@ -362,6 +363,18 @@ function SchedulePage() {
   useEffect(() => {
     fetchEvents();
     fetchClients();
+  }, []);
+
+  // Reload when you come back to this tab, so events that a client
+  // just accepted show up without a manual refresh.
+  useEffect(() => {
+    const refresh = () => {
+      fetchEvents();
+      fetchClients();
+    };
+
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
   }, []);
 
 
@@ -746,6 +759,8 @@ function SchedulePage() {
       />
 
       <ScheduleSummary events={events} />
+
+      <BookingRequests />
 
       <ScheduleFilters
         search={search}

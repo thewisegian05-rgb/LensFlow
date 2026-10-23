@@ -22,7 +22,7 @@ import {
   CATEGORY_LABELS,
 } from "../components/Schedule/eventCategory";
 
-const DELETE_ANIMATION_MS = 450;
+const MIN_DELETE_MS = 1000; // keeps the toast visible long enough to read
 
 const formatDateForInput = (date) => {
   const value = new Date(date);
@@ -674,12 +674,12 @@ function SchedulePage() {
     setEventToDelete(null);
     setSelectedEvent(null);
 
-    markDeleting(target.id);
+    markDeleting(target.id, target.title);
 
     // make sure the animation always plays fully,
     // even if the DB responds faster than the animation duration
     const animationDone = new Promise((resolve) =>
-      setTimeout(resolve, DELETE_ANIMATION_MS)
+      setTimeout(resolve, MIN_DELETE_MS)
     );
 
     try {

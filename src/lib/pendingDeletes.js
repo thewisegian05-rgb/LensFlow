@@ -1,12 +1,16 @@
-﻿import { useEffect, useState } from "react";
+﻿// src/lib/pendingDeletes.js
+import { useEffect, useMemo, useState } from "react";
 
-const pending = new Set();
+// Module-level state: components unmount when you switch pages/tabs,
+// but this module stays alive, so the "deleting" state is never lost.
+// id -> label (the label is what the toast shows, e.g. the event title)
+const pending = new Map();
 const listeners = new Set();
 
-const emit = () => listeners.forEach((fn) => fn(new Set(pending)));
+const emit = () => listeners.forEach((fn) => fn(new Map(pending)));
 
-export const markDeleting = (id) => {
-  pending.add(id);
+export const markDeleting = (id, label = "") => {
+  pending.set(id, label);
   emit();
 };
 
@@ -15,17 +19,33 @@ export const unmarkDeleting = (id) => {
   emit();
 };
 
-export function usePendingDeletes() {
-  const [ids, setIds] = useState(() => new Set(pending));
+function usePendingMap() {
+  const [map, setMap] = useState(() => new Map(pending));
 
   useEffect(() => {
-    listeners.add(setIds);
-    setIds(new Set(pending));
+    listeners.add(setMap);
+    // catch up if a delete started while this component was unmounted
+    setMap(new Map(pending));
 
     return () => {
-      listeners.delete(setIds);
+      listeners.delete(setMap);
     };
   }, []);
 
-  return ids;
+  return map;
+}
+
+// Set of ids being deleted (used by the row exit animation)
+export function usePendingDeletes() {
+  const map = usePendingMap();
+  return useMemo(() => new Set(map.keys()), [map]);
+}
+
+// [{ id, label }] (used by the "Deleting..." toast)
+export function usePendingDeleteItems() {
+  const map = usePendingMap();
+  return useMemo(
+    () => Array.from(map, ([id, label]) => ({ id, label })),
+    [map]
+  );
 }

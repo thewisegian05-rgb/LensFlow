@@ -8,8 +8,18 @@ import {
   FiCheckCircle,
 } from "react-icons/fi";
 
+const NO_LEAVING = new Set();
 
-function ClientList({ clients, onView, onDelete, onComplete, onEdit }) {
+// `leavingIds` = Set of client ids being deleted right now (from
+// usePendingDeletes() in the parent). Those rows play the exit animation.
+function ClientList({
+  clients,
+  onView,
+  onDelete,
+  onComplete,
+  onEdit,
+  leavingIds = NO_LEAVING,
+}) {
 
   return (
 
@@ -59,9 +69,16 @@ function ClientList({ clients, onView, onDelete, onComplete, onEdit }) {
 
         <tbody>
 
-          {clients.map((client) => (
+          {clients.map((client) => {
+            const isLeaving = leavingIds.has(client.id);
 
-            <tr key={client.id} className={(client.projectStatus || "").toLowerCase()}>
+            return (
+            <tr
+              key={client.id}
+              className={`${(client.projectStatus || "").toLowerCase()} ${
+                isLeaving ? "client-leaving" : ""
+              }`}
+            >
 
 
               {/* CLIENT */}
@@ -173,6 +190,7 @@ function ClientList({ clients, onView, onDelete, onComplete, onEdit }) {
                   <button
                     className="list-action-btn shrink-0 rounded-lg border !border-red-500 !bg-transparent !text-red-600 transition hover:!bg-red-50 hover:!text-red-700 dark:!border-red-500/70 dark:!text-red-400 dark:hover:!bg-red-500/10"
                     title="Delete Client"
+                    disabled={isLeaving}
                     onClick={() => onDelete(client.id)}
                   >
                     <FiTrash2 />
@@ -202,7 +220,8 @@ function ClientList({ clients, onView, onDelete, onComplete, onEdit }) {
                 </div>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
 

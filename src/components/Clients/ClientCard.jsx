@@ -15,13 +15,23 @@ import { FaPesoSign } from "react-icons/fa6";
 
 import "./ClientCard.css";
 
-function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
+// `isLeaving` = this client is being deleted right now (comes from
+// usePendingDeletes() in the parent). It plays the exit animation.
+function ClientCard({
+  client,
+  onView,
+  onDelete,
+  onComplete,
+  onEdit,
+  isLeaving = false,
+}) {
 
   return (
-    <div className={`client-card ${
-    client.projectStatus?.toLowerCase() || ""
-  }`}
->
+    <div
+      className={`client-card ${
+        client.projectStatus?.toLowerCase() || ""
+      } ${isLeaving ? "client-leaving" : ""}`}
+    >
 
       {/* Client Header */}
 
@@ -145,6 +155,7 @@ function ClientCard({ client, onView, onDelete, onComplete, onEdit }) {
         <button
           className="action-btn rounded-lg border !border-red-500 !bg-transparent !text-red-600 transition hover:!border-red-600 hover:!bg-red-50 hover:!text-red-700 dark:!border-red-500/70 dark:!text-red-400 dark:hover:!bg-red-500/10 dark:hover:!text-red-300"
           title="Delete Client"
+          disabled={isLeaving}
           onClick={() => onDelete(client.id)}
         >
           <FiTrash2 />

@@ -654,7 +654,7 @@ function SchedulePage() {
 
 
   // =========================================================
-  // CONFIRM DELETE 
+  // CONFIRM DELETE (with exit animation)
   // =========================================================
   //
   // The "deleting" flag lives in lib/pendingDeletes.js, not in this
@@ -749,7 +749,7 @@ function SchedulePage() {
 
 
   // =========================================================
-  // TODAY'S EVENTS + COMING EVENTS 
+  // TODAY'S EVENTS + COMING EVENTS (follow the search/category filters)
   // =========================================================
 
   const todayKey = formatDateForInput(new Date());
@@ -778,9 +778,9 @@ function SchedulePage() {
   };
 
 
-  // ============================
+  // =========================================================
   // PAGE
-  // ============================
+  // =========================================================
 
   return (
     <div className="schedule-page">

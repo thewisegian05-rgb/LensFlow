@@ -92,7 +92,7 @@ function TodaySchedule() {
   }, [pendingIds]);
 
   // =========================================================
-  // NEXT 5 UPCOMING EVENTS 
+  // NEXT 5 UPCOMING EVENTS (today onward, not yet completed)
   // =========================================================
 
   const upcomingEvents = useMemo(() => {

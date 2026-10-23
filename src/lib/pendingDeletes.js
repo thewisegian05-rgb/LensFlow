@@ -1,8 +1,5 @@
-// src/lib/pendingDeletes.js
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
-// Module-level state: components unmount when you switch pages/tabs,
-// but this module stays alive, so the "deleting" state is never lost.
 const pending = new Set();
 const listeners = new Set();
 
@@ -23,7 +20,6 @@ export function usePendingDeletes() {
 
   useEffect(() => {
     listeners.add(setIds);
-    // catch up if a delete started while this component was unmounted
     setIds(new Set(pending));
 
     return () => {

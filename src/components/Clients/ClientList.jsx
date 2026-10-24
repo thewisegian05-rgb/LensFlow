@@ -8,6 +8,8 @@ import {
   FiCheckCircle,
 } from "react-icons/fi";
 
+import "./client-delete-animation.css";
+
 const NO_LEAVING = new Set();
 
 // `leavingIds` = Set of client ids being deleted right now (from

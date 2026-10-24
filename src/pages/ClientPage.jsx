@@ -1,591 +1,195 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "../lib/supabaseClient";
-
-import ClientCard from "../components/Clients/ClientCard.jsx";
-import ClientList from "../components/Clients/ClientList.jsx";
-import AddClientModal from "../components/Clients/AddClientModal.jsx";
-import ViewClientModal from "../components/Clients/ViewClientModal.jsx";
-import EditClientModal from "../components/Clients/EditClientModal.jsx";
-import ConfirmModal from "../components/Common/ConfirmModal.jsx";
-
-import "../components/Clients/Clients.css";
-import "../components/Clients/ClientCard.css";
-import "../components/Clients/ClientList.css";
-import "../components/Clients/AddClientModal.css";
-import "../components/Clients/ViewClientModal.css";
-import "../components/Clients/ClientPageAnimations.css";
-
-import { FiGrid, FiList, FiSearch, FiX } from "react-icons/fi";
-import { FaFilter } from "react-icons/fa6";
-
-// Key used to remember the client list's view type (grid/list) across
-// page navigations and reloads.
-const VIEW_TYPE_STORAGE_KEY = "clients:viewType";
-
-// Loading display is ALWAYS this long, no matter how fast the data arrives.
-const LOADER_DURATION_MS = 2000;
-
-// Must match the longest delete animation duration in ClientPageAnimations.css
-const DELETE_ANIM_MS = 500;
-
-function ClientPage() {
-  // Modal States
-  const [showAddClient, setShowAddClient] = useState(false);
-  const [selectedClient, setSelectedClient] = useState(null);
-  const [editingClient, setEditingClient] = useState(null);
-  const [clientToDelete, setClientToDelete] = useState(null);
-
-  // Tracks which client ids are currently playing their exit animation
-  const [leavingIds, setLeavingIds] = useState(new Set());
-
-  // Search and Filter States
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All Categories");
-
-  // "grid" = card/block view, "list" = table/list view.
-  // Initialized from localStorage so the last picked view is remembered.
-  const [viewType, setViewType] = useState(() => {
-    if (typeof window === "undefined") return "grid";
-
-    try {
-      return localStorage.getItem(VIEW_TYPE_STORAGE_KEY) || "grid";
-    } catch (error) {
-      console.error("Failed to read saved view type:", error);
-      return "grid";
-    }
-  });
-
-  // Persist whenever it changes.
-  useEffect(() => {
-    try {
-      localStorage.setItem(VIEW_TYPE_STORAGE_KEY, viewType);
-    } catch (error) {
-      console.error("Failed to save view type:", error);
-    }
-  }, [viewType]);
-
-  const [clients, setClients] = useState([]);
-  const [loadingClients, setLoadingClients] = useState(true);
-
-  // Fixed 2-second loading display.
-  const [showLoader, setShowLoader] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setShowLoader(false), LOADER_DURATION_MS);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const fetchClients = async () => {
-    setLoadingClients(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setClients([]);
-      setLoadingClients(false);
-      return;
-    }
-
-    // Load clients
-    const { data: clientRows, error: clientsError } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (clientsError) {
-      console.error("Failed to load clients:", clientsError.message);
-      setLoadingClients(false);
-      return;
-    }
-
-    // Load schedule events
-    const { data: eventRows, error: eventsError } = await supabase
-      .from("schedule_events")
-      .select(
-        `
-        id,
-        client_id,
-        title,
-        location,
-        category,
-        start_time,
-        end_time,
-        status,
-        project_id
-      `
-      )
-      .eq("user_id", user.id)
-      .order("start_time", { ascending: true });
-
-    if (eventsError) {
-      console.error("Failed to load client events:", eventsError.message);
-      setLoadingClients(false);
-      return;
-    }
-
-    const now = new Date();
-
-    const mappedClients = clientRows.map((row) => {
-      // All events belonging to this client
-      const projects = eventRows
-        .filter((event) => event.client_id === row.id)
-        .map((event) => ({
-          id: event.id,
-          projectId: event.project_id,
-
-          title: event.title,
-          venue: event.location,
-          category: event.category,
-
-          start: event.start_time,
-          end: event.end_time,
-
-          status: event.status,
-        }));
-
-      // Upcoming events only
-      const upcomingProjects = projects.filter(
-        (project) => new Date(project.start) >= now
-      );
-
-      // Query is already ascending, so index 0 is the nearest upcoming event.
-      const activeProject =
-        upcomingProjects[0] || projects[projects.length - 1] || null;
-
-      return {
-        id: row.id,
-        name: row.name,
-        type: row.type,
-        contact: row.contact,
-        email: row.email,
-
-        projectStatus: row.project_status,
-        talentFee: row.talent_fee,
-        initials: row.initials,
-
-        // All scheduled projects/events
-        projects,
-
-        // What Card/List should display
-        activeProject,
-
-        // Kept for compatibility with existing components
-        project: activeProject?.title || row.project,
-        venue: activeProject?.venue || row.venue,
-        category: activeProject?.category || row.category,
-      };
-    });
-
-    setClients(mappedClients);
-    setLoadingClients(false);
-  };
-
-  useEffect(() => {
-    fetchClients();
-  }, []);
-
-  // Add New Client
-  const handleAddClient = (newClient) => {
-    setClients((previousClients) => [...previousClients, newClient]);
-  };
-
-  // Delete Client — opens the confirm modal.
-  // The actual deletion (with animation) happens in confirmDeleteClient.
-  const handleDeleteClient = (id) => {
-    setClientToDelete(id);
-  };
-
-  const confirmDeleteClient = async () => {
-    if (!clientToDelete) return;
-
-    const id = clientToDelete;
-
-    // Close the confirm modal immediately so the user sees the animation
-    setClientToDelete(null);
-
-    // 1. Play the exit animation by marking this id as "leaving"
-    setLeavingIds((prev) => new Set([...prev, id]));
-
-    // 2. Wait for the animation to finish, THEN hit the DB and remove from state
-    setTimeout(async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        console.error("No authenticated user found.");
-        setLeavingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-        return;
-      }
-
-      // Delete every schedule event tied to this client first.
-      const { error: eventsDeleteError } = await supabase
-        .from("schedule_events")
-        .delete()
-        .eq("client_id", id)
-        .eq("user_id", user.id);
-
-      if (eventsDeleteError) {
-        console.error(
-          "Failed to delete client's schedule events:",
-          eventsDeleteError.message
-        );
-        setLeavingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-        return;
-      }
-
-      const { error } = await supabase
-        .from("clients")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.error("Failed to delete client:", error.message);
-        setLeavingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-        return;
-      }
-
-      // Remove from state and clean up the leaving set
-      setClients((prev) => prev.filter((client) => client.id !== id));
-      setLeavingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-
-      if (selectedClient?.id === id) setSelectedClient(null);
-      if (editingClient?.id === id) setEditingClient(null);
-    }, DELETE_ANIM_MS);
-  };
-
-  // Mark Client as Completed
-  const handleCompleteClient = (id) => {
-    setClients((previousClients) =>
-      previousClients.map((client) =>
-        client.id === id ? { ...client, projectStatus: "Completed" } : client
-      )
-    );
-
-    setSelectedClient((previousClient) =>
-      previousClient?.id === id
-        ? { ...previousClient, projectStatus: "Completed" }
-        : previousClient
-    );
-  };
-
-  // Filter clients based on search term or selected category
-  const filteredClients = clients.filter((client) => {
-    const searchText = searchTerm.toLowerCase();
-    const matchesSearch =
-      client.name?.toLowerCase().includes(searchText) ||
-      client.email?.toLowerCase().includes(searchText) ||
-      client.project?.toLowerCase().includes(searchText);
-
-    const matchesCategory =
-      selectedCategory === "All Categories" ||
-      client.category === selectedCategory;
-
-    return matchesSearch && matchesCategory;
-  });
-
-  // Edit Client
-  const handleEditClient = async (updatedClient) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      console.error("No authenticated user found.");
-      return;
-    }
-
-    const payload = {
-      name: updatedClient.name,
-      type: updatedClient.type,
-      contact: updatedClient.contact,
-      email: updatedClient.email,
-      project: updatedClient.project,
-      venue: updatedClient.venue,
-      category: updatedClient.category,
-      project_status: updatedClient.projectStatus,
-      talent_fee: updatedClient.talentFee,
-      initials: updatedClient.initials,
-    };
-
-    const { data, error } = await supabase
-      .from("clients")
-      .update(payload)
-      .eq("id", updatedClient.id)
-      .eq("user_id", user.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Failed to update client:", error.message);
-      return;
-    }
-
-    const mappedClient = {
-      id: data.id,
-      name: data.name,
-      type: data.type,
-      contact: data.contact,
-      email: data.email,
-      project: data.project,
-      venue: data.venue,
-      category: data.category,
-      projectStatus: data.project_status,
-      talentFee: data.talent_fee,
-      initials: data.initials,
-    };
-
-    setClients((previousClients) =>
-      previousClients.map((client) =>
-        client.id === mappedClient.id ? mappedClient : client
-      )
-    );
-
-    setSelectedClient((previousClient) =>
-      previousClient?.id === mappedClient.id ? mappedClient : previousClient
-    );
-
-    setEditingClient(null);
-  };
-
-  const activeToggleClass =
-    "!border-sky-500 !bg-sky-500 !text-slate-950 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950";
-  const inactiveToggleClass =
-    "!border-transparent !bg-transparent !text-slate-500 hover:!bg-slate-100 hover:!text-slate-800 dark:!text-slate-500 dark:hover:!bg-slate-800 dark:hover:!text-slate-300";
+import React from "react";
+
+import {
+  FiEye,
+  FiEdit2,
+  FiTrash2,
+  FiPhone,
+  FiMail,
+  FiFolder,
+  FiCheckCircle,
+  FiMessageSquare,
+} from "react-icons/fi";
+
+import { FaPesoSign } from "react-icons/fa6";
+
+import "./ClientCard.css";
+import "./client-delete-animation.css";
+
+// `isLeaving` = this client is being deleted right now (comes from
+// usePendingDeletes() in the parent). It plays the exit animation.
+function ClientCard({
+  client,
+  onView,
+  onDelete,
+  onComplete,
+  onEdit,
+  isLeaving = false,
+}) {
 
   return (
-    <div className="clients-page">
-      {/* ==========================================
-          PAGE HEADER
-      ========================================== */}
+    <div
+      className={`client-card ${
+        client.projectStatus?.toLowerCase() || ""
+      } ${isLeaving ? "client-leaving" : ""}`}
+    >
 
-      <div className="clients-header">
-        <div>
-          <h1>Client Management</h1>
-          <p>Manage your clients and their project information.</p>
+      {/* Client Header */}
+
+      <div className="client-card-top">
+
+        <div
+          className="
+            client-avatar
+            !border !border-sky-200
+            !bg-sky-100
+            !text-sky-700
+            dark:!border-sky-700
+            dark:!bg-sky-950
+            dark:!text-sky-400
+          "
+        >
+          {client.initials}
         </div>
 
+        <div className="client-heading">
+          <h2>{client.name}</h2>
+          <span>{client.type}</span>
+        </div>
+
+        <div className="client-status">
+          <span
+            className={`status-dot ${
+              (client.projectStatus || "").toLowerCase()
+            }`}
+            aria-hidden
+          />
+          <span className="status-label">
+            {client.projectStatus}
+          </span>
+        </div>
+
+      </div>
+
+
+      {/* Client Information */}
+
+      <div className="client-details">
+
+        <div className="client-detail">
+          <FiPhone />
+
+          <div>
+            <small>Contact</small>
+            <p>{client.contact || "No contact provided"}</p>
+          </div>
+        </div>
+
+
+        <div className="client-detail">
+          <FiMail />
+
+          <div>
+            <small>Email</small>
+            <p
+            style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "150px",
+            }} title={client.email}
+            >{client.email || "No email provided"}</p>
+          </div>
+        </div>
+
+
+        <div className="client-detail">
+          <FiFolder />
+          <div>
+            <small>Active Project</small>
+            <p className="project-name">
+              {client.project}
+            </p>
+          </div>
+        </div>
+
+
+        <div className="client-detail">
+          <FaPesoSign />
+
+          <div>
+            <small>Talent Fee</small>
+            <p className="talent-fee">
+              ₱{Number(client.talentFee || 0).toLocaleString()}
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+
+      {/* Actions */}
+
+      <div className="client-actions">
+
         <button
-          className="add-client-btn"
-          onClick={() => setShowAddClient(true)}
+          className="action-btn rounded-lg border !border-slate-400 !bg-transparent !text-slate-600 transition hover:!border-slate-500 hover:!bg-slate-100 hover:!text-slate-900 dark:!border-slate-600 dark:!text-slate-400 dark:hover:!bg-slate-800 dark:hover:!text-white"
+          title="View Client"
+          onClick={onView}
         >
-          + Add New Client
+          <FiEye />
+          <span>View</span>
+        </button>
+
+
+        <button
+          className="action-btn rounded-lg border !border-sky-500 !bg-transparent !text-sky-600 transition hover:!border-sky-600 hover:!bg-sky-50 hover:!text-sky-700 dark:!border-sky-500/70 dark:!text-sky-400 dark:hover:!bg-sky-500/10 dark:hover:!text-sky-300"
+          title="Edit Client"
+          onClick={onEdit}
+        >
+          <FiEdit2 />
+          <span>Edit</span>
+        </button>
+
+
+        {/* DELETE */}
+        <button
+          className="action-btn rounded-lg border !border-red-500 !bg-transparent !text-red-600 transition hover:!border-red-600 hover:!bg-red-50 hover:!text-red-700 dark:!border-red-500/70 dark:!text-red-400 dark:hover:!bg-red-500/10 dark:hover:!text-red-300"
+          title="Delete Client"
+          disabled={isLeaving}
+          onClick={() => onDelete(client.id)}
+        >
+          <FiTrash2 />
+          <span>Delete</span>
+        </button>
+
+      </div>
+
+      <div className="message-action">
+        <button
+          className="message-btn rounded-lg border !border-sky-500 !bg-sky-500 !text-slate-950 transition hover:!border-sky-400 hover:!bg-sky-400 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950 dark:hover:!bg-sky-400"
+          title="Message"
+        >
+          <FiMessageSquare />
+          <span>Message</span>
         </button>
       </div>
 
-      {/* ==========================================
-          CLIENT TOOLBAR
-      ========================================== */}
-
-      <div className="clients-toolbar">
-        {/* CLIENT COUNT */}
-        <div className="client-count">
-          <span>{showLoader ? "–" : filteredClients.length}</span>{" "}
-          {!showLoader && filteredClients.length === 1 ? "client" : "clients"}
-        </div>
-
-        {/* VIEW SWITCHER */}
-        <div className="view-switcher">
-          {/* GRID */}
+      {client.projectStatus !== "Completed" && (
+        <div className="complete-action">
           <button
-            className={`view-toggle-btn ${
-              viewType === "grid" ? activeToggleClass : inactiveToggleClass
-            }`}
-            onClick={() => setViewType("grid")}
-            title="Block View"
+            className="complete-btn rounded-lg border !border-emerald-500 !bg-transparent !text-emerald-600 transition hover:!border-emerald-600 hover:!bg-emerald-50 hover:!text-emerald-700 dark:!border-emerald-500/70 dark:!bg-emerald-500/10 dark:!text-emerald-400 dark:hover:!bg-emerald-500/15 dark:hover:!text-emerald-300"
+            title="Mark as Complete"
+            onClick={() => onComplete(client.id)}
           >
-            <FiGrid />
-          </button>
-
-          {/* LIST */}
-          <button
-            className={`view-toggle-btn ${
-              viewType === "list" ? activeToggleClass : inactiveToggleClass
-            }`}
-            onClick={() => setViewType("list")}
-            title="List View"
-          >
-            <FiList />
+            <FiCheckCircle />
+            <span>Mark as Complete</span>
           </button>
         </div>
-      </div>
-
-      {/* Search Bar and Category Filter */}
-      <div className="client-filter-bar">
-        <div className="client-search">
-          <FiSearch className="search-icon" />
-
-          <input
-            type="text"
-            placeholder="Search by client..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-
-          {searchTerm && (
-            <button
-              type="button"
-              className="clear-search-btn"
-              onClick={() => setSearchTerm("")}
-            >
-              <FiX />
-            </button>
-          )}
-        </div>
-
-        {/* Category Filter */}
-        <div className="category-filter-wrapper">
-          <FaFilter className="category-filter-icon" />
-
-          <select
-            className="client-category-filter"
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-          >
-            <option value="All Categories">All Categories</option>
-            <option value="Weddings">Weddings</option>
-            <option value="Prenup">Prenup</option>
-            <option value="Couple Shoot">Couple Shoot</option>
-            <option value="Life & Family Milestones">
-              Life & Family Milestones
-            </option>
-            <option value="Portrait & Lifestyle">Portrait & Lifestyle</option>
-            <option value="Events & Performance">Events & Performance</option>
-            <option value="Corporate & Commercial">
-              Corporate & Commercial
-            </option>
-            <option value="Real Estate">Real Estate</option>
-            <option value="Product & Business">Product & Business</option>
-            <option value="Baptism">Baptism</option>
-            <option value="Pet Photography">Pet Photography</option>
-          </select>
-        </div>
-      </div>
-
-      {/* ==========================================
-          LOADER (2s) / GRID / LIST
-      ========================================== */}
-
-      {showLoader ? (
-        <div className="clients-grid clients-skeleton-grid" aria-busy="true">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="client-skeleton" style={{ "--i": i }}>
-              <div className="skeleton-top">
-                <div className="skeleton-avatar shimmer" />
-                <div className="skeleton-lines">
-                  <div className="skeleton-line shimmer w60" />
-                  <div className="skeleton-line shimmer w40" />
-                </div>
-              </div>
-              <div className="skeleton-line shimmer w90" />
-              <div className="skeleton-line shimmer w70" />
-              <div className="skeleton-btn shimmer" />
-            </div>
-          ))}
-        </div>
-      ) : filteredClients.length === 0 ? (
-        <div className="no-clients">
-          <p>No clients found.</p>
-        </div>
-      ) : (
-        <>
-          {viewType === "grid" && (
-            <div className="clients-grid">
-              {filteredClients.map((client, index) => (
-                <div
-                  key={client.id}
-                  className={`client-card-wrap${
-                    leavingIds.has(client.id) ? " client-leaving" : ""
-                  }`}
-                  style={{ "--i": Math.min(index, 12) }}
-                >
-                  <ClientCard
-                    client={client}
-                    onDelete={handleDeleteClient}
-                    onView={() => setSelectedClient(client)}
-                    onComplete={handleCompleteClient}
-                    onEdit={() => setEditingClient(client)}
-                    isLeaving={leavingIds.has(client.id)}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {viewType === "list" && (
-            <ClientList
-              clients={filteredClients}
-              onDelete={handleDeleteClient}
-              onView={(client) => setSelectedClient(client)}
-              onEdit={(client) => setEditingClient(client)}
-              onComplete={handleCompleteClient}
-              leavingIds={leavingIds}
-            />
-          )}
-        </>
       )}
 
-      {/* ==========================================
-          ADD CLIENT MODAL
-      ========================================== */}
-
-      {showAddClient && (
-        <AddClientModal
-          onClose={() => setShowAddClient(false)}
-          onAddClient={handleAddClient}
-        />
-      )}
-
-      {/* ==========================================
-          VIEW / EDIT CLIENT MODALS
-      ========================================== */}
-
-      {selectedClient && (
-        <ViewClientModal
-          client={selectedClient}
-          onClose={() => setSelectedClient(null)}
-          onComplete={handleCompleteClient}
-          onEdit={(client) => setEditingClient(client)}
-        />
-      )}
-
-      {editingClient && (
-        <EditClientModal
-          client={editingClient}
-          onClose={() => setEditingClient(null)}
-          onSave={handleEditClient}
-        />
-      )}
-
-      <ConfirmModal
-        open={Boolean(clientToDelete)}
-        title="Delete Client"
-        message="This will permanently delete this client and all of their scheduled events. This action cannot be undone."
-        onCancel={() => setClientToDelete(null)}
-        onConfirm={confirmDeleteClient}
-      />
     </div>
   );
 }
 
-export default ClientPage;
+export default ClientCard;

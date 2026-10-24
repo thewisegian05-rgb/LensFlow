@@ -1,51 +1,115 @@
 ﻿// src/lib/pendingDeletes.js
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
-// Module-level state: components unmount when you switch pages/tabs,
-// but this module stays alive, so the "deleting" state is never lost.
-// id -> label (the label is what the toast shows, e.g. the event title)
-const pending = new Map();
+// ---------------------------------------------------------
+// Shared "deleting" store.
+// ---------------------------------------------------------
+
+const DONE_VISIBLE_MS = 1800;   // how long the "Deleted" toast stays
+const ERROR_VISIBLE_MS = 4000;  // how long the "Failed" toast stays
+
+let items = [];
 const listeners = new Set();
+const timers = new Map();
 
-const emit = () => listeners.forEach((fn) => fn(new Map(pending)));
+const setItems = (next) => {
+  items = next; // always a NEW array, so React sees the change
+  listeners.forEach((fn) => fn());
+};
+
+const subscribe = (fn) => {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+};
+
+const getSnapshot = () => items;
+
+const clearTimer = (id) => {
+  clearTimeout(timers.get(id));
+  timers.delete(id);
+};
+
+// ---------------------------------------------------------
+// Basic API (unchanged: existing code keeps working)
+// ---------------------------------------------------------
 
 export const markDeleting = (id, label = "") => {
-  pending.set(id, label);
-  emit();
+  clearTimer(id);
+  setItems([
+    ...items.filter((item) => item.id !== id),
+    { id, label, status: "deleting", message: "" },
+  ]);
 };
 
+// Removes the item completely (no "done" toast).
 export const unmarkDeleting = (id) => {
-  pending.delete(id);
-  emit();
+  clearTimer(id);
+  setItems(items.filter((item) => item.id !== id));
 };
 
-function usePendingMap() {
-  const [map, setMap] = useState(() => new Map(pending));
+// ---------------------------------------------------------
+// New: finish with a visible result
+// ---------------------------------------------------------
 
-  useEffect(() => {
-    listeners.add(setMap);
-    // catch up if a delete started while this component was unmounted
-    setMap(new Map(pending));
+export const finishDeleting = (id, { ok = true, message = "" } = {}) => {
+  if (!items.some((item) => item.id === id)) return;
 
-    return () => {
-      listeners.delete(setMap);
-    };
-  }, []);
+  clearTimer(id);
 
-  return map;
-}
-
-// Set of ids being deleted (used by the row exit animation)
-export function usePendingDeletes() {
-  const map = usePendingMap();
-  return useMemo(() => new Set(map.keys()), [map]);
-}
-
-// [{ id, label }] (used by the "Deleting..." toast)
-export function usePendingDeleteItems() {
-  const map = usePendingMap();
-  return useMemo(
-    () => Array.from(map, ([id, label]) => ({ id, label })),
-    [map]
+  setItems(
+    items.map((item) =>
+      item.id === id
+        ? { ...item, status: ok ? "done" : "error", message }
+        : item
+    )
   );
+
+  timers.set(
+    id,
+    setTimeout(() => unmarkDeleting(id), ok ? DONE_VISIBLE_MS : ERROR_VISIBLE_MS)
+  );
+};
+
+// ---------------------------------------------------------
+   //   RUNDELETE
+// ---------------------------------------------------------
+
+export async function runDelete({ id, label = "", task, onDone, minMs = 1000 }) {
+  markDeleting(id, label);
+
+  const minWait = new Promise((resolve) => setTimeout(resolve, minMs));
+
+  try {
+    await task();
+    await minWait;
+    await onDone?.();
+    finishDeleting(id, { ok: true });
+    return true;
+  } catch (err) {
+    console.error("Delete failed:", err?.message || err);
+    finishDeleting(id, { ok: false, message: err?.message || "" });
+    return false;
+  }
+}
+
+// ---------------------------------------------------------
+// Hooks
+// ---------------------------------------------------------
+
+
+export function usePendingDeletes() {
+  const all = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  return useMemo(
+    () =>
+      new Set(
+        all.filter((item) => item.status === "deleting").map((item) => item.id)
+      ),
+    [all]
+  );
+}
+
+// Every toast item, including "done" / "error" (used by DeleteToast).
+export function usePendingDeleteItems() {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

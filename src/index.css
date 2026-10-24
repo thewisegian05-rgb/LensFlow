@@ -193,3 +193,80 @@ html:not(.dark) .category-select {
     box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
   }
 }
+
+/* UNIVERSAL CUSTOM SCROLLBAR */
+
+/* Firefox */
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+  scrollbar-gutter: stable;
+}
+
+.dark .custom-scrollbar {
+  scrollbar-color: #30425f #111b2e;
+}
+
+/* Chrome, Edge, Opera */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+  border: 2px solid #f8fafc;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #111b2e;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #30425f;
+  border-color: #111b2e;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #08a9e8;
+}
+
+/* Client Portal page scrollbar */
+html,
+body {
+  scrollbar-width: thin;
+  scrollbar-color: #30425f #111b2e;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 8px;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: #111b2e;
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  background: #30425f;
+  border: 2px solid #111b2e;
+  border-radius: 10px;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
+  background: #08a9e8;
+}

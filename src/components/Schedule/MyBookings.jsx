@@ -89,7 +89,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   }
 
   return (
-    <div className="space-y-2">
+    <div className="custom-scrollbar max-h-[420px] space-y-2 overflow-y-auto pr-2">
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {rows.map((r) => {

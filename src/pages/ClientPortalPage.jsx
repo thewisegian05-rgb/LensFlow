@@ -543,7 +543,7 @@ function ClientPortalPage() {
   }
   const noConnections = !connLoading && connections.length === 0;
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-[#070D1D] text-slate-100">
+    <div className="custom-scrollbar min-h-screen w-full overflow-x-hidden bg-[#070D1D] text-slate-100">
       <div className="mx-auto w-full max-w-[1600px]">
       <div className="min-h-screen lg:flex">
         <aside className="border-b border-slate-800 bg-[#0B1120] lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:h-screen lg:w-64 lg:flex-col lg:border-b-0 lg:border-r lg:border-slate-800 lg:bg-slate-900/90 lg:backdrop-blur-lg">

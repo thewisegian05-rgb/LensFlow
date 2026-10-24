@@ -38,7 +38,7 @@ function Login() {
   const [sendingReset, setSendingReset] = useState(false);
 
   // Validate the fields before opening the role-selection modal.
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     setError("");
@@ -49,9 +49,7 @@ function Login() {
 
     if (!normalizedEmail) {
       errors.email = "Please enter your email address.";
-    } else if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
-    ) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       errors.email = "Please enter a valid email address.";
     }
 
@@ -64,29 +62,16 @@ function Login() {
       return;
     }
 
-    setSelectedRole("");
-    setShowRoleModal(true);
-  };
-
-  // Authenticate and verify that the selected role matches the account.
-  const handleRoleLogin = async () => {
-    if (!selectedRole) {
-      setError("Please choose Photographer or Customer to continue.");
-      return;
-    }
-
-    setError("");
     setLoading(true);
 
     try {
       const { data, error: signInError } =
         await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: normalizedEmail,
           password,
         });
 
       if (signInError) {
-        setShowRoleModal(false);
         setError(
           signInError.message === "Invalid login credentials"
             ? "Incorrect email or password. Please try again."
@@ -97,42 +82,58 @@ function Login() {
 
       const accountType = data.user?.user_metadata?.account_type;
 
-      // Reject accounts whose registered type doesn't match the selection.
-      if (accountType !== selectedRole) {
-        await supabase.auth.signOut();
-
-        setShowRoleModal(false);
-
-        if (!accountType) {
-          setError(
-            "This account has no account type assigned. Please contact the administrator."
-          );
-        } else {
-          const registeredRole =
-            accountType === "customer" ? "Customer" : "Photographer";
-
-          setError(
-            `This account is registered as a ${registeredRole}. Please select the correct login type.`
-          );
-        }
-
+      // Single-role accounts go directly to their dashboard.
+      if (accountType === "photographer") {
+        navigate("/dashboard");
         return;
       }
 
-      setShowRoleModal(false);
+      if (accountType === "customer") {
+        navigate("/customer");
+        return;
+      }
 
-      navigate(
-        accountType === "photographer"
-          ? "/dashboard"
-          : "/customer"
+      // Dual-role accounts choose which side to enter.
+      if (accountType === "both") {
+        setSelectedRole("");
+        setShowRoleModal(true);
+        return;
+      }
+
+      // Reject accounts with missing or unsupported account types.
+      await supabase.auth.signOut();
+
+      setError(
+        "This account has an invalid account type. Please contact the administrator."
       );
     } catch (err) {
       console.error("Login failed:", err);
-      setShowRoleModal(false);
       setError("Something went wrong while signing in. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  // Authenticate and verify that the selected role matches the account.
+  const handleRoleLogin = () => {
+    if (!selectedRole) {
+      setError("Please choose Photographer or Customer to continue.");
+      return;
+    }
+
+    if (selectedRole === "photographer") {
+      setShowRoleModal(false);
+      navigate("/dashboard");
+      return;
+    }
+
+    if (selectedRole === "customer") {
+      setShowRoleModal(false);
+      navigate("/customer");
+      return;
+    }
+
+    setError("Please select a valid account type.");
   };
 
   // Forgot-password flow.

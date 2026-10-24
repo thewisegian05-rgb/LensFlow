@@ -78,7 +78,7 @@ const getSignUpErrorField = (error) => {
 const validateSignUpForm = (form, passwordIsValid) => {
   const errors = {};
 
-  if (!["photographer", "customer"].includes(form.accountType)) {
+  if (!["photographer", "customer", "both"].includes(form.accountType)) {
     errors.accountType = "Please select a valid account type.";
   }
 
@@ -205,7 +205,7 @@ function SignUpPage() {
               full_name: form.fullName.trim(),
               // Studio name is optional for photographers.
               studio_name:
-                form.accountType === "photographer"
+                form.accountType !== "customer"
                   ? form.studioName.trim()
                   : "",
             },
@@ -324,6 +324,7 @@ function SignUpPage() {
                         Photographer
                       </option>
                       <option value="customer">Customer</option>
+                      <option value="both">Both (Photographer & Customer)</option>
                     </select>
                   </div>
 
@@ -384,7 +385,7 @@ function SignUpPage() {
                 </div>
 
                 {/* Studio name */}
-                {form.accountType === "photographer" && (
+                {form.accountType !== "customer" && (
                   <div className="input-group">
                     <label htmlFor="studioName">
                       Studio / Business Name (optional)

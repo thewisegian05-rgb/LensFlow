@@ -120,6 +120,14 @@ function Reveal({ delay = 0, className = "", children }) {
   );
 }
 
+function getGreeting() {
+  const hour = new Date().getHours();
+
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 function Dashboard() {
   const [stats, setStats] = useState({
     clientsToday: 0,
@@ -257,8 +265,19 @@ function Dashboard() {
 
       {/* Header (same pattern as the Schedule page) */}
       <div className="mb-5">
-        <h2 className="text-3xl font-bold text-white">Dashboard</h2>
-        <p className="mt-1 min-h-[1.5rem] text-slate-300">
+        <h2 className="text-3xl font-bold text-white">
+          Dashboard
+        </h2>
+
+        <p className="mt-2 text-lg font-medium text-sky-400">
+          {getGreeting()}!
+        </p>
+
+        <p className="mt-1 text-sm text-slate-400">
+          Welcome back to LensFlow Studio. Here's your overview for today.
+        </p>
+
+        <p className="mt-2 min-h-[1.5rem] text-slate-300">
           {dateLine}
           {!loadingStats && (
             <span className="dash-fade">
@@ -271,6 +290,7 @@ function Dashboard() {
           )}
         </p>
       </div>
+
 
       {/* New client booking requests */}
       <BookingRequests />

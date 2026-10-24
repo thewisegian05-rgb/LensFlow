@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaStar,
   FaRegStar,
@@ -7,9 +8,16 @@ import {
   FaTimes,
   FaChevronLeft,
   FaChevronRight,
-  FaCamera,
+  FaCameraRetro,
   FaPlus,
   FaRegImages,
+  FaHome,
+  FaCalendarAlt,
+  FaUser,
+  FaRegImage,
+  FaHeart,
+  FaFileAlt,
+  FaSignOutAlt,
 } from "react-icons/fa";
 
 import Calendar from "../components/Schedule/Calendar";
@@ -19,23 +27,17 @@ import { supabase } from "../lib/supabaseClient";
 
 const PORTFOLIO_BUCKET = "portfolio";
 
-
 async function getFeaturedPhotoSignedUrl(storagePath) {
   if (!storagePath) return null;
-
   const { data, error } = await supabase.storage
     .from("photos")
     .createSignedUrl(storagePath, 60 * 60);
-
   if (error) {
     console.error("Failed to load featured photo:", error.message);
     return null;
   }
-
   return data.signedUrl;
 }
-
-
 const publicUrl = (path) => {
   if (!path) return null;
   if (/^https?:\/\//i.test(path)) return path;
@@ -64,7 +66,6 @@ function Avatar({ path, name, className = "h-20 w-20" }) {
     .map((w) => w[0])
     .join("")
     .toUpperCase();
-
   return url ? (
     <img src={url} alt={name} className={`${className} rounded-2xl object-cover`} />
   ) : (
@@ -76,9 +77,9 @@ function Avatar({ path, name, className = "h-20 w-20" }) {
   );
 }
 
-function Section({ title, dot, right, children }) {
+function Section({ title, dot, right, children, id }) {
   return (
-    <section className="min-w-0 rounded-xl border border-slate-700 bg-slate-900 p-3 sm:p-4">
+    <section id={id} className="min-w-0 scroll-mt-6 rounded-xl border border-slate-700 bg-[#10192C] p-3 shadow-sm shadow-black/10 sm:p-4">
       <header className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
           <span className={`h-2 w-2 rounded-full ${dot}`} />
@@ -92,6 +93,7 @@ function Section({ title, dot, right, children }) {
 }
 
 /* ============ Sign in (clients use their own account) ============ */
+
 function ClientAuth() {
   const [mode, setMode] = useState("signin");
   const [email, setEmail] = useState("");
@@ -105,12 +107,10 @@ function ClientAuth() {
     setError("");
     setInfo("");
     setLoading(true);
-
     const { error } =
       mode === "signin"
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password });
-
     setLoading(false);
     if (error) {
       setError(error.message);
@@ -120,9 +120,8 @@ function ClientAuth() {
       setInfo("Check your email to confirm your account, then sign in.");
     }
   }
-
   return (
-    <main className="flex min-h-[100dvh] w-full items-center justify-center overflow-x-hidden bg-slate-950 px-4 py-6 text-slate-100 sm:px-6 sm:py-10">
+    <main className="flex min-h-[100dvh] w-full items-center justify-center overflow-x-hidden bg-[#070D1D] px-4 py-6 text-slate-100 sm:px-6 sm:py-10">
       <section className="my-auto w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900/95 p-5 shadow-2xl shadow-black/30 sm:p-7">
       <h2 className="mb-1 text-lg font-semibold text-white sm:text-xl">
         {mode === "signin" ? "Client sign in" : "Create a client account"}
@@ -174,16 +173,16 @@ function ClientAuth() {
 }
 
 /* ============ Enter-a-code card ============ */
+
 function CodeForm({ onConnect, connecting, error, onCancel }) {
   const [code, setCode] = useState("");
-
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         onConnect(code, () => setCode(""));
       }}
-      className="mx-auto w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-xl sm:p-6"
+      className="mx-auto w-full max-w-md rounded-2xl border border-slate-700 bg-[#10192C] p-4 shadow-xl shadow-black/20 sm:p-6"
     >
       <div className="mb-1 flex items-center gap-2">
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400">
@@ -194,7 +193,6 @@ function CodeForm({ onConnect, connecting, error, onCancel }) {
       <p className="mb-4 text-xs text-slate-500">
         Enter the unique code your photographer shared with you.
       </p>
-
       <input
         autoFocus
         value={code}
@@ -204,7 +202,6 @@ function CodeForm({ onConnect, connecting, error, onCancel }) {
         className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-3 text-center font-mono text-lg tracking-[0.25em] text-white placeholder:tracking-normal placeholder:text-slate-600 focus:border-sky-500 focus:outline-none"
       />
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
-
       <div className="mt-4 flex justify-end gap-2">
         {onCancel && (
           <button
@@ -228,11 +225,11 @@ function CodeForm({ onConnect, connecting, error, onCancel }) {
 }
 
 /* ============ Review form ============ */
+
 function ReviewForm({ existing, onSubmit, saving, error }) {
   const [rating, setRating] = useState(existing?.rating || 0);
   const [comment, setComment] = useState(existing?.comment || "");
   const [hover, setHover] = useState(0);
-
   return (
     <form
       onSubmit={(e) => {
@@ -244,7 +241,6 @@ function ReviewForm({ existing, onSubmit, saving, error }) {
       <p className="mb-2 text-xs font-semibold text-slate-300">
         {existing ? "Update your rating" : "Rate this photographer"}
       </p>
-
       <div className="mb-2 flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
@@ -260,7 +256,6 @@ function ReviewForm({ existing, onSubmit, saving, error }) {
           </button>
         ))}
       </div>
-
       <textarea
         value={comment}
         onChange={(e) => setComment(e.target.value)}
@@ -270,7 +265,6 @@ function ReviewForm({ existing, onSubmit, saving, error }) {
         className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
       />
       {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
-
       <div className="mt-2 flex justify-end">
         <button
           type="submit"
@@ -285,28 +279,41 @@ function ReviewForm({ existing, onSubmit, saving, error }) {
 }
 
 /* ============ Page ============ */
+
 function ClientPortalPage() {
+  const navigate = useNavigate();
+  const [activeNav, setActiveNav] = useState(window.location.hash || "#home");
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-
   const [connections, setConnections] = useState([]);
   const [connLoading, setConnLoading] = useState(false);
   const [activeId, setActiveId] = useState(null);
-
   const [portal, setPortal] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState("");
-
   const [showCodeForm, setShowCodeForm] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [codeError, setCodeError] = useState("");
-
   const [reviewSaving, setReviewSaving] = useState(false);
   const [reviewError, setReviewError] = useState("");
-
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [bookingDate, setBookingDate] = useState(null);
   const [bookingsKey, setBookingsKey] = useState(0);
+
+  useEffect(() => {
+    const syncHash = () => setActiveNav(window.location.hash || "#home");
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, []);
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Sign out failed:", error.message);
+      return;
+    }
+    navigate("/", { replace: true });
+  };
 
   /* ---- auth ---- */
   useEffect(() => {
@@ -314,37 +321,30 @@ function ClientPortalPage() {
       setUser(data.user ?? null);
       setAuthLoading(false);
     });
-
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
-
     return () => listener.subscription.unsubscribe();
   }, []);
 
   /* ---- connections ---- */
   const loadConnections = useCallback(async (preferredId = null) => {
     setConnLoading(true);
-
     try {
       const { data, error } = await supabase.rpc("my_connections");
-
       if (error) {
         console.error("Failed to load connections:", error.message);
         setPortalError(error.message);
         return [];
       }
-
       const rows = Array.isArray(data) ? data : [];
       setConnections(rows);
-
       const selectedId =
         preferredId && rows.some((row) => row.photographer_id === preferredId)
           ? preferredId
           : rows.some((row) => row.photographer_id === activeId)
           ? activeId
           : rows[0]?.photographer_id || null;
-
       setActiveId(selectedId);
       if (rows.length > 0) setShowCodeForm(false);
       return rows;
@@ -356,10 +356,8 @@ function ClientPortalPage() {
       setConnLoading(false);
     }
   }, [activeId]);
-
   useEffect(() => {
     if (authLoading) return;
-
     if (user) {
       loadConnections();
     } else {
@@ -379,25 +377,20 @@ function ClientPortalPage() {
       setPortalError("No photographer selected. Please reconnect using the photographer code.");
       return;
     }
-
     setPortalLoading(true);
     setPortalError("");
-
     try {
       const { data, error } = await supabase.rpc("get_portal", {
         p_photographer_id: photographerId,
       });
-
       if (error) throw error;
       if (!data) throw new Error("The photographer portal returned no data.");
-
       const featuredPhotos = await Promise.all(
         (data?.featured_photos || []).map(async (photo) => ({
           ...photo,
           photo_url: await getFeaturedPhotoSignedUrl(photo.storage_path),
         }))
       );
-
       setPortal({
         ...data,
         featured_photos: featuredPhotos,
@@ -410,7 +403,6 @@ function ClientPortalPage() {
       setPortalLoading(false);
     }
   }, []);
-
   useEffect(() => {
     setLightboxIndex(null);
     setBookingDate(null);
@@ -423,28 +415,24 @@ function ClientPortalPage() {
     setConnecting(true);
     setCodeError("");
     setPortalError("");
-
     try {
       const { data, error } = await supabase.rpc("connect_with_code", {
         p_code: code.trim().toUpperCase(),
       });
-
       if (error) throw error;
 
       // connect_with_code returns an object such as
+
       // { success: true, photographer_id: "..." }, not a UUID directly.
       const photographerId = data?.photographer_id;
       if (!photographerId || typeof photographerId !== "string") {
         throw new Error("The connection response did not include a valid photographer ID.");
       }
-
       const rows = await loadConnections(photographerId);
       const connected = rows.some((row) => row.photographer_id === photographerId);
-
       if (!connected) {
         throw new Error("The code was accepted, but the saved connection could not be found. Refresh and try again.");
       }
-
       reset?.();
       setShowCodeForm(false);
       setActiveId(photographerId);
@@ -461,20 +449,16 @@ function ClientPortalPage() {
   const handleReview = async (rating, comment) => {
     setReviewSaving(true);
     setReviewError("");
-
     const { error } = await supabase.rpc("submit_review", {
       p_photographer_id: activeId,
       p_rating: rating,
       p_comment: comment,
     });
-
     setReviewSaving(false);
-
     if (error) {
       setReviewError(error.message);
       return;
     }
-
     await loadPortal(activeId);
   };
 
@@ -507,10 +491,11 @@ function ClientPortalPage() {
   );
 
   // get_portal currently returns the photographer fields at the top level
+
   // (username, bio, avatar_path, featured_photos), rather than nested under
+
   // portal.profile / portal.featured. Support both shapes during transition.
   const profile = portal?.profile || portal?.photographer || portal || null;
-
   const rawFeatured = portal?.featured || portal?.featured_photos || [];
   const featured = Array.isArray(rawFeatured)
     ? rawFeatured.map((photo, index) => ({
@@ -521,7 +506,6 @@ function ClientPortalPage() {
         caption: photo.caption || photo.title || photo.photo_name || "",
       })).filter((photo) => Boolean(photo.image_path))
     : [];
-
   const reviews = Array.isArray(portal?.reviews) ? portal.reviews : [];
   const myReview = reviews.find((r) => r.mine) || null;
 
@@ -536,7 +520,6 @@ function ClientPortalPage() {
       else if (e.key === "ArrowLeft")
         setLightboxIndex((i) => (i - 1 + featured.length) % featured.length);
     }
-
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxIndex, featured.length]);
@@ -555,65 +538,102 @@ function ClientPortalPage() {
   if (authLoading) {
     return <div className="min-h-[50vh] px-4 py-16 text-center text-sm text-slate-500">Loading...</div>;
   }
-
   if (!user) {
     return <ClientAuth />;
   }
-
   const noConnections = !connLoading && connections.length === 0;
-
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-slate-950 px-3 py-4 text-slate-100 sm:px-5 sm:py-6 lg:px-8 lg:py-8">
-      <div className="mx-auto w-full max-w-7xl">
-      {/* Header */}
-      <div className="mb-5 flex min-w-0 flex-col items-start justify-between gap-4 sm:mb-6 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-xl font-semibold text-white sm:text-2xl">Client Portal</h2>
-          <p className="mt-1 max-w-prose text-sm leading-relaxed text-slate-400">
-            View your photographer's availability, work and ratings.
-          </p>
-        </div>
-
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-          {connections.length > 1 &&
-            connections.map((c) => (
-              <button
-                key={c.photographer_id}
-                type="button"
-                onClick={() => setActiveId(c.photographer_id)}
-                className={`max-w-full truncate rounded-lg px-3 py-2 text-xs font-medium transition ${
-                  activeId === c.photographer_id
-                    ? "bg-sky-500 text-slate-950"
-                    : "bg-slate-800 text-slate-400 hover:text-white"
-                }`}
-              >
-                {c.display_name}
-              </button>
-            ))}
-
-          {!noConnections && (
-            <button
-              type="button"
-              onClick={() => {
-                setCodeError("");
-                setShowCodeForm(true);
-              }}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-sky-400 transition hover:bg-slate-800"
-            >
-              <FaPlus className="text-[10px]" /> Add code
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#070D1D] text-slate-100">
+      <div className="mx-auto w-full max-w-[1600px]">
+      <div className="min-h-screen lg:flex">
+        <aside className="border-b border-slate-800 bg-[#0B1120] lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:h-screen lg:w-64 lg:flex-col lg:border-b-0 lg:border-r lg:border-slate-800 lg:bg-slate-900/90 lg:backdrop-blur-lg">
+          <div className="flex items-center gap-3 border-b border-slate-800 px-5 py-6">
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white">
+              <FaCameraRetro className="text-sky-500" />
+            </h1>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-white">LensFlow</h1>
+              <p className="text-xs text-slate-400">Client Portal</p>
+            </div>
+          </div>
+          <nav className="flex gap-1 overflow-x-auto lg:flex-col lg:gap-2 py-4" aria-label="Client portal navigation">
+            {[
+              { label: "Home", href: "#home", icon: FaHome },
+              { label: "Portfolio", href: "#featured-photos", icon: FaRegImage },
+              { label: "Schedule", href: "#schedule", icon: FaCalendarAlt },
+              { label: "My Bookings", href: "#my-bookings", icon: FaFileAlt },
+              { label: "Reviews", href: "#reviews", icon: FaHeart },
+            ].map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <a key={item.href} href={item.href} onClick={() => setActiveNav(item.href)}
+                  className={`flex shrink-0 items-center gap-3 border-l-4 px-4 py-3 text-sm font-medium transition-all ${
+                    activeNav === item.href || (item.href === "#home" && activeNav === "")
+                      ? "border-sky-500 bg-sky-500/10 text-sky-400"
+                      : "border-transparent text-slate-400 hover:bg-slate-800 hover:text-white"
+                  }`}>
+                  <Icon className="text-base" />
+                  {item.label}
+                </a>
+              );
+            })}
+          </nav>
+          <div className="mt-auto hidden border-t border-slate-800 lg:block">
+            <a href="#photographer"
+              className="flex items-center gap-3 border-l-4 border-transparent px-6 py-3 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white">
+              <FaUser /> Photographer
+            </a>
+            <button type="button" onClick={handleSignOut}
+              className="flex w-full items-center gap-3 border-l-4 border-transparent px-6 py-3 text-left text-sm text-rose-400 transition hover:bg-slate-800 hover:text-rose-300">
+              <FaSignOutAlt /> Sign Out
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => supabase.auth.signOut()}
-            className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 transition hover:text-white"
-          >
-            Sign out
-          </button>
-        </div>
-      </div>
-
+          </div>
+        </aside>
+        <div className="min-w-0 flex-1 lg:ml-[248px]">
+          <header className="flex min-h-[64px] flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0B1120]/95 px-4 py-3 sm:px-6 lg:px-8">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-sky-400">LensFlow / Client Space</p>
+              <p className="mt-1 text-sm text-slate-300">Your photographer, your moments.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {connections.length > 1 && connections.map((c) => (
+                <button key={c.photographer_id} type="button" onClick={() => setActiveId(c.photographer_id)}
+                  className={`max-w-[180px] truncate rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                    activeId === c.photographer_id
+                      ? "border-sky-400 bg-sky-500/10 text-sky-300"
+                      : "border-slate-700 bg-[#10192C] text-slate-400 hover:border-slate-600 hover:text-white"
+                  }`}>
+                  {c.display_name}
+                </button>
+              ))}
+              {!noConnections && (
+                <button type="button" onClick={() => { setCodeError(""); setShowCodeForm(true); }}
+                  className="flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400">
+                  <FaKey /> Enter Connection Code
+                </button>
+              )}
+              <button type="button" onClick={handleSignOut}
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-white lg:hidden">
+                <FaSignOutAlt /> Sign out
+              </button>
+            </div>
+          </header>
+      <main id="home" className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+        <div className="mx-auto w-full max-w-[1500px]">
+          <section className="relative mb-4 min-h-[220px] overflow-hidden rounded-2xl border border-slate-700 bg-[#10192C] sm:min-h-[260px]">
+            <div className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: "linear-gradient(90deg, rgba(5,12,24,.94) 0%, rgba(5,12,24,.72) 46%, rgba(5,12,24,.10) 100%), url('https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1800&q=85')" }}
+              aria-hidden="true" />
+            <div className="relative flex min-h-[220px] max-w-3xl flex-col justify-center px-6 py-8 sm:min-h-[260px] sm:px-10">
+              <p className="mb-3 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-300 sm:text-xs">
+                <span className="h-0.5 w-8 bg-sky-400" /> Welcome to LensFlow
+              </p>
+              <h2 className="max-w-2xl text-3xl font-extrabold leading-[1.08] tracking-tight text-white sm:text-4xl lg:text-5xl">
+                Capturing<br />Your <span className="text-sky-400">Special Moments</span>
+              </h2>
+              <p className="mt-4 text-sm text-slate-200 sm:text-base">Authentic photos for real stories.</p>
+            </div>
+          </section>
       {connLoading && connections.length === 0 ? (
         <p className="py-16 text-center text-sm text-slate-500">Loading...</p>
       ) : noConnections || showCodeForm ? (
@@ -634,14 +654,13 @@ function ClientPortalPage() {
       ) : portal && profile ? (
           <div className="min-w-0 space-y-4 sm:space-y-5">
             {/* Profile + rating */}
-            <section className="min-w-0 rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+            <section id="photographer" className="min-w-0 scroll-mt-6 rounded-2xl border border-slate-700/80 bg-gradient-to-r from-[#102338] to-[#0B1628] p-4 shadow-sm shadow-black/10 sm:p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 <Avatar
                   path={profile.avatar_path}
                   name={profile.display_name || profile.username || profile.name || "Photographer"}
-                  className="h-24 w-24 flex-shrink-0"
+                  className="h-20 w-20 flex-shrink-0 rounded-full border-2 border-sky-400 p-0.5"
                 />
-
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                     <h3 className="text-xl font-bold text-white">{profile.display_name || profile.username || profile.name || "Photographer"}</h3>
@@ -657,23 +676,19 @@ function ClientPortalPage() {
                       )}
                     </span>
                   </div>
-
                   {(profile.tagline || profile.bio_title) && (
                     <p className="mt-1 text-sm text-sky-300">{profile.tagline || profile.bio_title}</p>
                   )}
-
                   {profile.location && (
                     <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
                       <FaMapMarkerAlt className="text-slate-500" /> {profile.location}
                     </p>
                   )}
-
                   {profile.bio && (
                     <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-300">
                       {profile.bio}
                     </p>
                   )}
-
                   {profile.specialties?.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {profile.specialties.map((s) => (
@@ -689,10 +704,11 @@ function ClientPortalPage() {
                 </div>
               </div>
             </section>
-
+            <div className="grid min-w-0 gap-4 xl:grid-cols-[1.35fr_1fr]">
             {/* Featured photos */}
             <Section
-              title="Featured Photos"
+              id="featured-photos"
+              title="Featured Works"
               dot="bg-amber-400"
               right={
                 <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300">
@@ -731,32 +747,94 @@ function ClientPortalPage() {
                 </div>
               )}
             </Section>
+            
+            {/* Home booking shortcut */}
+            <section className="group flex min-h-[190px] items-center justify-between gap-4 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-[#10263D] via-[#0D1D30] to-[#0B1628] p-5 transition duration-300 hover:border-sky-400/40 sm:p-6">
+              <div className="min-w-0">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="h-1 w-7 rounded-full bg-sky-400" />
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-300">
+                    Plan your next session
+                  </span>
+                </div>
 
-            {/* Calendar */}
-            <Section title="Availability" dot="bg-sky-400">
-              <p className="mb-3 text-xs text-slate-500">
-                Click an open date to send a booking request. Days with a booking are already taken. Details of other clients' events are kept private.
-              </p>
-              <div className="min-w-0 max-w-full overflow-x-auto rounded-lg">
-                <Calendar
-                  events={calendarEvents}
-                  onSelectSlot={handleSelectSlot}
-                  onEventClick={() => {}}
-                />
+                <h3 className="text-lg font-semibold text-white">
+                  Book a Schedule
+                </h3>
+
+                <p className="mt-2 max-w-[230px] text-sm leading-relaxed text-slate-400">
+                  Check availability and plan your session.
+                </p>
+
+                <a
+                  href="#schedule"
+                  className="mt-4 inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0B1628]"
+                >
+                  View Calendar
+                  <FaChevronRight className="text-[10px] transition-transform group-hover:translate-x-0.5" />
+                </a>
+              </div>
+
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-sky-400/15 bg-sky-400/10 text-3xl text-sky-400 transition group-hover:bg-sky-400/15 sm:h-24 sm:w-24">
+                <FaCalendarAlt />
+              </div>
+            </section>
+
+            </div>
+            {/* About photographer */}
+            <Section title="About the Photographer" dot="bg-sky-400">
+              <div className="grid gap-5 md:grid-cols-[1.2fr_1fr] md:items-center">
+                <div>
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-slate-300">
+                    {profile.bio || profile.tagline || "Discover the photographer's style, specialties, and approach to capturing your moments."}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {(profile.specialties?.length ? profile.specialties.slice(0, 4) : ["Events", "Portraits", "Weddings", "Lifestyle"]).map((specialty, index) => {
+                    const icons = [FaCalendarAlt, FaUser, FaHeart, FaCameraRetro];
+                    const Icon = icons[index % icons.length];
+                    return (
+                      <div key={specialty} className="flex flex-col items-center rounded-xl border border-slate-800 bg-[#0B1628] px-2 py-3 text-center">
+                        <span className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-lg text-sky-400">
+                          <Icon />
+                        </span>
+                        <span className="text-xs font-semibold text-white">{specialty}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </Section>
-
+            {/* Full photographer schedule */}
+            <section id="schedule" className="scroll-mt-6">
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-400">Availability</p>
+                <h2 className="mt-1 text-2xl font-bold text-white">Schedule</h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  View the photographer's availability. Select an available date to start a booking request. Other clients' event details remain private.
+                </p>
+              </div>
+              <Section id="availability" title="Photographer Calendar" dot="bg-sky-400">
+                <div className="min-w-0 max-w-full overflow-x-auto rounded-lg">
+                  <Calendar
+                    events={calendarEvents}
+                    onSelectSlot={handleSelectSlot}
+                    onEventClick={() => {}}
+                  />
+                </div>
+              </Section>
+            </section>
             {/* My bookings */}
-            <Section title="My Bookings" dot="bg-violet-400">
+            <Section id="my-bookings" title="My Bookings" dot="bg-violet-400">
               <MyBookings
                 photographerId={activeId}
                 refreshKey={bookingsKey}
                 onChanged={() => loadPortal(activeId)}
               />
             </Section>
-
             {/* Ratings */}
             <Section
+              id="reviews"
               title="Ratings & Reviews"
               dot="bg-emerald-400"
               right={
@@ -773,7 +851,6 @@ function ClientPortalPage() {
                   saving={reviewSaving}
                   error={reviewError}
                 />
-
                 {reviews.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">
                     No reviews yet.
@@ -818,7 +895,8 @@ function ClientPortalPage() {
           <p className="mt-1 text-xs text-slate-500">The connection is active, but the portal did not return a profile to display.</p>
         </div>
       )}
-
+          </div>
+        </main>
       {/* Booking popup */}
       <BookingModal
         open={!!bookingDate}
@@ -828,7 +906,6 @@ function ClientPortalPage() {
         onClose={() => setBookingDate(null)}
         onChanged={() => setBookingsKey((k) => k + 1)}
       />
-
       {/* Lightbox */}
       {lightboxIndex !== null && featured[lightboxIndex] && (
         <div
@@ -840,7 +917,7 @@ function ClientPortalPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <span className="flex items-center gap-2 text-sm text-slate-300">
-              <FaCamera className="text-sky-400" />
+              <FaCameraRetro className="text-sky-500" />
               {lightboxIndex + 1} / {featured.length}
             </span>
             <button
@@ -852,7 +929,6 @@ function ClientPortalPage() {
               <FaTimes className="text-lg" />
             </button>
           </div>
-
           <div
             className="relative flex min-h-0 flex-1 items-center justify-center px-2 sm:px-4"
             onClick={(e) => e.stopPropagation()}
@@ -869,13 +945,11 @@ function ClientPortalPage() {
                 <FaChevronLeft />
               </button>
             )}
-
             <img
               src={publicUrl(featured[lightboxIndex].image_path)}
               alt={featured[lightboxIndex].caption || "Featured photo"}
               className="max-h-[72vh] max-h-[min(78vh,900px)] max-w-full rounded-lg object-contain shadow-2xl"
             />
-
             {featured.length > 1 && (
               <button
                 type="button"
@@ -887,13 +961,14 @@ function ClientPortalPage() {
               </button>
             )}
           </div>
-
           <p className="py-5 text-center text-sm text-slate-300">
             {featured[lightboxIndex].caption || ""}
           </p>
         </div>
       )}
       </div>
+      </div>
+    </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   memo,
   useSyncExternalStore,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   FaTimes,
   FaStar,
@@ -284,14 +285,14 @@ const PhotoTile = memo(function PhotoTile({
       )}
 
       {/* Top row: filename and Best Pick */}
-      <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 p-2">
+      <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2">
         <span className="max-w-[60%] truncate rounded-md bg-black/70 px-2 py-1 font-mono text-[9px] text-white shadow">
           {img.fileName}
         </span>
 
         {isBestPick && (
           <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/50 bg-amber-400 px-2 py-1 text-[9px] font-extrabold text-slate-950 shadow-lg"
+            className="absolute right-2 top-2 z-10 inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/50 bg-amber-400 px-2 py-1 text-[9px] font-extrabold text-slate-950 shadow-lg"
             title="Photographer-selected keeper"
           >
             <FaStar className="text-[9px]" />
@@ -300,16 +301,26 @@ const PhotoTile = memo(function PhotoTile({
         )}
       </div>
 
-      {/* Existing star / reject status indicators */}
+      {/* Star / Reject status indicators */}
       {state === "star" && (
-        <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-sky-400">
+        <span
+          className={`absolute right-2 z-10 rounded-full bg-black/70 p-1 text-sky-400 ${
+            isBestPick ? "top-10" : "top-2"
+          }`}
+          title={isBestPick ? "Starred — Best Pick" : "Starred"}
+        >
           <FaStar className="text-[10px]" />
         </span>
       )}
 
       {(state === "reject" || aiResult?.ai_decision === "REJECT") &&
         state !== "star" && (
-          <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-rose-400">
+          <span
+            className={`absolute right-2 z-10 rounded-full bg-black/70 p-1 text-rose-400 ${
+              isBestPick ? "top-10" : "top-2"
+            }`}
+            title="Rejected"
+          >
             <FaBan className="text-[10px]" />
           </span>
         )}
@@ -387,7 +398,6 @@ const PhotoTile = memo(function PhotoTile({
     </div>
   );
 });
-
 
 
 function VirtualizedPhotoGrid({
@@ -2801,86 +2811,107 @@ function CullingPage() {
                           </div>
                         </div>
 
-                        {showDetailInfo && (
-                          <div
-                            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-                            role="presentation"
-                            onClick={() => setShowDetailInfo(false)}
-                          >
-                            <section
-                              role="dialog"
-                              aria-modal="true"
-                              aria-labelledby="detail-info-title"
-                              className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
-                              onClick={(event) => event.stopPropagation()}
+                        {showDetailInfo &&
+                          createPortal(
+                            <div
+                              className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+                              role="presentation"
+                              onClick={() => setShowDetailInfo(false)}
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-xl text-sky-500">
-                                    <FaInfoCircle />
+                              <section
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby="detail-info-title"
+                                className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-xl text-sky-500">
+                                      <FaInfoCircle />
+                                    </div>
+                                    <h3 id="detail-info-title" className="text-lg font-bold text-slate-900 dark:text-white">
+                                      Understanding Photo Details
+                                    </h3>
+                                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                      A quick guide to LensFlow’s photo analysis and recommendation.
+                                    </p>
                                   </div>
-                                  <h3 id="detail-info-title" className="text-lg font-bold text-slate-900 dark:text-white">
-                                    Understanding Photo Details
-                                  </h3>
-                                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                    A quick guide to LensFlow’s photo analysis and recommendation.
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowDetailInfo(false)}
+                                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white"
+                                    aria-label="Close information"
+                                  >
+                                    <FaTimes />
+                                  </button>
+                                </div>
+
+                                <div className="mt-5 space-y-4 text-sm text-slate-600 dark:text-slate-300">
+                                  <div>
+                                    <h4 className="font-semibold text-slate-900 dark:text-white">What do the percentages mean?</h4>
+                                    <p className="mt-1">Higher scores generally indicate stronger results for that particular check. Use this scale as a quick guide, not a guarantee of photo quality:</p>
+                                    <div className="mt-3 space-y-2">
+                                <div className="flex items-start gap-3 rounded-lg bg-emerald-500/10 px-3 py-2">
+                                  <span className="w-20 shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">
+                                    80–100%
+                                  </span>
+                                  <span className="min-w-0 flex-1 leading-relaxed">
+                                    High — strong result for this check.
+                                  </span>
+                                </div>
+
+                                <div className="flex items-start gap-3 rounded-lg bg-sky-500/10 px-3 py-2">
+                                  <span className="w-20 shrink-0 font-semibold text-sky-700 dark:text-sky-400">
+                                    60–79%
+                                  </span>
+                                  <span className="min-w-0 flex-1 leading-relaxed">
+                                    Moderate — generally okay, but review the photo.
+                                  </span>
+                                </div>
+
+                                <div className="flex items-start gap-3 rounded-lg bg-amber-500/10 px-3 py-2">
+                                  <span className="w-20 shrink-0 font-semibold text-amber-700 dark:text-amber-400">
+                                    40–59%
+                                  </span>
+                                  <span className="min-w-0 flex-1 leading-relaxed">
+                                    Low — inspect for possible issues.
+                                  </span>
+                                </div>
+
+                                <div className="flex items-start gap-3 rounded-lg bg-rose-500/10 px-3 py-2">
+                                  <span className="w-20 shrink-0 font-semibold text-rose-700 dark:text-rose-400">
+                                    0–39%
+                                  </span>
+                                  <span className="min-w-0 flex-1 leading-relaxed">
+                                    Very low — this check may have found a concern.
+                                  </span>
+                                </div>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold text-slate-900 dark:text-white">What each score checks</h4>
+                                    <ul className="mt-1.5 space-y-1">
+                                      <li><strong>Overall Quality</strong> — combined quality estimate.</li>
+                                      <li><strong>Technical Quality</strong> — sharpness and image clarity.</li>
+                                      <li><strong>Face Quality</strong> — detected-face quality and possible facial blur.</li>
+                                      <li><strong>Eye Quality</strong> — eye-related checks, such as whether eyes appear closed.</li>
+                                      <li><strong>Aesthetic Quality</strong> — estimated visual appeal.</li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-semibold text-slate-900 dark:text-white">Recommendations and unavailable scores</h4>
+                                    <p className="mt-1"><strong className="text-emerald-600 dark:text-emerald-400">KEEP</strong> = likely a good candidate; <strong className="text-amber-600 dark:text-amber-400">REVIEW</strong> = check it yourself; <strong className="text-rose-600 dark:text-rose-400">REJECT</strong> = issues may make it unsuitable.</p>
+                                    <p className="mt-2">“No face detected” means no face was found for analysis. “Not applicable” means eye analysis does not apply. “Unable to determine” means an eye score could not be calculated. None of these means the score is 0%.</p>
+                                  </div>
+                                  <p className="rounded-xl bg-sky-500/10 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                    Scores are indicators, not guarantees. Always check the photo yourself before rejecting or deleting it.
                                   </p>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setShowDetailInfo(false)}
-                                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white"
-                                  aria-label="Close information"
-                                >
-                                  <FaTimes />
-                                </button>
-                              </div>
-
-                              <div className="mt-5 space-y-4 text-sm text-slate-600 dark:text-slate-300">
-                                <div>
-                                  <h4 className="font-semibold text-slate-900 dark:text-white">What do the percentages mean?</h4>
-                                  <p className="mt-1">Higher scores generally indicate stronger results for that particular check. Use this scale as a quick guide, not a guarantee of photo quality:</p>
-                                  <div className="mt-3 space-y-2">
-                                    <div className="flex items-center gap-3 rounded-lg bg-emerald-500/10 px-3 py-2">
-                                      <span className="w-20 flex-shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">80–100%</span>
-                                      <span>High — strong result for this check.</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-lg bg-sky-500/10 px-3 py-2">
-                                      <span className="w-20 flex-shrink-0 font-semibold text-sky-700 dark:text-sky-400">60–79%</span>
-                                      <span>Moderate — generally okay, but review the photo.</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-lg bg-amber-500/10 px-3 py-2">
-                                      <span className="w-20 flex-shrink-0 font-semibold text-amber-700 dark:text-amber-400">40–59%</span>
-                                      <span>Low — inspect for possible issues.</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-lg bg-rose-500/10 px-3 py-2">
-                                      <span className="w-20 flex-shrink-0 font-semibold text-rose-700 dark:text-rose-400">0–39%</span>
-                                      <span>Very low — this check may have found a concern.</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div>
-                                  <h4 className="font-semibold text-slate-900 dark:text-white">What each score checks</h4>
-                                  <ul className="mt-1.5 space-y-1">
-                                    <li><strong>Overall Quality</strong> — combined quality estimate.</li>
-                                    <li><strong>Technical Quality</strong> — sharpness and image clarity.</li>
-                                    <li><strong>Face Quality</strong> — detected-face quality and possible facial blur.</li>
-                                    <li><strong>Eye Quality</strong> — eye-related checks, such as whether eyes appear closed.</li>
-                                    <li><strong>Aesthetic Quality</strong> — estimated visual appeal.</li>
-                                  </ul>
-                                </div>
-                                <div>
-                                  <h4 className="font-semibold text-slate-900 dark:text-white">Recommendations and unavailable scores</h4>
-                                  <p className="mt-1"><strong className="text-emerald-600 dark:text-emerald-400">KEEP</strong> = likely a good candidate; <strong className="text-amber-600 dark:text-amber-400">REVIEW</strong> = check it yourself; <strong className="text-rose-600 dark:text-rose-400">REJECT</strong> = issues may make it unsuitable.</p>
-                                  <p className="mt-2">“No face detected” means no face was found for analysis. “Not applicable” means eye analysis does not apply. “Unable to determine” means an eye score could not be calculated. None of these means the score is 0%.</p>
-                                </div>
-                                <p className="rounded-xl bg-sky-500/10 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                                  Scores are indicators, not guarantees. Always check the photo yourself before rejecting or deleting it.
-                                </p>
-                              </div>
-                            </section>
-                          </div>
-                        )}
+                              </section>
+                            </div>,
+                            document.body
+                          )}
 
                         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
                           <div className="relative overflow-hidden rounded-xl bg-slate-950">

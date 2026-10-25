@@ -6,15 +6,19 @@ import {
   FaPhotoVideo,
   FaFolder,
   FaCoins,
+  FaCalendarCheck,
+  FaInbox,
 } from "react-icons/fa";
 
-import TodaySchedule from "./TodaySchedule";
+import UpcomingSchedule from "./UpcomingSchedule";
 import RecentProjects from "./RecentProjects";
 import WorkflowSummary from "./WorkflowSummary";
 import RevenueChart from "./RevenueChart";
 import BookingRequests from "../Schedule/BookingRequests";
 
 import { supabase } from "../../lib/supabaseClient";
+
+const peso = (n) => `₱${Math.round(Number(n) || 0).toLocaleString("en-PH")}`;
 
 function plural(count, word) {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
@@ -55,30 +59,31 @@ function useCountUp(target, ready, duration = 900) {
   return display;
 }
 
-/* -------------- Stat card ------------- */
-function StatCard({
+/* -------------- Stat cell (sits inside the Overview panel) ------------- */
+function StatCell({
   title,
   value, // number | null (null shows a dash)
   subtitle,
   icon,
   iconClass,
+  dot = "bg-slate-600",
   loading,
   index = 0,
   format = (n) => String(n),
 }) {
   const animated = useCountUp(value, !loading);
 
-  // Loading state: skeleton with the same size as the real card
+  // Loading state: skeleton with the same size as the real cell
   if (loading) {
     return (
-      <div className="rounded-xl border border-slate-700 bg-slate-900 p-5">
-        <div className="flex items-center justify-between gap-3">
+      <div className="bg-slate-900 p-5">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="h-4 w-24 animate-pulse rounded bg-slate-700/70" />
-            <div className="mt-3 h-8 w-20 animate-pulse rounded bg-slate-700/70" />
-            <div className="mt-3 h-3 w-32 animate-pulse rounded bg-slate-800" />
+            <div className="h-3 w-24 animate-pulse rounded bg-slate-500/20" />
+            <div className="mt-3 h-8 w-20 animate-pulse rounded bg-slate-500/20" />
+            <div className="mt-3 h-3 w-32 animate-pulse rounded bg-slate-500/15" />
           </div>
-          <div className="h-11 w-11 flex-shrink-0 animate-pulse rounded-lg bg-slate-700/70" />
+          <div className="h-9 w-9 flex-shrink-0 animate-pulse rounded-full bg-slate-500/20" />
         </div>
       </div>
     );
@@ -86,24 +91,42 @@ function StatCard({
 
   return (
     <div
-      className="dash-reveal rounded-xl border border-slate-700 bg-slate-900 p-5"
-      style={{ animationDelay: `${index * 70}ms` }}
+      className="group dash-reveal cursor-default bg-slate-900 p-5 transition-colors duration-300 hover:bg-slate-500/10"
+      style={{ animationDelay: `${index * 60}ms` }}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm text-slate-400">{title}</p>
-          <h3 className="mt-1 text-3xl font-bold tabular-nums text-white">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 origin-left transition-transform duration-300 ease-out group-hover:scale-[1.07]">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            {title}
+          </p>
+          <h3 className="mt-2 text-3xl font-bold tabular-nums text-white">
             {value === null ? "–" : format(animated)}
           </h3>
-          <p className="mt-1 truncate text-xs text-slate-500">{subtitle}</p>
+          <p className="mt-1.5 flex items-center gap-1.5 truncate text-xs text-slate-500">
+            <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dot}`} />
+            <span className="truncate">{subtitle}</span>
+          </p>
         </div>
 
         <div
-          className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-lg ${iconClass}`}
+          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm transition-transform duration-300 ease-out group-hover:scale-[1.15] ${iconClass}`}
         >
           {icon}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* Makes whatever is inside grow a little when the mouse is over it */
+function Grow({ wide = false, children }) {
+  return (
+    <div
+      className={`relative h-full transition-transform duration-300 ease-out hover:z-10 ${
+        wide ? "hover:scale-[1.01]" : "hover:scale-[1.025]"
+      }`}
+    >
+      {children}
     </div>
   );
 }
@@ -120,14 +143,6 @@ function Reveal({ delay = 0, className = "", children }) {
   );
 }
 
-function getGreeting() {
-  const hour = new Date().getHours();
-
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
 function Dashboard() {
   const [stats, setStats] = useState({
     clientsToday: 0,
@@ -135,6 +150,9 @@ function Dashboard() {
     editing: 0,
     totalFolders: 0,
     monthFees: null,
+    upcomingFees: null,
+    heldDownpayments: 0,
+    requests: null,
   });
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -202,8 +220,9 @@ function Dashboard() {
         return;
       }
 
-      // Fees booked this month: the sum of each event's talent fee.
-      // Not essential, so a failure here just shows a dash.
+      // Money. "Collected" is cash actually received this month (by payment date).
+      // "To collect" is what clients still owe. Not essential, so a failure
+      // here just shows a dash.
       const startOfMonth = new Date(
         startOfToday.getFullYear(),
         startOfToday.getMonth(),
@@ -216,20 +235,61 @@ function Dashboard() {
       );
 
       let monthFees = null;
+      let upcomingFees = null;
+      let heldDownpayments = 0;
 
-      const { data: feeRows, error: feeError } = await supabase
-        .from("schedule_events")
-        .select("talent_fee")
-        .gte("start_time", startOfMonth.toISOString())
-        .lt("start_time", startOfNextMonth.toISOString());
+      const { data: monthPayments, error: monthPayError } = await supabase
+        .from("event_payments")
+        .select("amount")
+        .gte("paid_at", startOfMonth.toISOString())
+        .lt("paid_at", startOfNextMonth.toISOString());
 
-      if (feeError) {
-        console.error("Failed to load monthly fees:", feeError.message);
+      if (monthPayError) {
+        console.error("Failed to load collected fees:", monthPayError.message);
       } else {
-        monthFees = feeRows.reduce(
-          (sum, row) => sum + (Number(row.talent_fee) || 0),
+        monthFees = monthPayments.reduce(
+          (sum, row) => sum + (Number(row.amount) || 0),
           0
         );
+      }
+
+      const { data: allEvents, error: allEventsError } = await supabase
+        .from("schedule_events")
+        .select("talent_fee, start_time, status, event_payments(amount)");
+
+      if (allEventsError) {
+        console.error("Failed to load balances:", allEventsError.message);
+      } else {
+        const nowMs = Date.now();
+        upcomingFees = 0;
+
+        allEvents.forEach((ev) => {
+          if (ev.status === "cancelled") return; // downpayment kept, nothing owed
+
+          const collected = (ev.event_payments || []).reduce(
+            (sum, p) => sum + (Number(p.amount) || 0),
+            0
+          );
+
+          upcomingFees += Math.max((Number(ev.talent_fee) || 0) - collected, 0);
+
+          // Money already received for shoots that have not happened yet.
+          if (new Date(ev.start_time).getTime() > nowMs) heldDownpayments += collected;
+        });
+      }
+
+      // Client booking requests still waiting for your quote.
+      let requests = null;
+
+      const { count: requestCount, error: requestError } = await supabase
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+
+      if (requestError) {
+        console.error("Failed to load booking requests:", requestError.message);
+      } else {
+        requests = requestCount || 0;
       }
 
       setStats({
@@ -238,6 +298,9 @@ function Dashboard() {
         editing,
         totalFolders: folderCount || 0,
         monthFees,
+        upcomingFees,
+        heldDownpayments,
+        requests,
       });
       setLoadingStats(false);
     };
@@ -258,26 +321,15 @@ function Dashboard() {
     <div>
       {/* Slim loading bar while the numbers are being fetched */}
       {loadingStats && (
-        <div className="mb-4 h-0.5 w-full overflow-hidden rounded bg-slate-800">
+        <div className="mb-4 h-0.5 w-full overflow-hidden rounded bg-slate-500/20">
           <div className="dash-loadbar h-full w-1/3 rounded bg-sky-400" />
         </div>
       )}
 
       {/* Header (same pattern as the Schedule page) */}
       <div className="mb-5">
-        <h2 className="text-3xl font-bold text-white">
-          Dashboard
-        </h2>
-
-        <p className="mt-2 text-lg font-medium text-sky-400">
-          {getGreeting()}!
-        </p>
-
-        <p className="mt-1 text-sm text-slate-400">
-          Welcome back to LensFlow Studio. Here's your overview for today.
-        </p>
-
-        <p className="mt-2 min-h-[1.5rem] text-slate-300">
+        <h2 className="text-3xl font-bold text-white">Dashboard</h2>
+        <p className="mt-1 min-h-[1.5rem] text-slate-400">
           {dateLine}
           {!loadingStats && (
             <span className="dash-fade">
@@ -291,83 +343,130 @@ function Dashboard() {
         </p>
       </div>
 
+      {/* New client booking requests (only shows when there are some) */}
+      <BookingRequests hideWhenEmpty />
 
-      {/* New client booking requests */}
-      <BookingRequests />
+      {/* Overview: one connected panel, divided by thin lines */}
+      <section className="mb-4 overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
+        <header className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+            <span className="h-2 w-2 rounded-full bg-sky-400" />
+            Overview
+          </h3>
+          <span className="text-xs text-slate-500">Live from your schedule</span>
+        </header>
 
-      {/* Overview cards */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          index={0}
-          loading={loadingStats}
-          title="Total Clients"
-          value={totalClients}
-          subtitle={totalClients === 0 ? "No clients yet" : "Today + upcoming"}
-          icon={<FaUsers />}
-          iconClass="bg-sky-500/10 text-sky-400"
-        />
-        <StatCard
-          index={1}
-          loading={loadingStats}
-          title="Clients Today"
-          value={stats.clientsToday}
-          subtitle={stats.clientsToday === 0 ? "Nothing today" : "On the schedule"}
-          icon={<FaCalendarDay />}
-          iconClass="bg-amber-500/10 text-amber-400"
-        />
-        <StatCard
-          index={2}
-          loading={loadingStats}
-          title="Pending Clients"
-          value={stats.pendingClients}
-          subtitle={stats.pendingClients === 0 ? "None pending" : "From tomorrow on"}
-          icon={<FaHourglassHalf />}
-          iconClass="bg-sky-500/10 text-sky-400"
-        />
-        <StatCard
-          index={3}
-          loading={loadingStats}
-          title="Projects Editing"
-          value={stats.editing}
-          subtitle={stats.editing === 0 ? "Nothing in editing" : "In progress"}
-          icon={<FaPhotoVideo />}
-          iconClass="bg-sky-500/10 text-sky-400"
-        />
-        <StatCard
-          index={4}
-          loading={loadingStats}
-          title="Total Folders"
-          value={stats.totalFolders}
-          subtitle={stats.totalFolders === 0 ? "No folders yet" : "Across Media Storage"}
-          icon={<FaFolder />}
-          iconClass="bg-sky-500/10 text-sky-400"
-        />
-        <StatCard
-          index={5}
-          loading={loadingStats}
-          title="Fees This Month"
-          value={stats.monthFees}
-          format={(n) => `₱${n.toLocaleString("en-PH")}`}
-          subtitle="From event fees"
-          icon={<FaCoins />}
-          iconClass="bg-sky-500/10 text-sky-400"
-        />
+        <div className="grid grid-cols-1 gap-px bg-slate-800 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCell
+            index={0}
+            loading={loadingStats}
+            title="Total Clients"
+            value={totalClients}
+            subtitle={totalClients === 0 ? "No clients yet" : "Today + upcoming"}
+            dot="bg-sky-400"
+            icon={<FaUsers />}
+            iconClass="bg-sky-500/10 text-sky-400"
+          />
+          <StatCell
+            index={1}
+            loading={loadingStats}
+            title="Clients Today"
+            value={stats.clientsToday}
+            subtitle={stats.clientsToday === 0 ? "Nothing today" : "On the schedule"}
+            dot="bg-amber-400"
+            icon={<FaCalendarDay />}
+            iconClass="bg-amber-500/10 text-amber-400"
+          />
+          <StatCell
+            index={2}
+            loading={loadingStats}
+            title="Pending Clients"
+            value={stats.pendingClients}
+            subtitle={stats.pendingClients === 0 ? "None pending" : "From tomorrow on"}
+            dot="bg-sky-400"
+            icon={<FaHourglassHalf />}
+            iconClass="bg-sky-500/10 text-sky-400"
+          />
+          <StatCell
+            index={3}
+            loading={loadingStats}
+            title="Booking Requests"
+            value={stats.requests}
+            subtitle={
+              stats.requests === 0 ? "All caught up" : "Awaiting your quote"
+            }
+            dot={stats.requests > 0 ? "bg-rose-400" : "bg-emerald-400"}
+            icon={<FaInbox />}
+            iconClass="bg-rose-500/10 text-rose-400"
+          />
+          <StatCell
+            index={4}
+            loading={loadingStats}
+            title="Collected This Month"
+            value={stats.monthFees}
+            format={(n) => `₱${n.toLocaleString("en-PH")}`}
+            subtitle="Cash received this month"
+            dot="bg-sky-400"
+            icon={<FaCoins />}
+            iconClass="bg-sky-500/10 text-sky-400"
+          />
+          <StatCell
+            index={5}
+            loading={loadingStats}
+            title="To Collect"
+            value={stats.upcomingFees}
+            format={(n) => `₱${n.toLocaleString("en-PH")}`}
+            subtitle={
+              stats.heldDownpayments > 0
+                ? `${peso(stats.heldDownpayments)} held as downpayments`
+                : "Balance owed on events"
+            }
+            dot="bg-emerald-400"
+            icon={<FaCalendarCheck />}
+            iconClass="bg-emerald-500/10 text-emerald-400"
+          />
+          <StatCell
+            index={6}
+            loading={loadingStats}
+            title="Projects Editing"
+            value={stats.editing}
+            subtitle={stats.editing === 0 ? "Nothing in editing" : "In progress"}
+            dot="bg-sky-400"
+            icon={<FaPhotoVideo />}
+            iconClass="bg-sky-500/10 text-sky-400"
+          />
+          <StatCell
+            index={7}
+            loading={loadingStats}
+            title="Total Folders"
+            value={stats.totalFolders}
+            subtitle={stats.totalFolders === 0 ? "No folders yet" : "Across Media Storage"}
+            dot="bg-sky-400"
+            icon={<FaFolder />}
+            iconClass="bg-sky-500/10 text-sky-400"
+          />
+        </div>
+      </section>
+
+      {/* The day-to-day info comes first */}
+      <div className="mb-4 grid gap-4 lg:grid-cols-3">
+        <Reveal delay={200} className="lg:col-span-2">
+          <UpcomingSchedule />
+        </Reveal>
+        <Reveal delay={260} className="h-full">
+          <Grow>
+            <RecentProjects />
+          </Grow>
+        </Reveal>
       </div>
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <Reveal delay={150}>
-          <TodaySchedule />
-        </Reveal>
-        <Reveal delay={230}>
-          <RecentProjects />
-        </Reveal>
-      </div>
-
-      <Reveal delay={310} className="mb-4">
-        <WorkflowSummary />
+      <Reveal delay={320} className="mb-4">
+        <Grow wide>
+          <WorkflowSummary />
+        </Grow>
       </Reveal>
 
-      <Reveal delay={390}>
+      <Reveal delay={380}>
         <RevenueChart />
       </Reveal>
     </div>

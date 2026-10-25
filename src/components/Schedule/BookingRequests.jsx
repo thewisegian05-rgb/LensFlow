@@ -13,7 +13,7 @@ const field =
  * Photographer's inbox of client booking requests.
  * Offer a talent fee (or decline). The event is created only after the client accepts.
  */
-export default function BookingRequests() {
+export default function BookingRequests({ hideWhenEmpty = false }) {
   const [rows, setRows] = useState([]);
   const [drafts, setDrafts] = useState({}); // { [id]: { fee, message } }
   const [busyId, setBusyId] = useState(null);
@@ -109,6 +109,9 @@ export default function BookingRequests() {
   }
 
   if (rows.length === 0) {
+    // On the dashboard the Booking Requests number already says "all caught up".
+    if (hideWhenEmpty) return null;
+
     return (
       <section className="mb-4 rounded-xl border border-slate-700 bg-slate-900 p-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-white">

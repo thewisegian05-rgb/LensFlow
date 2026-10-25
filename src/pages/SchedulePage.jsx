@@ -581,13 +581,41 @@ function SchedulePage() {
       }
 
     } else {
-      const { error } = await supabase
+      // .select("id").single() hands back the new event's id so the
+      // downpayment can be attached to it.
+      const { data: createdEvent, error } = await supabase
         .from("schedule_events")
-        .insert([{ ...payload, user_id: user.id }]);
+        .insert([{ ...payload, user_id: user.id }])
+        .select("id")
+        .single();
 
       if (error) {
         console.error("Failed to add event:", error.message);
         return;
+      }
+
+      // Downpayment typed into the Add Event form -> event_payments row.
+      const downpayment = Number(form.downpayment) || 0;
+
+      if (downpayment > 0) {
+        const { error: paymentError } = await supabase
+          .from("event_payments")
+          .insert({
+            event_id: createdEvent.id,
+            amount: downpayment,
+            type: "downpayment",
+            paid_at: form.downpaymentPaidAt || new Date().toISOString(),
+          });
+
+        if (paymentError) {
+          console.error("Failed to save downpayment:", paymentError.message);
+          window.alert(
+            `The event was saved, but its ₱${downpayment.toLocaleString(
+              "en-PH"
+            )} downpayment could not be recorded (${paymentError.message}). ` +
+              "Open the event, choose Edit, and add it under Payments."
+          );
+        }
       }
     }
 

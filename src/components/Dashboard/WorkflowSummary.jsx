@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from "react";
 import { motion, MotionConfig } from "framer-motion";
 import { supabase } from "../../lib/supabaseClient";
@@ -209,7 +208,7 @@ function WorkflowSummary() {
                 stiffness: 380,
                 damping: 22,
               }}
-              className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300"
+              className="rounded-full bg-slate-500/15 px-2 py-0.5 text-xs font-semibold tabular-nums"
             >
               {loading ? "…" : total}
             </motion.span>
@@ -243,9 +242,9 @@ function WorkflowSummary() {
                   </span>
                 </div>
 
-                <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-500/20">
                   {loading ? (
-                    <div className="h-full w-full animate-pulse rounded-full bg-slate-700/60" />
+                    <div className="h-full w-full animate-pulse rounded-full bg-slate-500/30" />
                   ) : (
                     <motion.div
                       className={`h-full rounded-full ${stage.color}`}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CATEGORY_KEYS,
   CATEGORY_LABELS,
@@ -16,6 +16,16 @@ const GEAR_OPTIONS = [
   { value: "audio", label: "Audio / Mic" },
   { value: "backup-body", label: "Backup Body" },
 ];
+
+const peso = (n) => `₱${Math.round(Number(n) || 0).toLocaleString("en-PH")}`;
+
+const todayString = () => new Date().toLocaleDateString("en-CA");
+
+// "2026-10-25" -> ISO timestamp at local noon (avoids timezone day-shifts)
+const dateToIso = (dateStr) => new Date(`${dateStr}T12:00:00`).toISOString();
+
+const inputClass =
+  "w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500";
 
 function AddEventModal({
   open,
@@ -39,11 +49,24 @@ function AddEventModal({
     notes: "",
     projectId: "",
     talentFee: "",
+    downpayment: "",
+    downpaymentDate: todayString(),
   };
 
   const [form, setForm] = useState(emptyForm);
   const [projects, setProjects] = useState([]);
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  // Payments (edit mode only: the event already exists)
+  const [payments, setPayments] = useState([]);
+  const [paymentsError, setPaymentsError] = useState("");
+  const [newPayment, setNewPayment] = useState({
+    amount: "",
+    type: "balance",
+    date: todayString(),
+  });
+  const [savingPayment, setSavingPayment] = useState(false);
 
   const filteredClients = clients.filter((client) =>
     client.name
@@ -76,10 +99,52 @@ function AddEventModal({
   }, [open]);
 
   // =========================================================
+  // LOAD PAYMENTS WHEN EDITING
+  // =========================================================
+
+  const loadPayments = useCallback(async (eventId) => {
+    const { data, error } = await supabase
+      .from("event_payments")
+      .select("id, amount, type, paid_at")
+      .eq("event_id", eventId)
+      .order("paid_at", { ascending: true });
+
+    if (error) {
+      console.error("Failed to load payments:", error.message);
+      setPaymentsError(error.message);
+      return;
+    }
+
+    setPaymentsError("");
+    const list = data || [];
+    setPayments(list);
+
+    // Suggest the next payment type: balance once a downpayment exists.
+    setNewPayment((prev) => ({
+      ...prev,
+      type: list.some((p) => p.type === "downpayment") ? "balance" : "downpayment",
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (editingEvent?.id) {
+      loadPayments(editingEvent.id);
+    } else {
+      setPayments([]);
+      setPaymentsError("");
+      setNewPayment({ amount: "", type: "downpayment", date: todayString() });
+    }
+  }, [open, editingEvent, loadPayments]);
+
+  // =========================================================
   // LOAD EVENT WHEN EDITING
   // =========================================================
 
   useEffect(() => {
+    setFormError("");
+
     if (editingEvent) {
       const startDate = editingEvent.start
         ? new Date(editingEvent.start)
@@ -119,6 +184,8 @@ function AddEventModal({
           editingEvent.talentFee ??
           editingEvent.talent_fee ??
           "",
+        downpayment: "",
+        downpaymentDate: todayString(),
       });
 
       return;
@@ -128,6 +195,7 @@ function AddEventModal({
       ...emptyForm,
       date: selectedDate || "",
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingEvent, selectedDate]);
 
   if (!open) {
@@ -154,14 +222,99 @@ function AddEventModal({
     });
   };
 
+  // ---------- money ----------
+  const fee = parseFloat(form.talentFee) || 0;
+  const downpayment = parseFloat(form.downpayment) || 0;
+  const collected = editingEvent
+    ? payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    : downpayment;
+  const balanceDue = Math.max(fee - collected, 0);
+
+  // ---------- record a payment on an existing event ----------
+  const addPayment = async () => {
+    const amount = parseFloat(newPayment.amount);
+
+    if (!editingEvent?.id) return;
+
+    if (!amount || amount <= 0) {
+      setPaymentsError("Enter an amount greater than 0.");
+      return;
+    }
+
+    if (collected + amount > fee) {
+      setPaymentsError(
+        `That would be more than the talent fee. Only ${peso(balanceDue)} is still due.`
+      );
+      return;
+    }
+
+    setSavingPayment(true);
+    setPaymentsError("");
+
+    const { error } = await supabase.from("event_payments").insert({
+      event_id: editingEvent.id,
+      amount,
+      type: newPayment.type,
+      paid_at: dateToIso(newPayment.date || todayString()),
+    });
+
+    setSavingPayment(false);
+
+    if (error) {
+      console.error("Failed to save payment:", error.message);
+      setPaymentsError(error.message);
+      return;
+    }
+
+    setNewPayment((prev) => ({ ...prev, amount: "" }));
+    loadPayments(editingEvent.id);
+  };
+
+  const removePayment = async (payment) => {
+    if (!window.confirm(`Remove this ${peso(payment.amount)} payment?`)) return;
+
+    const { error } = await supabase
+      .from("event_payments")
+      .delete()
+      .eq("id", payment.id);
+
+    if (error) {
+      console.error("Failed to remove payment:", error.message);
+      setPaymentsError(error.message);
+      return;
+    }
+
+    loadPayments(editingEvent.id);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    if (!editingEvent && downpayment > fee) {
+      setFormError(
+        fee === 0
+          ? "Enter the talent fee first, then the downpayment."
+          : "The downpayment can't be more than the talent fee."
+      );
+      return;
+    }
+
+    setFormError("");
+
+    const { downpayment: _dp, downpaymentDate, ...rest } = form;
+
     onSave({
-      ...form,
+      ...rest,
       // Keep this numeric so downstream income totals don't have to
       // guess whether it's a string. Empty input -> 0, not NaN.
       talentFee: form.talentFee === "" ? 0 : parseFloat(form.talentFee),
+      // New events only: the parent should insert an `event_payments` row
+      // (type "downpayment") with this amount and paidAt after saving the event.
+      downpayment: editingEvent ? 0 : downpayment,
+      downpaymentPaidAt:
+        !editingEvent && downpayment > 0
+          ? dateToIso(downpaymentDate || todayString())
+          : null,
     });
 
     setForm(emptyForm);
@@ -190,7 +343,7 @@ function AddEventModal({
               placeholder="Event Title"
               value={form.title}
               onChange={handleChange}
-              className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+              className={inputClass}
               required
             />
 
@@ -316,7 +469,7 @@ function AddEventModal({
               placeholder="Photographer / Shooter"
               value={form.photographer}
               onChange={handleChange}
-              className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+              className={inputClass}
             />
 
             <input
@@ -325,7 +478,7 @@ function AddEventModal({
               placeholder="Location (venue, address, or area)"
               value={form.location}
               onChange={handleChange}
-              className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+              className={inputClass}
             />
 
             <div>
@@ -347,15 +500,179 @@ function AddEventModal({
                   inputMode="decimal"
                   value={form.talentFee}
                   onChange={handleChange}
-                  className="w-full rounded-lg border border-slate-200 bg-white p-3 pl-7 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                  className={`${inputClass} pl-7`}
                 />
               </div>
 
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                Saved on this event and synced to the client's profile.
-                Leave blank if not yet agreed.
+                The total price for this event. Saved on this event and synced to
+                the client's profile. Leave blank if not yet agreed.
               </p>
             </div>
+
+            {/* ---------- Downpayment (new events) ---------- */}
+            {!editingEvent && (
+              <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+                <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
+                  Downpayment
+                </p>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-600 dark:text-slate-400">
+                      Amount received (₱)
+                    </label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                        ₱
+                      </span>
+                      <input
+                        type="number"
+                        name="downpayment"
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={form.downpayment}
+                        onChange={handleChange}
+                        className={`${inputClass} pl-7`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-600 dark:text-slate-400">
+                      Date received
+                    </label>
+                    <input
+                      type="date"
+                      name="downpaymentDate"
+                      value={form.downpaymentDate}
+                      onChange={handleChange}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                {fee > 0 && (
+                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                    {peso(fee)} fee − {peso(downpayment)} down ={" "}
+                    <span className="font-semibold">{peso(balanceDue)}</span> due
+                    after the event
+                  </p>
+                )}
+
+                {downpayment === 0 && (
+                  <p className="mt-2 text-xs text-amber-600">
+                    No downpayment yet. This date isn't locked in until one is received.
+                  </p>
+                )}
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Downpayments are non-refundable and stay as income if the event is
+                  cancelled.
+                </p>
+              </div>
+            )}
+
+            {/* ---------- Payments (existing events) ---------- */}
+            {editingEvent && (
+              <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+                <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
+                  Payments
+                </p>
+
+                <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+                  {peso(fee)} fee − {peso(collected)} received ={" "}
+                  <span className="font-semibold">{peso(balanceDue)}</span>{" "}
+                  {balanceDue === 0 && fee > 0 ? "(paid in full)" : "still due"}
+                </p>
+
+                {payments.length > 0 && (
+                  <ul className="mb-3 space-y-1.5">
+                    {payments.map((p) => (
+                      <li
+                        key={p.id}
+                        className="flex items-center justify-between rounded-md bg-slate-500/[0.06] px-3 py-1.5 text-sm"
+                      >
+                        <span className="text-slate-600 dark:text-slate-300">
+                          <span className="font-semibold">{peso(p.amount)}</span>
+                          {" · "}
+                          {p.type === "downpayment" ? "Downpayment" : "Balance"}
+                          {" · "}
+                          {new Date(p.paid_at).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removePayment(p)}
+                          className="text-xs text-red-500 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={newPayment.amount}
+                    onChange={(e) =>
+                      setNewPayment((prev) => ({ ...prev, amount: e.target.value }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addPayment();
+                      }
+                    }}
+                    className={inputClass}
+                  />
+
+                  <select
+                    value={newPayment.type}
+                    onChange={(e) =>
+                      setNewPayment((prev) => ({ ...prev, type: e.target.value }))
+                    }
+                    className={inputClass}
+                  >
+                    <option value="downpayment">Downpayment</option>
+                    <option value="balance">Balance</option>
+                  </select>
+
+                  <input
+                    type="date"
+                    value={newPayment.date}
+                    onChange={(e) =>
+                      setNewPayment((prev) => ({ ...prev, date: e.target.value }))
+                    }
+                    className={inputClass}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={addPayment}
+                    disabled={savingPayment}
+                    className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-sky-600 disabled:opacity-50"
+                  >
+                    {savingPayment ? "Saving…" : "Add"}
+                  </button>
+                </div>
+
+                {paymentsError && (
+                  <p className="mt-2 text-xs text-red-500">{paymentsError}</p>
+                )}
+              </div>
+            )}
 
             <div>
               <select
@@ -470,6 +787,8 @@ function AddEventModal({
               onChange={handleChange}
               className="w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
             />
+
+            {formError && <p className="text-sm text-red-500">{formError}</p>}
 
             <div className="flex justify-end gap-3 pt-2">
               <button

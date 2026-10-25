@@ -14,6 +14,9 @@ const STATUS = {
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
+const shortDate = (iso) =>
+  new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
 /**
  * The client's list of booking requests, with Accept / Decline on quotes.
  *  photographerId - active photographer's id
@@ -95,6 +98,8 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
       {rows.map((r) => {
         const s = STATUS[r.status] || STATUS.cancelled;
         const busy = busyId === r.id;
+        const hasDown = r.downpayment_amount != null && Number(r.downpayment_amount) > 0;
+        const balance = Math.max(Number(r.offered_fee || 0) - Number(r.downpayment_amount || 0), 0);
 
         return (
           <article
@@ -118,8 +123,26 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
               <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
                 <p className="text-xs text-slate-400">Photographer's quote</p>
                 <p className="text-xl font-bold text-sky-300">{peso(r.offered_fee)}</p>
+
+                {hasDown && (
+                  <div className="mt-2 space-y-0.5 text-sm text-slate-300">
+                    <p>
+                      Downpayment to secure your date:{" "}
+                      <span className="font-semibold text-white">{peso(r.downpayment_amount)}</span>
+                    </p>
+                    <p>
+                      Balance, paid at the end of the event:{" "}
+                      <span className="font-semibold text-white">{peso(balance)}</span>
+                    </p>
+                    <p className="pt-1 text-xs text-slate-500">
+                      The downpayment is non-refundable. Send it to your photographer to confirm
+                      your date.
+                    </p>
+                  </div>
+                )}
+
                 {r.admin_message && (
-                  <p className="mt-1 whitespace-pre-line text-sm text-slate-300">{r.admin_message}</p>
+                  <p className="mt-2 whitespace-pre-line text-sm text-slate-300">{r.admin_message}</p>
                 )}
                 <div className="mt-3 flex flex-wrap justify-end gap-2">
                   <button
@@ -143,7 +166,21 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
             )}
 
             {r.status === "approved" && r.offered_fee != null && (
-              <p className="mt-2 text-xs text-slate-400">Agreed fee: {peso(r.offered_fee)}</p>
+              <div className="mt-2 space-y-0.5 text-xs text-slate-400">
+                <p>Agreed fee: {peso(r.offered_fee)}</p>
+                {hasDown &&
+                  (r.downpayment_received_at ? (
+                    <p className="text-emerald-400">
+                      Downpayment of {peso(r.downpayment_amount)} received on{" "}
+                      {shortDate(r.downpayment_received_at)}. Balance of {peso(balance)} is due at
+                      the end of the event.
+                    </p>
+                  ) : (
+                    <p className="text-amber-300">
+                      Waiting for your {peso(r.downpayment_amount)} downpayment.
+                    </p>
+                  ))}
+              </div>
             )}
 
             {r.status === "declined" && r.admin_message && (

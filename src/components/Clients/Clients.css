@@ -65,42 +65,38 @@
 ========================================== */
 
 .add-client-btn {
-  display: flex;
+  display: inline-flex !important;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
 
-  gap: 8px;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid transparent !important;
+  border-radius: 0.5rem;
 
-  padding: 11px 17px;
+  background: #0ea5e9 !important;
+  color: #0f172a !important;
 
-  border: none;
-  border-radius: 8px;
-
-  background: #08a9e8;
-  color: #07111e;
-
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
 
   cursor: pointer;
-
-  transition:
-    background 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: background-color 200ms ease;
 }
 
 .add-client-btn:hover {
-  background: #20b9f1;
+  background: #0284c7 !important;
+}
 
-  transform: translateY(-1px);
-
-  box-shadow:
-    0 6px 18px rgba(8, 169, 232, 0.2);
+.add-client-btn:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 3px;
 }
 
 .add-client-btn:active {
-  transform: translateY(0);
+  background: #0369a1 !important;
 }
 
 

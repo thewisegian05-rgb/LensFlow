@@ -335,39 +335,41 @@
 ========================================== */
 
 .save-client-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
 
-  gap: 7px;
+  padding: 12px 20px !important;
 
-  padding: 10px 16px;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
 
-  border: none;
-  border-radius: 7px;
-
-  background: #08a9e8;
-
-  color: #06101d;
+  background: #0ea5e9 !important;
+  color: #0f172a !important;
 
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
 
   cursor: pointer;
-
-  transition:
-    background 0.2s ease,
-    transform 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 .save-client-btn:hover {
-  background: #20b9f1;
+  background: #0284c7 !important;
+  color: #0f172a !important;
+}
 
-  transform: translateY(-1px);
+.save-client-btn:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 3px;
 }
 
 .save-client-btn:active {
+  background: #0369a1 !important;
+  color: #0f172a !important;
   transform: translateY(0);
 }
 

@@ -16,7 +16,7 @@ import "../components/Clients/ViewClientModal.css";
 import "../components/Clients/ClientPageAnimations.css";
 
 import { FiGrid, FiList, FiSearch, FiX } from "react-icons/fi";
-import { FaFilter } from "react-icons/fa6";
+import { FaFilter, FaPlus } from "react-icons/fa";
 
 // Key used to remember the client list's view type (grid/list) across
 // page navigations and reloads.
@@ -386,10 +386,11 @@ function ClientPage() {
         </div>
 
         <button
-          className="add-client-btn"
+          className="add-client-btn text-sm font-semibold text-slate-950 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
           onClick={() => setShowAddClient(true)}
         >
-          + Add New Client
+          <FaPlus />
+          Add New Client
         </button>
       </div>
 
@@ -463,21 +464,21 @@ function ClientPage() {
             onChange={(e) => setSelectedCategory(e.target.value)}
           >
             <option value="All Categories">All Categories</option>
-            <option value="Weddings">Weddings</option>
-            <option value="Prenup">Prenup</option>
-            <option value="Couple Shoot">Couple Shoot</option>
-            <option value="Life & Family Milestones">
+            <option value="wedding">Weddings</option>
+            <option value="prenup">Prenup</option>
+            <option value="couple-shoot">Couple Shoot</option>
+            <option value="family-milestones">
               Life & Family Milestones
             </option>
-            <option value="Portrait & Lifestyle">Portrait & Lifestyle</option>
-            <option value="Events & Performance">Events & Performance</option>
-            <option value="Corporate & Commercial">
+            <option value="portrait-lifestyle">Portrait & Lifestyle</option>
+            <option value="events-performance">Events & Performance</option>
+            <option value="corporate-commercial">
               Corporate & Commercial
             </option>
-            <option value="Real Estate">Real Estate</option>
-            <option value="Product & Business">Product & Business</option>
-            <option value="Baptism">Baptism</option>
-            <option value="Pet Photography">Pet Photography</option>
+            <option value="real-estate">Real Estate</option>
+            <option value="product-business">Product & Business</option>
+            <option value="baptism">Baptism</option>
+            <option value="pet-photography">Pet Photography</option>
           </select>
         </div>
       </div>

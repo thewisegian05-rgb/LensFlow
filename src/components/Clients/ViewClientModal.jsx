@@ -16,6 +16,8 @@ import {
 
 import { FaPesoSign } from "react-icons/fa6";
 
+import { CATEGORY_LABELS } from "../Schedule/eventCategory";
+
 import "./ViewClientModal.css";
 
 function ViewClientModal({ client, onClose, onComplete, onEdit }) {
@@ -38,6 +40,16 @@ function ViewClientModal({ client, onClose, onComplete, onEdit }) {
   }, [client]);
 
   const selectedProject = projects[projectIndex] || null;
+
+  const rawCategory =
+    selectedProject?.category || client.category || "";
+
+  const categoryLabel =
+    CATEGORY_LABELS[rawCategory.trim().toLowerCase()] ||
+    rawCategory
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase()) ||
+    "Not specified";
 
   const handlePreviousProject = () => {
     setProjectIndex((prev) =>
@@ -220,11 +232,7 @@ function ViewClientModal({ client, onClose, onComplete, onEdit }) {
                 Photography Category
               </span>
 
-              <p>
-                {selectedProject?.category ||
-                  client.category ||
-                  "Not specified"}
-              </p>
+              <p>{categoryLabel}</p>
             </div>
           </div>
 

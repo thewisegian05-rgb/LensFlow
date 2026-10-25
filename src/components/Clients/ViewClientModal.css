@@ -102,25 +102,31 @@
 }
 
 .view-client-avatar {
-  width: 52px;
-  height: 52px;
+  width: 60px;
+  height: 60px;
+  min-width: 60px;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
-  flex-shrink: 0;
-
   border-radius: 50%;
+  border: 1px solid #bae6fd;
 
-  background: #173d58;
+  background: #e0f2fe;
+  color: #0284c7;
 
-  border: 1px solid #246589;
-
-  color: #2fc0f3;
-
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 700;
+
+  flex-shrink: 0;
+}
+
+/* Dark mode */
+.dark .view-client-avatar {
+  background: #164e63;
+  border-color: #155e75;
+  color: #38bdf8;
 }
 
 .view-client-main-info h2 {
@@ -241,154 +247,85 @@
    BOTTOM ACTIONS
 ========================================== */
 
+/* EDIT BUTTON — blue outline */
+.view-client-actions .view-edit-btn {
+  background-color: transparent !important;
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+}
+
+.view-client-actions .view-edit-btn:hover {
+  background-color: rgba(14, 165, 233, 0.1) !important;
+  border-color: #0ea5e9 !important;
+  color: #0ea5e9 !important;
+}
+
+/* EDIT BUTTON — dark mode */
+.dark .view-client-actions .view-edit-btn {
+  background-color: transparent !important;
+  border-color: #236a91 !important;
+  color: #38bdf8 !important;
+}
+
+.dark .view-client-actions .view-edit-btn:hover {
+  background-color: rgba(56, 182, 234, 0.1) !important;
+  border-color: #38b6ea !important;
+  color: #7dd3fc !important;
+}
+
+/* MARK AS COMPLETE — green outline */
+.view-client-actions .view-complete-btn {
+  background-color: rgba(34, 197, 94, 0.08) !important;
+  border-color: rgba(34, 197, 94, 0.45) !important;
+  color: #15803d !important;
+}
+
+.view-client-actions .view-complete-btn:hover {
+  background-color: rgba(34, 197, 94, 0.16) !important;
+  border-color: #22c55e !important;
+  color: #15803d !important;
+}
+
+/* MARK AS COMPLETE — dark mode */
+.dark .view-client-actions .view-complete-btn {
+  background-color: rgba(53, 199, 111, 0.1) !important;
+  border-color: rgba(53, 199, 111, 0.4) !important;
+  color: #35c76f !important;
+}
+
+.dark .view-client-actions .view-complete-btn:hover {
+  background-color: rgba(53, 199, 111, 0.18) !important;
+  border-color: #35c76f !important;
+  color: #4ade80 !important;
+}
+
 .view-client-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-
-  gap: 12px;
-
-  padding-top: 18px;
-
-  border-top: 1px solid #e2e8f0;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
 }
 
-.dark .view-client-actions {
-  border-color: #263650;
-}
-
-/* Ensure primary action group lays out buttons horizontally */
 .view-client-actions > div {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: nowrap;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
 }
 
-.view-edit-btn,
-.view-complete-btn {
-  white-space: nowrap;
+/* CLOSE BUTTON — solid blue */
+.view-client-actions .view-close-btn {
+  background-color: #0ea5e9 !important;
+  border-color: transparent !important;
+  color: #07111e !important;
 }
 
-.view-client-primary-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.view-client-actions .view-close-btn:hover {
+  background-color: #0284c7 !important;
+  color: #07111e !important;
 }
 
-.view-edit-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
 
-  padding: 10px 18px;
-
-  border: 1px solid #cfe5f5;
-  border-radius: 7px;
-
-  background: transparent;
-
-  color: #0369a1;
-
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
-
-  cursor: pointer;
-
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease;
-}
-
-.view-edit-btn:hover {
-  background: #e0f2fe;
-  border-color: #7dd3fc;
-}
-
-.dark .view-edit-btn {
-  border-color: #236a91;
-  color: #38b6ea;
-}
-
-.dark .view-edit-btn:hover {
-  background: rgba(56, 182, 234, 0.1);
-  border-color: #38b6ea;
-}
-.view-complete-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-
-  padding: 10px 18px;
-
-  border: 1px solid rgba(34, 197, 94, 0.35);
-  border-radius: 7px;
-
-  background: rgba(34, 197, 94, 0.08);
-
-  color: #15803d;
-
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
-
-  cursor: pointer;
-
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease;
-}
-
-.view-complete-btn:hover {
-  background: rgba(34, 197, 94, 0.12);
-  border-color: #22c55e;
-}
-
-.dark .view-complete-btn {
-  border-color: rgba(53, 199, 111, 0.4);
-  background: rgba(53, 199, 111, 0.1);
-  color: #35c76f;
-}
-
-.dark .view-complete-btn:hover {
-  background: rgba(53, 199, 111, 0.18);
-  border-color: #35c76f;
-}
-
-.view-edit-btn svg,
-.view-complete-btn svg {
-  font-size: 15px;
-}
-
-.view-close-btn {
-  padding: 10px 18px;
-
-  border: none;
-  border-radius: 7px;
-
-  background: #08a9e8;
-
-  color: #07111e;
-
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
-
-  cursor: pointer;
-
-  transition:
-    background 0.2s ease,
-    transform 0.2s ease;
-}
-
-.view-close-btn:hover {
-  background: #20b9f1;
-
-  transform: translateY(-1px);
-}
 
 .view-project-info {
   min-width: 0;
@@ -474,5 +411,138 @@
 
   .view-close-btn {
     width: auto;
+  }
+}
+
+/* ==========================================
+   FIX VIEW CLIENT ACTION BUTTON LAYOUT
+   Keep this at the VERY BOTTOM of the file
+========================================== */
+
+.view-client-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+}
+
+.view-client-actions > div {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+}
+
+/* Restore button dimensions and layout */
+.view-client-actions .view-edit-btn,
+.view-client-actions .view-complete-btn,
+.view-client-actions .view-close-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+
+  padding: 10px 18px !important;
+  border-radius: 7px !important;
+
+  font-family: inherit !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+  text-decoration: none !important;
+}
+
+/* EDIT — blue outline */
+.view-client-actions .view-edit-btn {
+  background: transparent !important;
+  border: 1px solid #0284c7 !important;
+  color: #0284c7 !important;
+}
+
+.view-client-actions .view-edit-btn:hover {
+  background: rgba(14, 165, 233, 0.1) !important;
+  border-color: #0ea5e9 !important;
+  color: #0ea5e9 !important;
+}
+
+/* EDIT — dark mode */
+.dark .view-client-actions .view-edit-btn {
+  background: transparent !important;
+  border-color: #236a91 !important;
+  color: #38bdf8 !important;
+}
+
+.dark .view-client-actions .view-edit-btn:hover {
+  background: rgba(56, 182, 234, 0.1) !important;
+  border-color: #38b6ea !important;
+  color: #7dd3fc !important;
+}
+
+/* MARK AS COMPLETE — green outline */
+.view-client-actions .view-complete-btn {
+  background: rgba(34, 197, 94, 0.08) !important;
+  border: 1px solid rgba(34, 197, 94, 0.45) !important;
+  color: #15803d !important;
+}
+
+.view-client-actions .view-complete-btn:hover {
+  background: rgba(34, 197, 94, 0.16) !important;
+  border-color: #22c55e !important;
+  color: #15803d !important;
+}
+
+/* MARK AS COMPLETE — dark mode */
+.dark .view-client-actions .view-complete-btn {
+  background: rgba(53, 199, 111, 0.1) !important;
+  border-color: rgba(53, 199, 111, 0.4) !important;
+  color: #35c76f !important;
+}
+
+.dark .view-client-actions .view-complete-btn:hover {
+  background: rgba(53, 199, 111, 0.18) !important;
+  border-color: #35c76f !important;
+  color: #4ade80 !important;
+}
+
+/* CLOSE — solid blue */
+.view-client-actions .view-close-btn {
+  background: #0ea5e9 !important;
+  border: 1px solid transparent !important;
+  color: #07111e !important;
+}
+
+.view-client-actions .view-close-btn:hover {
+  background: #0284c7 !important;
+  color: #07111e !important;
+}
+
+/* Restore icon sizing */
+.view-client-actions .view-edit-btn svg,
+.view-client-actions .view-complete-btn svg {
+  display: inline-block !important;
+  width: 15px !important;
+  height: 15px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Small screens */
+@media (max-width: 600px) {
+  .view-client-actions {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .view-client-actions > div {
+    flex-wrap: wrap !important;
+  }
+
+  .view-client-actions .view-edit-btn,
+  .view-client-actions .view-complete-btn,
+  .view-client-actions .view-close-btn {
+    padding: 10px 14px !important;
   }
 }

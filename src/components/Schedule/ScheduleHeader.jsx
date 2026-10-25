@@ -16,7 +16,7 @@ function ScheduleHeader({ onAdd }) {
 
       <button
         onClick={onAdd}
-        className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-slate-900 font-semibold px-5 py-3 rounded-lg transition"
+        className="add-client-btn text-sm font-semibold text-slate-950 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
       >
         <FaPlus />
 

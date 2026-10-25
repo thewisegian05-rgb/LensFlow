@@ -107,7 +107,7 @@ function Sidebar({ isOpen, onToggle, onClose }) {
             <button
               onClick={onToggle}
               aria-label="Hide sidebar"
-              className="mt-1 rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+              className="mt-1 !border-0 !outline-none !shadow-none rounded-md bg-transparent p-2 text-slate-500 transition hover:!border-0 hover:bg-slate-100 hover:text-slate-900 focus:!outline-none focus:!ring-0 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               <FaChevronLeft />
             </button>

@@ -37,7 +37,7 @@ function Header({ sidebarOpen, onMenuClick }) {
             onClick={onMenuClick}
             aria-label="Show sidebar"
             tabIndex={sidebarOpen ? -1 : 0}
-            className={`text-xl text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-transform duration-300 ${
+            className={`!border-0 !outline-none !shadow-none rounded-md bg-transparent p-1 text-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition-transform duration-300 ${
               sidebarOpen ? "-rotate-90 scale-75" : "rotate-0 scale-100"
             }`}
           >

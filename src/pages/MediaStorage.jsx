@@ -6,6 +6,8 @@ import {
   FaTrash,
   FaFile,
   FaTimes,
+  FaUndo,
+  FaRegTrashAlt,
 } from "react-icons/fa";
 import { useTheme } from "../context/ThemeContext";
 import { supabase } from "../lib/supabaseClient";
@@ -16,6 +18,9 @@ const LOADING_MAX_MS = 2000; // loading indicator never shows longer than 2s
 const DELETE_MIN_MS = 800; // delete toast stays in "deleting" state at least this long so it never just flashes
 const TOAST_DONE_MS = 2500; // how long the "Deleted" toast stays
 const TOAST_ERROR_MS = 4500; // how long a failed-delete toast stays
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const TRASH_CHECK_INTERVAL_MS = 60 * 60 * 1000; // Check every hour
+const TRASH_RETENTION_DAYS = 30;
 
 async function getSignedUrl(path) {
   if (!path) return null;
@@ -90,7 +95,8 @@ function MediaStorage() {
     return () => clearTimeout(t);
   }, [dataLoading]);
 
-  const [path, setPath] = useState([]); // array of folder ids
+  const [path, setPath] = useState([]); // folder ids for My Files
+  const [trashPath, setTrashPath] = useState([]); // folder ids while browsing Trash
 
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newName, setNewName] = useState("");
@@ -103,6 +109,52 @@ function MediaStorage() {
   const [toasts, setToasts] = useState([]); // { id, name, status: "deleting" | "done" | "error" }
   const [deletingIds, setDeletingIds] = useState([]);
   const [viewingFile, setViewingFile] = useState(null); // { id, name, url, isVideo }
+  const [activeView, setActiveView] = useState("files"); // files | trash
+  // Prototype-only trash metadata is stored in this browser, not in Supabase.
+  const [trashEntries, setTrashEntries] = useState([]); // { key, id, isFile, deletedAt }
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState(null);
+  const [trashLoaded, setTrashLoaded] = useState(false);
+  const [countdownTick, setCountdownTick] = useState(0);
+  const purgeInProgressRef = useRef(new Set());
+
+  useEffect(() => {
+    setTrashLoaded(false);
+
+    if (!user) {
+      setTrashEntries([]);
+      setTrashLoaded(true);
+      return;
+    }
+
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(`lensflow-trash-${user.id}`) || "[]"
+      );
+      // Keep expired entries loaded so cleanup can delete the actual Supabase
+      // data instead of silently hiding expired metadata.
+      setTrashEntries(Array.isArray(saved) ? saved : []);
+    } catch (error) {
+      console.error("Could not load Trash metadata:", error);
+      setTrashEntries([]);
+    } finally {
+      setTrashLoaded(true);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !trashLoaded) return;
+    localStorage.setItem(
+      `lensflow-trash-${user.id}`,
+      JSON.stringify(trashEntries)
+    );
+  }, [trashEntries, user, trashLoaded]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdownTick((tick) => tick + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fileInputRef = useRef(null);
 
@@ -128,6 +180,8 @@ function MediaStorage() {
   const modalButtonClasses = isDark ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-900";
 
   const currentFolderId = path.length ? path[path.length - 1] : null;
+  const currentTrashFolderId = trashPath.length ? trashPath[trashPath.length - 1] : null;
+  void countdownTick;
 
   /* ---- load folders + photos, same tables Culling uses ---- */
   const loadData = useCallback(async (userId) => {
@@ -182,14 +236,25 @@ function MediaStorage() {
     }
   }, [user, loadData]);
 
+  const isInTrash = useCallback((id, isFile) => trashEntries.some((entry) => entry.id === id && entry.isFile === isFile), [trashEntries]);
+  const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((entry) => !entry.isFile).map((entry) => entry.id)), [trashEntries]);
+  const isFolderHiddenByTrash = useCallback((folderId) => {
+    let current = folders.find((f) => f.id === folderId);
+    while (current) {
+      if (trashedFolderIds.has(current.id)) return true;
+      current = folders.find((f) => f.id === current.parentId);
+    }
+    return false;
+  }, [folders, trashedFolderIds]);
+
   /* ---- current level ---- */
   const currentFolders = useMemo(
-    () => folders.filter((f) => f.parentId === currentFolderId),
-    [folders, currentFolderId]
+    () => folders.filter((f) => f.parentId === currentFolderId && !isFolderHiddenByTrash(f.id)),
+    [folders, currentFolderId, isFolderHiddenByTrash]
   );
   const currentPhotos = useMemo(
-    () => photos.filter((p) => p.folderId === currentFolderId),
-    [photos, currentFolderId]
+    () => photos.filter((p) => p.folderId === currentFolderId && !isInTrash(p.id, true) && !isFolderHiddenByTrash(p.folderId)),
+    [photos, currentFolderId, isInTrash, isFolderHiddenByTrash]
   );
 
   const currentItems = useMemo(
@@ -214,10 +279,75 @@ function MediaStorage() {
     return items;
   }, [path, folders]);
 
-  const currentTitle =
-    breadcrumbItems.length > 0
-      ? breadcrumbItems[breadcrumbItems.length - 1].label
-      : "Client Media Storage";
+  const trashBreadcrumbItems = useMemo(() => {
+    const items = [{ label: "Trash Bin", id: null }];
+    trashPath.forEach((id) => {
+      const found = folders.find((folder) => folder.id === id);
+      if (found) items.push({ label: found.name, id: found.id });
+    });
+    return items;
+  }, [trashPath, folders]);
+
+  const trashCurrentItems = useMemo(() => {
+    const trashedFolderIds = new Set(
+      trashEntries.filter((entry) => !entry.isFile).map((entry) => entry.id)
+    );
+    const trashedFileIds = new Set(
+      trashEntries.filter((entry) => entry.isFile).map((entry) => entry.id)
+    );
+
+    const childFolders = folders
+      .filter(
+        (folder) =>
+          trashedFolderIds.has(folder.id) &&
+          (currentTrashFolderId
+            ? folder.parentId === currentTrashFolderId
+            : !folder.parentId || !trashedFolderIds.has(folder.parentId))
+      )
+      .map((folder) => {
+        const entry = trashEntries.find(
+          (item) => !item.isFile && item.id === folder.id
+        );
+        return {
+          id: folder.id,
+          name: entry?.name || folder.name,
+          isFile: false,
+          isTrashEntry: true,
+          deletedAt: entry?.deletedAt,
+          key: `folder-${folder.id}`,
+        };
+      });
+
+    const childFiles = photos
+      .filter(
+        (photo) =>
+          trashedFileIds.has(photo.id) &&
+          (currentTrashFolderId
+            ? photo.folderId === currentTrashFolderId
+            : !photo.folderId || !trashedFolderIds.has(photo.folderId))
+      )
+      .map((photo) => {
+        const entry = trashEntries.find(
+          (item) => item.isFile && item.id === photo.id
+        );
+        return {
+          id: photo.id,
+          name: entry?.name || photo.name,
+          isFile: true,
+          isTrashEntry: true,
+          deletedAt: entry?.deletedAt,
+          key: `file-${photo.id}`,
+        };
+      });
+
+    return [...childFolders, ...childFiles].sort((a, b) => {
+      if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [folders, photos, trashEntries, currentTrashFolderId]);
+
+  const activeBreadcrumbItems =
+    activeView === "files" ? breadcrumbItems : trashBreadcrumbItems;
 
   /* ---- create folder (subfolder of currentFolderId) ---- */
   const handleAddFolderSubmit = async (e) => {
@@ -339,89 +469,172 @@ function MediaStorage() {
     setEditId(null);
   };
 
-  /* ---- delete (file, or folder + its whole subtree) ---- */
+  /* ---- move an item to Trash (prototype; leaves Supabase rows/files untouched) ---- */
   const runDelete = async (target) => {
     if (!target || !user) return false;
-
+    const now = new Date().toISOString();
+    let entries = [];
     if (target.isFile) {
-      const photo = photos.find((p) => p.id === target.id);
+      entries = [{ key: `file-${target.id}`, id: target.id, name: target.name, isFile: true, deletedAt: now }];
+    } else {
+      const ids = collectDescendantIds(folders, target.id);
+      entries = [
+        ...ids.map((id) => { const f = folders.find((item) => item.id === id); return f ? { key: `folder-${id}`, id, name: f.name, isFile: false, deletedAt: now } : null; }).filter(Boolean),
+        ...photos.filter((photo) => ids.includes(photo.folderId)).map((photo) => ({ key: `file-${photo.id}`, id: photo.id, name: photo.name, isFile: true, deletedAt: now })),
+      ];
+      setPath((prev) => {
+        const keepIndex = prev.findIndex((id) => ids.includes(id));
+        return keepIndex === -1 ? prev : prev.slice(0, keepIndex);
+      });
+    }
+    setTrashEntries((prev) => [...prev.filter((entry) => !entries.some((next) => next.key === entry.key)), ...entries]);
+    return true;
+  };
+
+  const restoreTrashEntry = (entry) => {
+    if (entry.isFile) {
+      setTrashEntries((prev) => prev.filter((item) => item.key !== entry.key));
+      return;
+    }
+    const ids = collectDescendantIds(folders, entry.id);
+    const keys = new Set([
+      ...ids.map((id) => `folder-${id}`),
+      ...photos.filter((photo) => ids.includes(photo.folderId)).map((photo) => `file-${photo.id}`),
+    ]);
+    setTrashEntries((prev) => prev.filter((item) => !keys.has(item.key)));
+  };
+
+  const permanentlyDelete = async (entry, { silent = false } = {}) => {
+    if (!user || !entry) return false;
+
+    const reportFailure = (message, error) => {
+      if (error) console.error(message, error);
+      if (!silent) alert(message);
+      return false;
+    };
+
+    if (entry.isFile) {
+      const photo = photos.find((p) => p.id === entry.id);
 
       if (photo?.storagePath) {
         const { error: storageErr } = await supabase.storage
           .from(PHOTOS_BUCKET)
           .remove([photo.storagePath]);
 
-        if (storageErr) console.error("Storage cleanup failed:", storageErr);
+        if (storageErr) {
+          return reportFailure("Could not delete the stored file. Please try again.", storageErr);
+        }
       }
 
       const { error } = await supabase
         .from("photos")
         .delete()
-        .eq("id", target.id)
+        .eq("id", entry.id)
         .eq("user_id", user.id);
 
       if (error) {
-        console.error("Photo delete failed:", error);
-        return false;
+        return reportFailure("Could not permanently delete this file.", error);
       }
 
-      setPhotos((prev) => prev.filter((p) => p.id !== target.id));
-    } else {
-      const idsToDelete = collectDescendantIds(folders, target.id);
-
-      const { data: photoRows, error: photoListErr } = await supabase
-        .from("photos")
-        .select("id, storage_path")
-        .in("folder_id", idsToDelete)
-        .eq("user_id", user.id);
-
-      if (photoListErr) {
-        console.error("Folder photo lookup failed:", photoListErr);
-        return false;
-      }
-
-      const storagePaths = photoRows.map((p) => p.storage_path).filter(Boolean);
-      if (storagePaths.length > 0) {
-        const { error: storageErr } = await supabase.storage
-          .from(PHOTOS_BUCKET)
-          .remove(storagePaths);
-        if (storageErr) console.error("Storage cleanup failed:", storageErr);
-      }
-
-      const { error: photoDeleteErr } = await supabase
-        .from("photos")
-        .delete()
-        .in("folder_id", idsToDelete)
-        .eq("user_id", user.id);
-
-      if (photoDeleteErr) {
-        console.error("Folder photo delete failed:", photoDeleteErr);
-        return false;
-      }
-
-      const { error: folderDeleteErr } = await supabase
-        .from("folders")
-        .delete()
-        .eq("id", target.id)
-        .eq("user_id", user.id);
-
-      if (folderDeleteErr) {
-        console.error("Folder delete failed:", folderDeleteErr);
-        return false;
-      }
-
-      setFolders((prev) => prev.filter((f) => !idsToDelete.includes(f.id)));
-      setPhotos((prev) => prev.filter((p) => !idsToDelete.includes(p.folderId)));
-
-      // If the user is browsing inside the deleted subtree, pop back out of it
-      setPath((prev) => {
-        const keepIndex = prev.findIndex((id) => idsToDelete.includes(id));
-        return keepIndex === -1 ? prev : prev.slice(0, keepIndex);
-      });
+      setPhotos((prev) => prev.filter((p) => p.id !== entry.id));
+      setTrashEntries((prev) => prev.filter((item) => item.key !== entry.key));
+      return true;
     }
 
+    const ids = collectDescendantIds(folders, entry.id);
+    const rows = photos.filter((p) => ids.includes(p.folderId));
+    const paths = rows.map((p) => p.storagePath).filter(Boolean);
+
+    if (paths.length > 0) {
+      const { error } = await supabase.storage
+        .from(PHOTOS_BUCKET)
+        .remove(paths);
+
+      if (error) {
+        return reportFailure("Could not permanently delete the folder's stored files.", error);
+      }
+    }
+
+    const { error: photoErr } = await supabase
+      .from("photos")
+      .delete()
+      .in("folder_id", ids)
+      .eq("user_id", user.id);
+
+    if (photoErr) {
+      return reportFailure("Could not permanently delete the folder's photos.", photoErr);
+    }
+
+    const { error: folderErr } = await supabase
+      .from("folders")
+      .delete()
+      .in("id", ids)
+      .eq("user_id", user.id);
+
+    if (folderErr) {
+      return reportFailure("Could not permanently delete the folder.", folderErr);
+    }
+
+    setFolders((prev) => prev.filter((f) => !ids.includes(f.id)));
+    setPhotos((prev) => prev.filter((p) => !ids.includes(p.folderId)));
+
+    const keys = new Set([
+      ...ids.map((id) => `folder-${id}`),
+      ...rows.map((p) => `file-${p.id}`),
+    ]);
+    setTrashEntries((prev) => prev.filter((item) => !keys.has(item.key)));
     return true;
   };
+
+  const emptyTrash = async () => {
+    // Top-level trashed folders also delete their nested folders and photos.
+    const entriesToDelete = trashEntries.filter(
+      (item) =>
+        !item.isFile ||
+        !trashEntries.some(
+          (folderEntry) =>
+            !folderEntry.isFile &&
+            collectDescendantIds(folders, folderEntry.id).includes(item.id)
+        )
+    );
+
+    for (const entry of entriesToDelete) {
+      await permanentlyDelete(entry);
+    }
+  };
+
+  // Automatically purge expired Trash entries while this page is open and
+  // the user is signed in. Server-side scheduling is needed for 24/7 cleanup.
+  useEffect(() => {
+    if (!user || !trashLoaded || trashEntries.length === 0) return;
+
+    const purgeExpiredTrash = async () => {
+      const now = Date.now();
+      const expiredEntries = trashEntries.filter((entry) => {
+        const deletedAt = new Date(entry.deletedAt).getTime();
+        return (
+          Number.isFinite(deletedAt) &&
+          now - deletedAt >= TRASH_RETENTION_MS &&
+          !purgeInProgressRef.current.has(entry.key)
+        );
+      });
+
+      for (const entry of expiredEntries) {
+        purgeInProgressRef.current.add(entry.key);
+        try {
+          await permanentlyDelete(entry, { silent: true });
+        } catch (error) {
+          console.error("Automatic Trash cleanup failed:", error);
+        } finally {
+          purgeInProgressRef.current.delete(entry.key);
+        }
+      }
+    };
+
+    purgeExpiredTrash();
+    const timer = setInterval(purgeExpiredTrash, TRASH_CHECK_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [user, trashLoaded, trashEntries, photos, folders]);
 
   // Runs in the background: the modal closes right away so the user can keep
   // working, and progress is shown as a toast in the lower-right corner.
@@ -545,23 +758,30 @@ function MediaStorage() {
         accept="image/*,video/*"
       />
 
-      {/* Top action bar */}
-      <div className="mb-4 flex items-center justify-between">
-        {path.length > 0 ? (
+      {/* Files / Trash navigation */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className={`flex items-center gap-1 rounded-xl p-1 ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
+          <button onClick={() => { setActiveView("files"); setPath([]); setTrashPath([]); }} className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${activeView === "files" ? (isDark ? "bg-slate-700 text-white" : "bg-white text-slate-900 shadow-sm") : (isDark ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900")}`}>My Files</button>
+          <button onClick={() => { setActiveView("trash"); setPath([]); setTrashPath([]); }} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${activeView === "trash" ? (isDark ? "bg-slate-700 text-white" : "bg-white text-slate-900 shadow-sm") : (isDark ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900")}`}><FaRegTrashAlt /> Trash Bin <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[10px] text-white">{trashEntries.filter((entry) => !entry.isFile || !isFolderHiddenByTrash(entry.id)).length}</span></button>
+        </div>
+        {(activeView === "files" ? path.length > 0 : trashPath.length > 0) ? (
           <button
-            onClick={handleBack}
+            onClick={() => {
+              if (activeView === "files") handleBack();
+              else setTrashPath((prev) => prev.slice(0, -1));
+            }}
             className={`rounded-lg px-3 py-1.5 text-sm transition ${topButtonClasses}`}
           >
             ← Back
           </button>
         ) : <div />}
 
-        <div className="relative">
+        {activeView === "files" && <div className="relative">
           <button
             onClick={() => setShowAddMenu(!showAddMenu)}
             className="add-client-btn text-sm font-semibold text-slate-950 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
           >
-            <FaPlus /> Add
+            <FaPlus/> <span>Add</span>
           </button>
 
           {showAddMenu && (
@@ -573,7 +793,7 @@ function MediaStorage() {
                 }}
                 className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${menuClasses}`}
               >
-                <FaFolder className="text-yellow-400" /> Folder
+                <FaFolder aria-hidden="true" className="shrink-0 text-sky-500 dark:text-sky-400" /> <span>Folder</span>
               </button>
               <button
                 onClick={() => {
@@ -582,17 +802,17 @@ function MediaStorage() {
                 }}
                 className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${menuClasses}`}
               >
-                <FaFile className="text-sky-400" /> File
+                <FaFile aria-hidden="true" className="shrink-0 text-sky-400" /> <span>File</span>
               </button>
             </div>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Breadcrumb Navigation */}
       <div className="mb-1 flex flex-wrap items-center gap-2 text-2xl font-semibold">
-        {breadcrumbItems.map((item, index) => {
-          const isLast = index === breadcrumbItems.length - 1;
+        {activeBreadcrumbItems.map((item, index) => {
+          const isLast = index === activeBreadcrumbItems.length - 1;
           const isRoot = index === 0;
 
           return (
@@ -601,7 +821,10 @@ function MediaStorage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!isLast) setPath(path.slice(0, index));
+                  if (!isLast) {
+                    if (activeView === "files") setPath(path.slice(0, index));
+                    else setTrashPath(trashPath.slice(0, index));
+                  }
                 }}
                 disabled={isLast}
                 className={`transition ${
@@ -621,7 +844,7 @@ function MediaStorage() {
               >
                 {item.label}
               </button>
-              {isRoot && path.length > 0 && (
+              {isRoot && (activeView === "files" ? path.length > 0 : trashPath.length > 0) && (
                 <span className={isDark ? "text-slate-500" : "text-slate-400"}>›</span>
               )}
             </div>
@@ -629,10 +852,12 @@ function MediaStorage() {
         })}
       </div>
       <p className={`mb-4 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-        Manage and organize media files for each client and project. Folders here are shared with the Culling tab.
+        {activeView === "files"
+          ? "Manage and organize media files for each client and project. Folders here are shared with the Culling tab."
+          : "Items in Trash are automatically deleted after 30 days. Open folders to inspect their contents or restore items before they expire."}
       </p>
 
-      {isAddingFolder && (
+      {activeView === "files" && isAddingFolder && (
         <form onSubmit={handleAddFolderSubmit} className={`mi-fade mb-4 flex gap-2 rounded-lg border p-3 ${formClasses}`}>
           <input
             type="text"
@@ -663,19 +888,17 @@ function MediaStorage() {
               </div>
             </div>
           ))}
-        {sortedCurrentItems.map((item, index) => {
-          const counts = !item.isFile ? getFolderCounts(item.id) : null;
+        {(activeView === "files" ? sortedCurrentItems : trashCurrentItems).map((item, index) => {
+          const counts = !item.isFile && activeView === "files" ? getFolderCounts(item.id) : null;
 
           return (
             <div
               key={`${item.isFile ? "file" : "folder"}-${item.id}`}
               style={{ animationDelay: `${Math.min(index, 12) * 45}ms` }}
               onClick={() => {
-                if (item.isFile) {
-                  openFile(item);
-                } else {
-                  setPath([...path, item.id]);
-                }
+                if (item.isFile) openFile(item);
+                else if (activeView === "files") setPath([...path, item.id]);
+                else setTrashPath([...trashPath, item.id]);
               }}
               className={`mi-item flex items-center justify-between rounded-lg border p-4 cursor-pointer transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md ${itemClasses} ${deletingIds.includes(item.id) ? "opacity-40 pointer-events-none" : ""}`}
             >
@@ -734,7 +957,7 @@ function MediaStorage() {
                           {item.name}
                         </h2>
 
-                        {!item.isFile && (
+                        {!item.isFile && activeView === "files" && (
                           <div className="flex items-center gap-1.5">
                             <span
                               className={
@@ -759,7 +982,27 @@ function MediaStorage() {
                         )}
                       </div>
 
-                      {!item.isFile && (
+                      {activeView === "trash" && item.deletedAt && (
+                        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                          {(() => {
+                            const remainingMs = Math.max(
+                              0,
+                              TRASH_RETENTION_MS -
+                                (Date.now() - new Date(item.deletedAt).getTime())
+                            );
+                            const totalHours = Math.floor(remainingMs / (60 * 60 * 1000));
+                            const totalDays = Math.floor(totalHours / 24);
+                            const hours = totalHours % 24;
+                            const minutes = Math.floor(
+                              (remainingMs % (60 * 60 * 1000)) / (60 * 1000)
+                            );
+                            if (totalDays > 0) return `${totalDays}d ${hours}h remaining`;
+                            if (totalHours > 0) return `${hours}h ${minutes}m remaining`;
+                            return `${minutes}m remaining`;
+                          })()}
+                        </p>
+                      )}
+                      {!item.isFile && activeView === "files" && (
                         <p className="mt-1 text-xs text-slate-500">
                           {item.name.toLowerCase() === "culled"
                             ? "Final selected photos"
@@ -774,7 +1017,7 @@ function MediaStorage() {
               </div>
 
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                {editId !== item.id && (
+                {activeView === "files" && editId !== item.id && (
                   <button
                     onClick={() => { setEditId(item.id); setEditIsFolder(!item.isFile); setEditName(item.name); }}
                     className="rounded-lg p-2 text-slate-500 transition hover:!bg-sky-100 hover:!text-sky-600 dark:text-slate-400 dark:hover:!bg-sky-500/10 dark:hover:!text-sky-400"
@@ -784,22 +1027,20 @@ function MediaStorage() {
                     <FaEdit />
                   </button>
                 )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteTarget({ id: item.id, name: item.name, isFile: item.isFile });
-                  }}
+                {activeView === "files" ? <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: item.id, name: item.name, isFile: item.isFile }); }}
                   className="rounded-lg p-2 text-slate-500 transition hover:!bg-red-100 hover:!text-red-500 dark:text-slate-400 dark:hover:!bg-red-500/10 dark:hover:!text-red-500"
-                  style={{ background: "transparent", border: "none", outline: "none", boxShadow: "none", appearance: "none", WebkitAppearance: "none" }}
-                  title="Delete"
-                >
-                  <FaTrash />
-                </button>
+                  style={{ background: "transparent", border: "none", outline: "none", boxShadow: "none", appearance: "none", WebkitAppearance: "none" }} title="Move to Trash"><FaTrash /></button> : <>
+                  <button onClick={(e) => { e.stopPropagation(); restoreTrashEntry(trashEntries.find((entry) => entry.key === item.key)); }} className="rounded-lg p-2 text-emerald-600 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-500/10" title="Restore"><FaUndo /></button>
+                  <button onClick={(e) => { e.stopPropagation(); setPermanentDeleteTarget(trashEntries.find((entry) => entry.key === item.key)); }} className="rounded-lg p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/10" title="Delete permanently"><FaTrash /></button>
+                </>}
               </div>
             </div>
           );
         })}
+        {!showLoading && (activeView === "files" ? sortedCurrentItems.length === 0 : trashCurrentItems.length === 0) && <div className={`rounded-xl border border-dashed p-10 text-center ${isDark ? "border-slate-700 text-slate-400" : "border-slate-300 text-slate-500"}`}><FaRegTrashAlt className="mx-auto mb-3 text-3xl opacity-50" /><p className="font-semibold">{activeView === "files" ? "This folder is empty" : "Trash is empty"}</p><p className="mt-1 text-sm">{activeView === "files" ? "Add a folder or upload a file to get started." : "Items you move to Trash will appear here."}</p></div>}
       </div>
+      {activeView === "trash" && trashPath.length === 0 && trashEntries.length > 0 && <div className="mt-4 flex justify-end"><button onClick={() => setPermanentDeleteTarget({ isEmptyTrash: true, name: "all items in Trash" })} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500">Empty Trash</button></div>}
 
       {/* File Preview Modal */}
       {viewingFile && (
@@ -829,11 +1070,11 @@ function MediaStorage() {
       {deleteTarget && (
         <div className="mi-fade fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`mi-modal w-full max-w-sm rounded-xl border p-6 text-center shadow-xl ${modalContentClasses}`}>
-            <h3 className="mb-2 text-lg font-bold">Delete Item?</h3>
+            <h3 className="mb-2 text-lg font-bold">Move to Trash?</h3>
             <p className={`mb-6 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
               {deleteTarget.isFile
-                ? <>Are you sure you want to delete <span className="font-semibold">"{deleteTarget.name}"</span>? This action cannot be undone.</>
-                : <>This will permanently delete <span className="font-semibold">"{deleteTarget.name}"</span>, every subfolder inside it, and all photos inside those. This action cannot be undone.</>
+                ? <>Move <span className="font-semibold">"{deleteTarget.name}"</span> to Trash? You can restore it within 30 days.</>
+                : <>Move <span className="font-semibold">"{deleteTarget.name}"</span> and its subfolders and photos to Trash. You can restore them within 30 days.</>
               }
             </p>
             <div className="flex justify-center gap-3">
@@ -847,12 +1088,15 @@ function MediaStorage() {
                 onClick={confirmDelete}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
               >
-                Yes, Delete
+                Move to Trash
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Permanent delete confirmation */}
+      {permanentDeleteTarget && <div className="mi-fade fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"><div className={`mi-modal w-full max-w-sm rounded-xl border p-6 text-center shadow-xl ${modalContentClasses}`}><h3 className="mb-2 text-lg font-bold">{permanentDeleteTarget.isEmptyTrash ? "Empty Trash?" : "Delete Permanently?"}</h3><p className={`mb-6 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>{permanentDeleteTarget.isEmptyTrash ? "Items will be permanently deleted from Supabase Storage and cannot be restored." : <>Permanently delete <span className="font-semibold">"{permanentDeleteTarget.name}"</span>? This cannot be undone.</>}</p><div className="flex justify-center gap-3"><button onClick={() => setPermanentDeleteTarget(null)} className={`rounded-lg px-4 py-2 text-sm font-semibold ${modalButtonClasses}`}>Cancel</button><button onClick={async () => { const target = permanentDeleteTarget; setPermanentDeleteTarget(null); if (target.isEmptyTrash) await emptyTrash(); else await permanentlyDelete(target); }} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500">Delete Permanently</button></div></div></div>}
 
       {/* Background delete toasts (lower right) */}
       <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-2">

@@ -10,8 +10,9 @@ import {
   FaSignOutAlt,
 } from "react-icons/fa";
 
+import { createPortal, flushSync } from "react-dom";
 import { useTheme } from "../context/ThemeContext";
-import { useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 
 import ReportProblemModal from "../components/Settings/ReportProblemModal";
 import ActiveSessionsModal from "../components/Settings/ActiveSessionsModal";
@@ -94,6 +95,104 @@ function SettingsSkeleton() {
 /* ------------------------------------------------------------------ */
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
+
+  const themeButtonRef = useRef(null);
+  const revealRef = useRef(null);
+
+  const [reveal, setReveal] = useState(null);
+  const [iconRolling, setIconRolling] = useState(false);
+
+  const handleThemeToggle = () => {
+    if (iconRolling) return;
+
+    const nextTheme = theme === "light" ? "dark" : "light";
+    const button = themeButtonRef.current;
+
+    if (!button) {
+      setTheme(nextTheme);
+      return;
+    }
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    // No animation if the user prefers reduced motion.
+    if (
+      prefersReducedMotion ||
+      !document.startViewTransition
+    ) {
+      setTheme(nextTheme);
+      return;
+    }
+
+    const rect = button.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    const radius = Math.ceil(
+      Math.max(
+        Math.hypot(x, y),
+        Math.hypot(width - x, y),
+        Math.hypot(x, height - y),
+        Math.hypot(width - x, height - y)
+      )
+    );
+
+    const root = document.documentElement;
+
+    // The circle originates from the toggle button.
+    root.style.setProperty("--theme-reveal-x", `${x}px`);
+    root.style.setProperty("--theme-reveal-y", `${y}px`);
+    root.style.setProperty("--theme-reveal-radius", `${radius}px`);
+
+    setIconRolling(true);
+
+    const transition = document.startViewTransition(() => {
+      flushSync(() => {
+        setTheme(nextTheme);
+      });
+    });
+
+    transition.finished.finally(() => {
+      setIconRolling(false);
+
+      root.style.removeProperty("--theme-reveal-x");
+      root.style.removeProperty("--theme-reveal-y");
+      root.style.removeProperty("--theme-reveal-radius");
+    });
+  };
+
+  useEffect(() => {
+    if (!reveal || !revealRef.current) return;
+
+    const element = revealRef.current;
+
+    const animation = element.animate(
+      [
+        {
+          clipPath: `circle(0px at ${reveal.x}px ${reveal.y}px)`,
+        },
+        {
+          clipPath: `circle(${reveal.radius}px at ${reveal.x}px ${reveal.y}px)`,
+        },
+      ],
+      {
+        duration: 650,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "forwards",
+      }
+    );
+
+    animation.onfinish = () => {
+      setReveal(null);
+    };
+
+    return () => animation.cancel();
+  }, [reveal]);
 
   // Fixed 2s loading, kahit ready na ang content
   const [isLoading, setIsLoading] = useState(true);
@@ -214,34 +313,53 @@ function SettingsPage() {
             </p>
           </div>
 
-          <div className="flex rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-900">
-            <button
-              type="button"
-              onClick={() => setTheme("light")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-300 ease-out ${
-                theme === "light"
-                  ? "bg-sky-600 text-white shadow-sm"
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-              }`}
-            >
-              <FaSun />
-              Light
-            </button>
+          <button
+            ref={themeButtonRef}
+            type="button"
+            onClick={handleThemeToggle}
+            disabled={Boolean(reveal)}
+            role="switch"
+            aria-checked={theme === "dark"}
+            aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+            className={`theme-pill ${
+              theme === "dark" ? "is-dark" : "is-light"
+            }`}
+          >
+            <span className="theme-pill-label light-label">LIGHT</span>
+            <span className="theme-pill-label dark-label">DARK</span>
 
-            <button
-              type="button"
-              onClick={() => setTheme("dark")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-300 ease-out ${
-                theme === "dark"
-                  ? "bg-sky-600 text-white shadow-sm"
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-              }`}
-            >
-              <FaMoon />
-              Dark
-            </button>
-          </div>
+            <span className="theme-pill-thumb">
+              <span
+                key={theme}
+                className="theme-pill-icon-wrap"
+              >
+                {theme === "light" ? <FaSun /> : <FaMoon />}
+              </span>
+            </span>
+          </button>
         </div>
+
+        {/* Circular screen reveal */}
+        {reveal &&
+          createPortal(
+            <div
+              ref={revealRef}
+              aria-hidden="true"
+              className="theme-reveal-overlay"
+              style={{
+                position: "fixed",
+                inset: 0,
+                width: "100vw",
+                height: "100vh",
+                zIndex: 2147483647,
+                pointerEvents: "none",
+                backgroundColor:
+                  reveal.theme === "dark" ? "#020617" : "#f1f5f9",
+                clipPath: `circle(0px at ${reveal.x}px ${reveal.y}px)`,
+              }}
+            />,
+            document.body
+          )}
       </div>
 
       {/* Account & Security */}

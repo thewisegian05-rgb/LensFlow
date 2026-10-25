@@ -317,8 +317,8 @@ body::-webkit-scrollbar-thumb:hover {
   position: absolute;
   top: 50%;
   z-index: 0;
-  font-size: 8px;
-  font-weight: 800;
+  font-size: 9px;
+  font-weight: 700;
   letter-spacing: 0.6px;
   transform: translateY(-50%);
   transition: opacity 200ms ease;

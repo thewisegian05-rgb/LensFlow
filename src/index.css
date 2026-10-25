@@ -353,23 +353,28 @@ body::-webkit-scrollbar-thumb:hover {
   position: absolute;
   top: 4px;
   left: 4px;
-  z-index: 1;
+  z-index: 2;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
+  box-sizing: border-box;
   width: 34px;
   height: 34px;
+  padding: 0;
 
+  border: 0;
   border-radius: 50%;
   background: #facc15;
   color: #713f12;
 
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
 
-  /* The thumb visibly rolls across the track */
   transform: translateX(0) rotate(0deg);
+  transform-origin: center center;
+  will-change: transform;
+  view-transition-name: theme-pill-thumb;
 
   transition:
     transform 900ms cubic-bezier(0.45, 0, 0.2, 1),
@@ -385,15 +390,28 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 /* Keep the icon centered inside the moving thumb */
+.theme-pill-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  line-height: 0;
+  pointer-events: none;
+}
+
 .theme-pill-icon {
+  display: block;
   width: 17px;
   height: 17px;
   flex-shrink: 0;
 }
 
 /* ==========================================
-   CIRCULAR THEME PAINT REVEAL
-   Uses the browser View Transition API.
+   COSMIC THEME TRANSITIONS
+   Dark collapses inward; dark mode expands outward.
+   Uses the browser View Transitions API.
 ========================================== */
 
 ::view-transition-old(root),
@@ -402,28 +420,148 @@ body::-webkit-scrollbar-thumb:hover {
   mix-blend-mode: normal;
 }
 
-/* Keep the previous theme visible beneath the reveal. */
+/* Default transition stacking. */
 ::view-transition-old(root) {
   z-index: 1;
 }
 
-/* Reveal the updated page through an expanding circle. */
 ::view-transition-new(root) {
   z-index: 2;
+}
 
+/* DARK -> LIGHT: keep the old dark page above the new light page
+   while it collapses into the theme toggle. */
+html[data-theme-transition="to-light"]::view-transition-old(root) {
+  z-index: 3;
+  animation: cosmic-collapse 850ms
+    cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+html[data-theme-transition="to-light"]::view-transition-new(root) {
+  z-index: 1;
+}
+
+/* LIGHT -> DARK: reveal the new dark page from the toggle outward. */
+html[data-theme-transition="to-dark"]::view-transition-new(root) {
+  z-index: 2;
   clip-path: circle(
     0px at var(--theme-reveal-x) var(--theme-reveal-y)
   );
-
-  animation: theme-paint-reveal 900ms
-    cubic-bezier(0.45, 0, 0.2, 1) forwards;
+  animation: cosmic-engulf 900ms
+    cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-@keyframes theme-paint-reveal {
+/* Keep the thumb above the page snapshots and animate its own snapshot.
+   The browser otherwise freezes the thumb inside the root screenshot,
+   making it look like it teleports when the theme changes. */
+::view-transition-group(theme-pill-thumb) {
+  z-index: 10;
+  animation-duration: 900ms;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+::view-transition-image-pair(theme-pill-thumb) {
+  isolation: isolate;
+}
+
+::view-transition-old(theme-pill-thumb) {
+  animation: none;
+  opacity: 0;
+}
+
+/* Keep the old icon visible until the roll is underway, then crossfade. */
+html[data-theme-transition]::view-transition-old(theme-pill-thumb) {
+  animation: thumb-fade-out 900ms linear both;
+  opacity: 1;
+}
+
+/* DARK -> LIGHT: new thumb starts on the right and rolls to the left. */
+html[data-theme-transition="to-light"]::view-transition-new(theme-pill-thumb) {
+  animation:
+    thumb-roll-to-light 900ms cubic-bezier(0.45, 0, 0.2, 1) both,
+    thumb-fade-in 900ms linear both;
+}
+
+/* LIGHT -> DARK: new thumb starts on the left and rolls to the right. */
+html[data-theme-transition="to-dark"]::view-transition-new(theme-pill-thumb) {
+  animation:
+    thumb-roll-to-dark 900ms cubic-bezier(0.45, 0, 0.2, 1) both,
+    thumb-fade-in 900ms linear both;
+}
+
+@keyframes thumb-fade-in {
+  from,
+  35% {
+    opacity: 0;
+  }
+  to,
+  65% {
+    opacity: 1;
+  }
+}
+
+@keyframes thumb-fade-out {
+  from,
+  35% {
+    opacity: 1;
+  }
+  to,
+  65% {
+    opacity: 0;
+  }
+}
+
+@keyframes thumb-roll-to-light {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: -360deg;
+  }
+}
+
+@keyframes thumb-roll-to-dark {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
+}
+
+/* The old dark appearance contracts toward the toggle. */
+@keyframes cosmic-collapse {
+  from {
+    clip-path: circle(
+      var(--theme-reveal-radius)
+      at var(--theme-reveal-x) var(--theme-reveal-y)
+    );
+    filter: brightness(1);
+  }
+
+  70% {
+    filter: brightness(1.25);
+  }
+
+  to {
+    clip-path: circle(
+      0px at var(--theme-reveal-x) var(--theme-reveal-y)
+    );
+    filter: brightness(1.8);
+  }
+}
+
+/* The new dark appearance erupts and expands across the page. */
+@keyframes cosmic-engulf {
   from {
     clip-path: circle(
       0px at var(--theme-reveal-x) var(--theme-reveal-y)
     );
+    filter: brightness(2.2);
+  }
+
+  35% {
+    filter: brightness(1.4);
   }
 
   to {
@@ -431,20 +569,32 @@ body::-webkit-scrollbar-thumb:hover {
       var(--theme-reveal-radius)
       at var(--theme-reveal-x) var(--theme-reveal-y)
     );
+    filter: brightness(1);
   }
 }
 
-/* Accessibility: respect reduced-motion preferences. */
+/* Respect reduced-motion preferences. */
 @media (prefers-reduced-motion: reduce) {
-  .theme-pill,
-  .theme-pill-thumb,
-  .theme-pill-label {
-    transition: none !important;
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-group(theme-pill-thumb),
+  ::view-transition-old(theme-pill-thumb),
+  ::view-transition-new(theme-pill-thumb) {
+    animation: none !important;
+    clip-path: none !important;
+    filter: none !important;
+    transform: none !important;
   }
 
-  .theme-icon-roll .theme-pill-icon,
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
+  ::view-transition-old(theme-pill-thumb) {
+    opacity: 0 !important;
+  }
+
+  .theme-pill,
+  .theme-pill-thumb,
+  .theme-pill-label,
+  .theme-pill-icon-wrap {
+    transition: none !important;
     animation: none !important;
   }
 }

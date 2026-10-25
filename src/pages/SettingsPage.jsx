@@ -10,7 +10,7 @@ import {
   FaSignOutAlt,
 } from "react-icons/fa";
 
-import { createPortal, flushSync } from "react-dom";
+import { flushSync } from "react-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useRef, useState, useEffect } from "react";
 
@@ -97,9 +97,6 @@ function SettingsPage() {
   const { theme, setTheme } = useTheme();
 
   const themeButtonRef = useRef(null);
-  const revealRef = useRef(null);
-
-  const [reveal, setReveal] = useState(null);
   const [iconRolling, setIconRolling] = useState(false);
 
   const handleThemeToggle = () => {
@@ -144,10 +141,14 @@ function SettingsPage() {
 
     const root = document.documentElement;
 
-    // The circle originates from the toggle button.
+    // Position the cosmic transition at the center of the theme toggle.
     root.style.setProperty("--theme-reveal-x", `${x}px`);
     root.style.setProperty("--theme-reveal-y", `${y}px`);
     root.style.setProperty("--theme-reveal-radius", `${radius}px`);
+
+    // Select the animation direction.
+    root.dataset.themeTransition =
+      nextTheme === "dark" ? "to-dark" : "to-light";
 
     setIconRolling(true);
 
@@ -163,36 +164,10 @@ function SettingsPage() {
       root.style.removeProperty("--theme-reveal-x");
       root.style.removeProperty("--theme-reveal-y");
       root.style.removeProperty("--theme-reveal-radius");
+      delete root.dataset.themeTransition;
     });
   };
 
-  useEffect(() => {
-    if (!reveal || !revealRef.current) return;
-
-    const element = revealRef.current;
-
-    const animation = element.animate(
-      [
-        {
-          clipPath: `circle(0px at ${reveal.x}px ${reveal.y}px)`,
-        },
-        {
-          clipPath: `circle(${reveal.radius}px at ${reveal.x}px ${reveal.y}px)`,
-        },
-      ],
-      {
-        duration: 650,
-        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-        fill: "forwards",
-      }
-    );
-
-    animation.onfinish = () => {
-      setReveal(null);
-    };
-
-    return () => animation.cancel();
-  }, [reveal]);
 
   // Fixed 2s loading, kahit ready na ang content
   const [isLoading, setIsLoading] = useState(true);
@@ -317,7 +292,7 @@ function SettingsPage() {
             ref={themeButtonRef}
             type="button"
             onClick={handleThemeToggle}
-            disabled={Boolean(reveal)}
+            disabled={iconRolling}
             role="switch"
             aria-checked={theme === "dark"}
             aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
@@ -339,27 +314,7 @@ function SettingsPage() {
           </button>
         </div>
 
-        {/* Circular screen reveal */}
-        {reveal &&
-          createPortal(
-            <div
-              ref={revealRef}
-              aria-hidden="true"
-              className="theme-reveal-overlay"
-              style={{
-                position: "fixed",
-                inset: 0,
-                width: "100vw",
-                height: "100vh",
-                zIndex: 2147483647,
-                pointerEvents: "none",
-                backgroundColor:
-                  reveal.theme === "dark" ? "#020617" : "#f1f5f9",
-                clipPath: `circle(0px at ${reveal.x}px ${reveal.y}px)`,
-              }}
-            />,
-            document.body
-          )}
+
       </div>
 
       {/* Account & Security */}

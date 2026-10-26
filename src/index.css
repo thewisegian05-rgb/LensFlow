@@ -618,3 +618,41 @@ html[data-theme-transition="to-dark"]::view-transition-new(theme-pill-thumb) {
     transform: scale(1);
   }
 }
+
+
+/* ==========================================
+   LENSFLOW SIDEBAR SLIDING HIGHLIGHT (experimental)
+========================================== */
+
+.sidebar-sliding-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  pointer-events: none;
+
+  opacity: 0;
+  background: rgb(224 242 254 / 85%);
+  border-left: 4px solid #0ea5e9;
+
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms ease,
+    opacity 150ms ease;
+}
+
+.sidebar-sliding-highlight.is-visible {
+  opacity: 1;
+}
+
+.dark .sidebar-sliding-highlight {
+  background: rgb(14 165 233 / 14%);
+  border-left-color: #0ea5e9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-sliding-highlight {
+    transition: none !important;
+  }
+}

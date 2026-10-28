@@ -101,17 +101,18 @@ function ClientCard({
           </div>
         </div>
 
-
         <div className="client-detail">
           <FiFolder />
-          <div>
+          <div className="client-detail-content">
             <small>Active Project</small>
-            <p className="project-name">
-              {client.project}
+            <p
+              className="project-name"
+              title={client.project || "No active project"}
+            >
+              {client.project || "No active project"}
             </p>
           </div>
         </div>
-
 
         <div className="client-detail">
           <FaPesoSign />

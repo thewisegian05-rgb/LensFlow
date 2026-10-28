@@ -546,3 +546,52 @@
     padding: 10px 14px !important;
   }
 }
+
+
+/* ==========================================
+   VIEW CLIENT MODAL ANIMATIONS
+========================================== */
+
+.view-client-modal {
+  animation: addClientModalIn 350ms
+    cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.modal-overlay.modal-entering {
+  animation: addClientBackdropIn 250ms ease-out both;
+}
+
+.modal-overlay.modal-entering .view-client-modal {
+  animation: addClientModalIn 350ms
+    cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.modal-overlay.modal-closing {
+  animation: addClientBackdropOut 220ms ease-in both;
+  pointer-events: none;
+}
+
+.modal-overlay.modal-closing .view-client-modal {
+  animation: addClientModalOut 220ms ease-in both;
+}
+
+.view-client-actions button,
+.project-nav-btn {
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay,
+  .modal-overlay .view-client-modal {
+    animation-duration: 1ms !important;
+  }
+
+  .view-client-actions button,
+  .project-nav-btn {
+    transition-duration: 1ms !important;
+  }
+}

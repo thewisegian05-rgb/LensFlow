@@ -1,52 +1,50 @@
+
 /* ==========================================
    MODAL OVERLAY
 ========================================== */
 
 .modal-overlay {
   position: fixed;
-
   inset: 0;
-
-  z-index: 1000;
-
+  z-index: 999999;
   display: flex;
   align-items: center;
   justify-content: center;
-
   padding: 20px;
-
   box-sizing: border-box;
-
   background: rgba(2, 6, 17, 0.78);
-
   backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  isolation: isolate;
 }
-
 
 /* ==========================================
    MODAL CONTAINER
 ========================================== */
 
 .client-modal {
+  position: relative;
   width: 100%;
   max-width: 550px;
-
-  max-height: 90vh;
-
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
-
+  overscroll-behavior: contain;
   padding: 25px;
-
   box-sizing: border-box;
-
   background: #ffffff;
-
   border: 1px solid #dfe7f1;
   border-radius: 14px;
-
-  box-shadow:
-    0 20px 60px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
 }
+
+/* Dark mode */
+.dark .client-modal {
+  background: #111b2e;
+  border-color: #30425f;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
 
 .dark .client-modal {
   background: #111b2e;
@@ -275,12 +273,22 @@
 
 .modal-actions {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   align-items: center;
-
   gap: 10px;
-
+  width: 100%;
   margin-top: 8px;
+}
+
+.modal-actions button {
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed;
+  white-space: nowrap;
+  transform-origin: center;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 
@@ -289,33 +297,31 @@
 ========================================== */
 
 .cancel-btn {
-  display: flex;
+  display: inline-flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
 
+  min-height: 48px;
   padding: 10px 16px;
 
   border: 1px solid #dfe7f1;
-  border-radius: 7px;
+  border-radius: 8px;
 
   background: transparent;
-
   color: #475569;
 
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1.2;
 
   cursor: pointer;
-
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .cancel-btn:hover {
   background: #f1f5f9;
-
   color: #0f172a;
 }
 
@@ -330,36 +336,39 @@
 }
 
 
+
 /* ==========================================
    SAVE CLIENT BUTTON
 ========================================== */
 
 .save-client-btn {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 8px !important;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
 
-  padding: 12px 20px !important;
+  min-height: 48px;
+  padding: 12px 20px;
 
-  border: 1px solid transparent !important;
-  border-radius: 8px !important;
+  border: 1px solid transparent;
+  border-radius: 8px;
 
-  background: #0ea5e9 !important;
-  color: #0f172a !important;
+  background: #0ea5e9;
+  color: #0f172a;
 
   font-family: inherit;
-  font-size: 14px !important;
-  font-weight: 600 !important;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
 
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .save-client-btn:hover {
-  background: #0284c7 !important;
-  color: #0f172a !important;
+  background: #0284c7;
+  color: #0f172a;
 }
 
 .save-client-btn:focus-visible {
@@ -368,9 +377,8 @@
 }
 
 .save-client-btn:active {
-  background: #0369a1 !important;
-  color: #0f172a !important;
-  transform: translateY(0);
+  background: #0369a1;
+  color: #0f172a;
 }
 
 
@@ -397,5 +405,144 @@
   .cancel-btn,
   .save-client-btn {
     width: 100%;
+  }
+}
+
+/* ==========================================
+   MODAL ANIMATIONS
+========================================== */
+
+@keyframes addClientBackdropIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+    -webkit-backdrop-filter: blur(0);
+  }
+
+  to {
+    opacity: 1;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+}
+
+@keyframes addClientBackdropOut {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+
+  to {
+    opacity: 0;
+    backdrop-filter: blur(0);
+    -webkit-backdrop-filter: blur(0);
+  }
+}
+
+@keyframes addClientModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.96);
+    filter: blur(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes addClientModalOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+    filter: blur(2px);
+  }
+}
+
+/* Opening */
+.modal-overlay.modal-entering {
+  animation: addClientBackdropIn 250ms ease-out both;
+}
+
+.modal-overlay.modal-entering .client-modal {
+  animation: addClientModalIn 350ms
+    cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Closing */
+.modal-overlay.modal-closing {
+  animation: addClientBackdropOut 220ms ease-in both;
+  pointer-events: none;
+}
+
+.modal-overlay.modal-closing .client-modal {
+  animation: addClientModalOut 220ms ease-in both;
+}
+
+/* ==========================================
+   ACCESSIBILITY
+========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay,
+  .modal-overlay .client-modal {
+    animation-duration: 1ms !important;
+  }
+}
+
+
+/* Fix Add Client modal action buttons */
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.modal-actions .cancel-btn,
+.modal-actions .save-client-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 120px;
+  min-height: 48px;
+  padding: 12px 20px;
+  box-sizing: border-box;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  white-space: nowrap;
+  transform: none;
+}
+
+.modal-actions .cancel-btn {
+  width: auto;
+  height: auto;
+}
+
+.modal-actions .save-client-btn {
+  width: auto;
+  height: auto;
+}
+
+@media (max-width: 420px) {
+  .modal-actions {
+    gap: 8px;
+  }
+
+  .cancel-btn,
+  .save-client-btn {
+    padding: 10px 14px;
   }
 }

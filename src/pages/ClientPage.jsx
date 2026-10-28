@@ -403,26 +403,37 @@ function ClientPage() {
           {!loadingClients && filteredClients.length === 1 ? "client" : "clients"}
         </div>
 
+        
         {/* VIEW SWITCHER */}
-        <div className="view-switcher">
-          {/* GRID */}
+        <div
+          className={`view-switcher ${
+            viewType === "list" ? "is-list" : "is-grid"
+          }`}
+        >
+          <span className="view-switcher-indicator" aria-hidden="true" />
+
           <button
+            type="button"
             className={`view-toggle-btn ${
-              viewType === "grid" ? activeToggleClass : inactiveToggleClass
+              viewType === "grid" ? "is-active" : ""
             }`}
             onClick={() => setViewType("grid")}
             title="Block View"
+            aria-label="Block View"
+            aria-pressed={viewType === "grid"}
           >
             <FiGrid />
           </button>
 
-          {/* LIST */}
           <button
+            type="button"
             className={`view-toggle-btn ${
-              viewType === "list" ? activeToggleClass : inactiveToggleClass
+              viewType === "list" ? "is-active" : ""
             }`}
             onClick={() => setViewType("list")}
             title="List View"
+            aria-label="List View"
+            aria-pressed={viewType === "list"}
           >
             <FiList />
           </button>

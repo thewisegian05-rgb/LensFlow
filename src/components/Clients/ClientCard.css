@@ -1,11 +1,17 @@
 /* ==========================================
    CLIENT CARD
-========================================== */
+============================================= */
 
 .client-card {
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
 
+  /* Consistent card sizing */
+  height: 100%;
+  min-width: 0;
   box-sizing: border-box;
+
+  padding: 20px;
 
   background: #ffffff;
 
@@ -26,7 +32,6 @@
 
 .client-card:hover {
   transform: translateY(-3px);
-
   border-color: #b9c8d8;
 
   box-shadow:
@@ -37,6 +42,7 @@
   border-color: #486487;
   box-shadow: 0 10px 30px rgba(2, 6, 23, 0.24);
 }
+
 
 
 /* ==========================================
@@ -262,26 +268,24 @@
 
 /* ==========================================
    CLIENT DETAILS
-=================================== Who's a gap all together======= */
+============================================= */
 
 .client-details {
   display: grid;
-
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-
   gap: 18px 14px;
-
   padding: 20px 0;
+
+  /* Prevent content from expanding the grid */
+  min-width: 0;
 }
 
 .client-detail {
   display: flex;
   align-items: flex-start;
-
   gap: 9px;
 
   min-width: 0;
-
   color: #5fa7cb;
 }
 
@@ -291,19 +295,20 @@
 
 .client-detail svg {
   margin-top: 2px;
-
   flex-shrink: 0;
-
   font-size: 17px;
+}
+
+.client-detail > div {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .client-detail small {
   display: block;
-
   margin-bottom: 4px;
-
   color: #687890;
-
   font-size: 11px;
 }
 
@@ -312,27 +317,27 @@
 }
 
 .client-detail p {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
 
   color: #000000;
-
   font-size: 13px;
 
   overflow: hidden;
   text-overflow: ellipsis;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .client-detail .project-name {
   color: #2db6ee;
-
   font-weight: 600;
 }
 
 .client-detail .talent-fee {
   color: #000000;
-
   font-weight: 700;
 }
 
@@ -343,6 +348,7 @@
 .dark .client-detail .talent-fee {
   color: #f8fbff;
 }
+
 
 
 /* ==========================================

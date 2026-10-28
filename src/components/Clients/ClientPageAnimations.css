@@ -261,17 +261,6 @@
 }
 
 /* ==========================================
-   MODALS
-========================================== */
-.modal-overlay {
-  animation: fadeIn 0.3s var(--ease-soft);
-}
-
-.client-modal {
-  animation: modalPop 0.45s var(--ease-out-expo);
-}
-
-/* ==========================================
    ACCESSIBILITY: reduced motion
 ========================================== */
 @media (prefers-reduced-motion: reduce) {

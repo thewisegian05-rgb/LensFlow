@@ -540,3 +540,134 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================
+   ANIMATED GRID / LIST VIEW SWITCHER
+========================================== */
+
+.view-switcher {
+  --switcher-padding: 4px;
+
+  position: relative;
+  isolation: isolate;
+
+  display: inline-grid;
+  grid-template-columns: repeat(2, 44px);
+  align-items: center;
+
+  padding: var(--switcher-padding);
+  gap: 2px;
+
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+
+  background: #f1f5f9;
+}
+
+.dark .view-switcher {
+  border-color: #30425f;
+  background: #0b1424;
+}
+
+/* Sliding blue background */
+.view-switcher-indicator {
+  position: absolute;
+  z-index: -1;
+
+  top: var(--switcher-padding);
+  left: var(--switcher-padding);
+
+  width: 44px;
+  height: calc(100% - (var(--switcher-padding) * 2));
+
+  border-radius: 8px;
+  background: #0ea5e9;
+
+  box-shadow: 0 2px 8px rgb(14 165 233 / 25%);
+
+  transform: translateX(0);
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+
+  pointer-events: none;
+}
+
+/* Slide to the List icon */
+.view-switcher.is-list .view-switcher-indicator {
+  transform: translateX(46px);
+}
+
+/* Buttons */
+.view-switcher .view-toggle-btn {
+  position: relative;
+  z-index: 1;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 44px;
+  height: 36px;
+  padding: 0;
+
+  border: 1px solid transparent;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #64748b;
+
+  cursor: pointer;
+
+  transition:
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.dark .view-switcher .view-toggle-btn {
+  color: #94a3b8;
+}
+
+/* Active icon stays visible on the blue indicator */
+.view-switcher .view-toggle-btn.is-active,
+.dark .view-switcher .view-toggle-btn.is-active {
+  color: #082f49;
+  background: transparent;
+}
+
+/* Hovering over the active button must not change its color */
+.view-switcher .view-toggle-btn.is-active:hover {
+  color: #082f49;
+  background: transparent;
+  transform: scale(1.04);
+}
+
+/* Small interaction feedback */
+.view-switcher .view-toggle-btn:hover {
+  transform: scale(1.06);
+}
+
+.view-switcher .view-toggle-btn:active {
+  transform: scale(0.96);
+}
+
+/* Give only inactive buttons a subtle hover effect */
+.view-switcher .view-toggle-btn:not(.is-active):hover {
+  color: #0284c7;
+  background: rgb(14 165 233 / 10%);
+  transform: scale(1.04);
+}
+
+.view-switcher .view-toggle-btn:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .view-switcher-indicator,
+  .view-switcher .view-toggle-btn {
+    transition: none;
+  }
+}

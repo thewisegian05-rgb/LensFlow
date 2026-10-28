@@ -214,3 +214,38 @@ html { scroll-behavior: smooth; }
   60%  { transform: scale(1.035); filter: none; box-shadow: 0 0 0 6px rgba(56,189,248,.18), 0 0 50px rgba(56,189,248,.28); }
   100% { transform: scale(1); filter: none; box-shadow: 0 0 0 0 rgba(56,189,248,0), 0 0 0 rgba(56,189,248,0); }
 }
+
+
+/* ============ SLIDING TAB INDICATOR + SLIDE-IN CONTENT ============ */
+
+/* the highlight that glides between tabs */
+.lf-nav-indicator {
+  position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none;
+  border-left: 4px solid #0ea5e9;
+  background: linear-gradient(90deg, rgba(14,165,233,.24), rgba(14,165,233,.06));
+  box-shadow: inset 0 0 24px rgba(14,165,233,.12);
+  transition: transform .5s cubic-bezier(.65,0,.35,1), width .5s cubic-bezier(.65,0,.35,1), height .5s cubic-bezier(.65,0,.35,1), opacity .3s ease;
+  will-change: transform;
+}
+.lf-nav-indicator.no-anim { transition: none; }
+
+/* turn off the old per-tab effects, the indicator does the work now */
+.lf-tab-active, .lf-tab-active::before, .lf-tab-active::after, .lf-tab-active svg { animation: none !important; }
+.lf-tab-on svg { animation: lf-icon-nudge .5s cubic-bezier(.34,1.56,.64,1); }
+@keyframes lf-icon-nudge { 0% { transform: translateX(-8px) scale(.8); } 100% { transform: none; } }
+
+/* the section you jumped to slides in from the right */
+.lf-arrive {
+  border-radius: 1rem;
+  animation: lf-slide-in .8s cubic-bezier(.22,.9,.3,1) both !important;
+}
+@keyframes lf-slide-in {
+  0%   { transform: translateX(90px); opacity: 0; filter: blur(4px); }
+  60%  { opacity: 1; filter: none; }
+  100% { transform: none; opacity: 1; filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lf-nav-indicator { transition: none; }
+  .lf-arrive, .lf-tab-on svg { animation: none !important; }
+}

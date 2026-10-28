@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaStar,
@@ -9,7 +9,6 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaCameraRetro,
-  FaPlus,
   FaRegImages,
   FaHome,
   FaCalendarAlt,
@@ -25,7 +24,250 @@ import BookingModal from "../components/Schedule/BookingModal";
 import MyBookings from "../components/Schedule/MyBookings";
 import { supabase } from "../lib/supabaseClient";
 
+
+/* ============ Scroll reveal hook (adds "lf-in" when a card scrolls into view) ============ */
+
+function useScrollReveal(dep) {
+  useEffect(() => {
+    const els = document.querySelectorAll(".lf-reveal:not(.lf-in)");
+    if (!("IntersectionObserver" in window)) {
+      els.forEach((el) => el.classList.add("lf-in"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("lf-in");
+            io.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [dep]);
+}
+
+/* ============ Portal animations (embedded, no extra file needed) ============ */
+const PORTAL_CSS = `
+/* ==========================================
+   LENSFLOW CLIENT PORTAL, animations
+   (same style as the Clients page; every name is
+   prefixed lf- so nothing collides with Clients CSS)
+========================================== */
+:root {
+  --lf-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --lf-ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+html { scroll-behavior: smooth; }
+
+/* ==========================================
+   KEYFRAMES
+========================================== */
+@keyframes lf-fade-up   { from { opacity: 0; transform: translateY(28px) scale(.97); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes lf-fade-down { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: none; } }
+@keyframes lf-fade-in   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lf-row-in    { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes lf-modal-pop { from { opacity: 0; transform: scale(.94) translateY(24px); } to { opacity: 1; transform: none; } }
+@keyframes lf-pulse-dot { 0% { transform: scale(1); opacity: .6; } 70%, 100% { transform: scale(3.2); opacity: 0; } }
+@keyframes lf-shimmer   { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+
+/* ==========================================
+   PAGE LOAD
+========================================== */
+.lf-header-in { animation: lf-fade-down .7s var(--lf-ease-out-expo) backwards; }
+.lf-rise      { animation: lf-fade-up .9s var(--lf-ease-out-expo) backwards; animation-delay: var(--d, 0ms); }
+
+/* ==========================================
+   AURORA BACKGROUND
+========================================== */
+.lf-orb { position: absolute; border-radius: 9999px; filter: blur(90px); opacity: .35; will-change: transform; }
+.lf-orb-1 { width: 520px; height: 520px; top: -140px; left: -120px; background: #0ea5e9; animation: lf-drift-a 22s ease-in-out infinite alternate; }
+.lf-orb-2 { width: 460px; height: 460px; top: 35%; right: -140px; background: #8b5cf6; opacity: .22; animation: lf-drift-b 28s ease-in-out infinite alternate; }
+.lf-orb-3 { width: 400px; height: 400px; bottom: -160px; left: 30%; background: #10b981; opacity: .16; animation: lf-drift-c 32s ease-in-out infinite alternate; }
+@keyframes lf-drift-a { to { transform: translate(180px, 120px) scale(1.15); } }
+@keyframes lf-drift-b { to { transform: translate(-220px, -80px) scale(1.2); } }
+@keyframes lf-drift-c { to { transform: translate(140px, -160px) scale(1.1); } }
+
+/* ==========================================
+   HERO
+========================================== */
+.lf-kenburns { animation: lf-kenburns 18s ease-in-out infinite alternate; transform-origin: 60% 40%; }
+@keyframes lf-kenburns { from { transform: scale(1); } to { transform: scale(1.12) translate(-1.5%, -1%); } }
+
+.lf-focus-pull { animation: lf-focus-pull 1.4s var(--lf-ease-out-expo) backwards; }
+@keyframes lf-focus-pull {
+  0%   { opacity: 0; filter: blur(18px); transform: scale(1.06); letter-spacing: .06em; }
+  60%  { opacity: 1; }
+  100% { opacity: 1; filter: blur(0); transform: scale(1); letter-spacing: normal; }
+}
+
+.lf-shimmer-text {
+  background: linear-gradient(100deg, #38bdf8 20%, #e0f2fe 40%, #a78bfa 60%, #38bdf8 80%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: lf-text-shimmer 5s linear infinite;
+}
+@keyframes lf-text-shimmer { to { background-position: -250% 0; } }
+
+.lf-vf { position: absolute; width: 22px; height: 22px; border-color: rgba(56,189,248,.85); opacity: 0; animation: lf-vf-in .8s ease-out 1.2s forwards, lf-vf-pulse 3.2s ease-in-out 2s infinite; }
+.lf-vf-tl { top: 16px; left: 16px;  border-top: 2px solid; border-left: 2px solid;  border-top-left-radius: 4px; }
+.lf-vf-tr { top: 16px; right: 16px; border-top: 2px solid; border-right: 2px solid; border-top-right-radius: 4px; }
+.lf-vf-bl { bottom: 16px; left: 16px;  border-bottom: 2px solid; border-left: 2px solid;  border-bottom-left-radius: 4px; }
+.lf-vf-br { bottom: 16px; right: 16px; border-bottom: 2px solid; border-right: 2px solid; border-bottom-right-radius: 4px; }
+@keyframes lf-vf-in    { from { opacity: 0; transform: scale(1.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes lf-vf-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(.82); } }
+
+.lf-rec { width: 8px; height: 8px; border-radius: 9999px; background: #f43f5e; animation: lf-blink 1.4s steps(2, jump-none) infinite; }
+@keyframes lf-blink { 50% { opacity: .15; } }
+
+/* ==========================================
+   SCROLL REVEAL (cards fade up with blur)
+   Staggered with style={{ "--d": "120ms" }}
+========================================== */
+.lf-reveal {
+  opacity: 0;
+  transform: translateY(28px) scale(.97);
+  filter: blur(6px);
+  transition: opacity .8s var(--lf-ease-out-expo), transform .8s var(--lf-ease-out-expo), filter .8s var(--lf-ease-out-expo);
+  transition-delay: var(--d, 0ms);
+}
+.lf-reveal.lf-in { opacity: 1; transform: none; filter: none; }
+
+/* photos: hidden only until the section reveals, so hover still works after */
+.lf-reveal:not(.lf-in) .lf-photo { opacity: 0; }
+.lf-in .lf-photo { animation: lf-fade-up .8s var(--lf-ease-out-expo) backwards; animation-delay: var(--d, 0ms); }
+.lf-photo { transition: transform .35s var(--lf-ease-soft), box-shadow .35s var(--lf-ease-soft), border-color .25s ease; }
+.lf-photo:hover { transform: translateY(-6px); box-shadow: 0 16px 34px rgba(2, 6, 23, .4); }
+
+/* review rows slide in from the left, one by one */
+.lf-reveal:not(.lf-in) .lf-row { opacity: 0; }
+.lf-in .lf-row { animation: lf-row-in .7s var(--lf-ease-out-expo) backwards; animation-delay: var(--d, 0ms); transition: background-color .25s ease; }
+.lf-row:hover { background-color: rgba(255, 255, 255, .04); }
+
+/* light sweep on hover */
+.lf-sheen { position: relative; overflow: hidden; }
+.lf-sheen::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.22) 50%, transparent 65%);
+  transform: translateX(-120%); transition: transform .9s ease; }
+.lf-sheen:hover::after { transform: translateX(120%); }
+
+/* ==========================================
+   STATUS DOT PULSE (section headings)
+========================================== */
+.lf-dot { position: relative; }
+.lf-dot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; animation: lf-pulse-dot 1.8s infinite; }
+
+/* ==========================================
+   BUTTONS
+========================================== */
+.lf-btn { transition: transform .25s var(--lf-ease-soft), box-shadow .25s var(--lf-ease-soft), background-color .2s ease, border-color .2s ease, color .2s ease; }
+.lf-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.lf-btn:active:not(:disabled) { transform: scale(.95); }
+.lf-star { transition: transform .25s var(--lf-ease-soft); }
+.lf-star:hover { transform: scale(1.25) rotate(-8deg); }
+.lf-star:active { transform: scale(.9); }
+
+.lf-cta { position: relative; overflow: hidden; }
+.lf-cta::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%);
+  transform: translateX(-130%); animation: lf-cta-sweep 3.6s ease-in-out infinite; }
+@keyframes lf-cta-sweep { 0%, 55% { transform: translateX(-130%); } 100% { transform: translateX(130%); } }
+
+.lf-float { animation: lf-float 4s ease-in-out infinite; }
+@keyframes lf-float { 50% { transform: translateY(-8px) rotate(-4deg); } }
+
+.lf-lens { animation: lf-lens 4.5s ease-in-out infinite; }
+@keyframes lf-lens {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(56,189,248,0)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 8px rgba(56,189,248,.9)); transform: scale(1.12) rotate(-6deg); }
+}
+
+/* ==========================================
+   AVATAR RING
+========================================== */
+.lf-ring { position: relative; padding: 3px; border-radius: 9999px; flex-shrink: 0; }
+.lf-ring::before { content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: conic-gradient(from 0deg, #38bdf8, #a78bfa, #34d399, #38bdf8); animation: lf-spin 6s linear infinite; }
+.lf-ring::after { content: ""; position: absolute; inset: -6px; border-radius: inherit; background: inherit;
+  box-shadow: 0 0 28px rgba(56,189,248,.35); opacity: .7; animation: lf-glow 3s ease-in-out infinite; pointer-events: none; }
+.lf-ring > * { position: relative; z-index: 1; border-radius: 9999px; }
+@keyframes lf-spin { to { transform: rotate(360deg); } }
+@keyframes lf-glow { 50% { opacity: .2; transform: scale(1.06); } }
+
+/* ==========================================
+   SIDEBAR: sliding indicator + tab click
+========================================== */
+.lf-tab { position: relative; overflow: hidden; transition: transform .15s ease, background-color .25s ease, color .25s ease; }
+.lf-tab:active { transform: scale(.96); }
+.lf-tab svg { transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
+.lf-tab:hover svg { transform: translateX(3px) scale(1.2) rotate(-6deg); }
+.lf-tab-on svg { animation: lf-icon-nudge .5s cubic-bezier(.34,1.56,.64,1); }
+@keyframes lf-icon-nudge { 0% { transform: translateX(-8px) scale(.8); } 100% { transform: none; } }
+
+.lf-nav-indicator {
+  position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none;
+  border-left: 4px solid #0ea5e9;
+  background: linear-gradient(90deg, rgba(14,165,233,.24), rgba(14,165,233,.06));
+  box-shadow: inset 0 0 24px rgba(14,165,233,.12);
+  transition: transform .5s cubic-bezier(.65,0,.35,1), width .5s cubic-bezier(.65,0,.35,1), height .5s cubic-bezier(.65,0,.35,1), opacity .3s ease;
+  will-change: transform;
+}
+.lf-nav-indicator.no-anim { transition: none; }
+
+/* the section you jumped to slides in from the right */
+.lf-arrive { border-radius: 1rem; animation: lf-slide-in .8s var(--lf-ease-out-expo) both !important; }
+@keyframes lf-slide-in {
+  0%   { transform: translateX(90px); opacity: 0; filter: blur(4px); }
+  60%  { opacity: 1; filter: none; }
+  100% { transform: none; opacity: 1; filter: none; }
+}
+
+/* ==========================================
+   SKELETON LOADER
+========================================== */
+.lf-skeleton { padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;
+  background: #10192c; border: 1px solid #30425f; border-radius: 12px;
+  animation: lf-fade-in .5s var(--lf-ease-soft) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
+.lf-skeleton-top { display: flex; align-items: center; gap: 13px; margin-bottom: 6px; }
+.lf-skeleton-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.lf-skeleton-avatar { width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0; }
+.lf-skeleton-line { display: block; height: 12px; border-radius: 6px; }
+.lf-skeleton-photo { display: block; aspect-ratio: 4 / 3; border-radius: 10px; }
+.w40 { width: 40%; } .w60 { width: 60%; } .w70 { width: 70%; } .w90 { width: 90%; }
+.lf-shimmer-bar { background: linear-gradient(90deg, #17243a 0%, #22324d 50%, #17243a 100%); background-size: 800px 100%; animation: lf-shimmer 1.4s linear infinite; }
+
+/* ==========================================
+   LIGHTBOX / MODAL
+========================================== */
+.lf-lightbox { animation: lf-fade-in .3s var(--lf-ease-soft); }
+.lf-lightbox-img { animation: lf-modal-pop .45s var(--lf-ease-out-expo) both; }
+
+/* ==========================================
+   ACCESSIBILITY: reduced motion
+========================================== */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .lf-orb, .lf-kenburns, .lf-shimmer-text, .lf-vf, .lf-rec, .lf-ring::before, .lf-ring::after,
+  .lf-cta::after, .lf-float, .lf-lens, .lf-dot::after, .lf-shimmer-bar, .lf-tab-on svg, .lf-arrive,
+  .lf-header-in, .lf-rise, .lf-focus-pull, .lf-photo, .lf-row, .lf-lightbox, .lf-lightbox-img { animation: none !important; }
+  .lf-reveal, .lf-vf { opacity: 1 !important; transform: none !important; filter: none !important; transition: none !important; }
+  .lf-nav-indicator { transition: none; }
+}
+
+`;
+
 const PORTFOLIO_BUCKET = "portfolio";
+
+const NAV_ITEMS = [
+  { label: "Home", href: "#home", icon: FaHome },
+  { label: "Portfolio", href: "#featured-photos", icon: FaRegImage },
+  { label: "Schedule", href: "#schedule", icon: FaCalendarAlt },
+  { label: "My Bookings", href: "#my-bookings", icon: FaFileAlt },
+  { label: "Reviews", href: "#reviews", icon: FaHeart },
+];
 
 async function getFeaturedPhotoSignedUrl(storagePath) {
   if (!storagePath) return null;
@@ -79,16 +321,46 @@ function Avatar({ path, name, className = "h-20 w-20" }) {
 
 function Section({ title, dot, right, children, id }) {
   return (
-    <section id={id} className="min-w-0 scroll-mt-6 rounded-xl border border-slate-700 bg-[#10192C] p-3 shadow-sm shadow-black/10 sm:p-4">
+    <section
+      id={id}
+      className="lf-reveal min-w-0 scroll-mt-6 rounded-xl border border-slate-700 bg-[#10192C] p-3 shadow-sm shadow-black/10 sm:p-4"
+    >
       <header className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-          <span className={`h-2 w-2 rounded-full ${dot}`} />
+          <span className={`lf-dot h-2 w-2 rounded-full ${dot}`} />
           {title}
         </h3>
         {right}
       </header>
       {children}
     </section>
+  );
+}
+
+/* ============ Skeleton loader ============ */
+
+function PortalSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading">
+      <div className="lf-skeleton" style={{ "--i": 0 }}>
+        <div className="lf-skeleton-top">
+          <span className="lf-skeleton-avatar lf-shimmer-bar" />
+          <span className="lf-skeleton-lines">
+            <span className="lf-skeleton-line lf-shimmer-bar w40" />
+            <span className="lf-skeleton-line lf-shimmer-bar w70" />
+          </span>
+        </div>
+        <span className="lf-skeleton-line lf-shimmer-bar w90" />
+        <span className="lf-skeleton-line lf-shimmer-bar w60" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="lf-skeleton" style={{ "--i": i }}>
+            <span className="lf-skeleton-photo lf-shimmer-bar" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -215,7 +487,7 @@ function CodeForm({ onConnect, connecting, error, onCancel }) {
         <button
           type="submit"
           disabled={connecting || code.trim().length < 4}
-          className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-900 transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="lf-btn rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-900 transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {connecting ? "Connecting..." : "Connect"}
         </button>
@@ -249,7 +521,7 @@ function ReviewForm({ existing, onSubmit, saving, error }) {
             onMouseEnter={() => setHover(n)}
             onMouseLeave={() => setHover(0)}
             onClick={() => setRating(n)}
-            className="text-xl text-amber-400"
+            className="lf-star text-xl text-amber-400"
             aria-label={`${n} star${n > 1 ? "s" : ""}`}
           >
             {n <= (hover || rating) ? <FaStar /> : <FaRegStar className="text-slate-600" />}
@@ -269,7 +541,7 @@ function ReviewForm({ existing, onSubmit, saving, error }) {
         <button
           type="submit"
           disabled={!rating || saving}
-          className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="lf-btn rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving..." : existing ? "Update rating" : "Submit rating"}
         </button>
@@ -299,6 +571,52 @@ function ClientPortalPage() {
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [bookingDate, setBookingDate] = useState(null);
   const [bookingsKey, setBookingsKey] = useState(0);
+
+  /* ---- animations: scroll reveal ---- */
+  useScrollReveal(portal);
+
+  /* ---- animations: sliding tab indicator ---- */
+  const navRef = useRef(null);
+  const [indicator, setIndicator] = useState({
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0,
+    ready: false,
+    animate: false,
+  });
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const nav = navRef.current;
+      if (!nav) return;
+      const a = nav.querySelector(`a[href="${activeNav || "#home"}"]`);
+      if (!a) return;
+      setIndicator((prev) => ({
+        x: a.offsetLeft,
+        y: a.offsetTop,
+        w: a.offsetWidth,
+        h: a.offsetHeight,
+        ready: true,
+        animate: prev.ready, // first placement has no animation
+      }));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [activeNav, user, authLoading]);
+
+  /* ---- animations: tab click -> section slides in ---- */
+  const handleNavClick = (href) => {
+    setActiveNav(href);
+    if (href === "#home") return;
+    const el = document.querySelector(href);
+    if (!el) return;
+    el.classList.remove("lf-arrive");
+    void el.offsetWidth; // restart the animation if clicked again
+    el.classList.add("lf-arrive");
+    setTimeout(() => el.classList.remove("lf-arrive"), 1000);
+  };
 
   useEffect(() => {
     const syncHash = () => setActiveNav(window.location.hash || "#home");
@@ -422,7 +740,6 @@ function ClientPortalPage() {
       if (error) throw error;
 
       // connect_with_code returns an object such as
-
       // { success: true, photographer_id: "..." }, not a UUID directly.
       const photographerId = data?.photographer_id;
       if (!photographerId || typeof photographerId !== "string") {
@@ -491,9 +808,7 @@ function ClientPortalPage() {
   );
 
   // get_portal currently returns the photographer fields at the top level
-
   // (username, bio, avatar_path, featured_photos), rather than nested under
-
   // portal.profile / portal.featured. Support both shapes during transition.
   const profile = portal?.profile || portal?.photographer || portal || null;
   const rawFeatured = portal?.featured || portal?.featured_photos || [];
@@ -543,41 +858,66 @@ function ClientPortalPage() {
   }
   const noConnections = !connLoading && connections.length === 0;
   return (
-    <div className="custom-scrollbar min-h-screen w-full overflow-x-hidden bg-[#070D1D] text-slate-100">
-      <div className="mx-auto w-full max-w-[1600px]">
+    <div className="custom-scrollbar relative isolate min-h-screen w-full overflow-x-hidden bg-[#070D1D] text-slate-100">
+      <style>{PORTAL_CSS}</style>
+      {/* Aurora background */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <span className="lf-orb lf-orb-1" />
+        <span className="lf-orb lf-orb-2" />
+        <span className="lf-orb lf-orb-3" />
+      </div>
+
+      <div className="relative z-10 mx-auto w-full max-w-[1600px]">
       <div className="min-h-screen lg:flex">
         <aside className="border-b border-slate-800 bg-[#0B1120] lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:h-screen lg:w-64 lg:flex-col lg:border-b-0 lg:border-r lg:border-slate-800 lg:bg-slate-900/90 lg:backdrop-blur-lg">
           <div className="flex items-center gap-3 border-b border-slate-800 px-5 py-6">
             <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white">
-              <FaCameraRetro className="text-sky-500" />
+              <FaCameraRetro className="lf-lens text-sky-500" />
             </h1>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white">LensFlow</h1>
               <p className="text-xs text-slate-400">Client Portal</p>
             </div>
           </div>
-          <nav className="flex gap-1 overflow-x-auto lg:flex-col lg:gap-2 py-4" aria-label="Client portal navigation">
-            {[
-              { label: "Home", href: "#home", icon: FaHome },
-              { label: "Portfolio", href: "#featured-photos", icon: FaRegImage },
-              { label: "Schedule", href: "#schedule", icon: FaCalendarAlt },
-              { label: "My Bookings", href: "#my-bookings", icon: FaFileAlt },
-              { label: "Reviews", href: "#reviews", icon: FaHeart },
-            ].map((item, index) => {
+
+          {/* NAV with sliding indicator */}
+          <nav
+            ref={navRef}
+            className="relative flex gap-1 overflow-x-auto py-4 lg:flex-col lg:gap-2"
+            aria-label="Client portal navigation"
+          >
+            <span
+              aria-hidden="true"
+              className={`lf-nav-indicator ${indicator.animate ? "" : "no-anim"}`}
+              style={{
+                width: indicator.w,
+                height: indicator.h,
+                opacity: indicator.ready ? 1 : 0,
+                transform: `translate(${indicator.x}px, ${indicator.y}px)`,
+              }}
+            />
+            {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
+              const on =
+                activeNav === item.href || (item.href === "#home" && activeNav === "");
               return (
-                <a key={item.href} href={item.href} onClick={() => setActiveNav(item.href)}
-                  className={`flex shrink-0 items-center gap-3 border-l-4 px-4 py-3 text-sm font-medium transition-all ${
-                    activeNav === item.href || (item.href === "#home" && activeNav === "")
-                      ? "border-sky-500 bg-sky-500/10 text-sky-400"
-                      : "border-transparent text-slate-400 hover:bg-slate-800 hover:text-white"
-                  }`}>
+                <a
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => handleNavClick(item.href)}
+                  className={`lf-tab relative z-10 flex shrink-0 items-center gap-3 border-l-4 border-transparent px-4 py-3 text-sm font-medium ${
+                    on
+                      ? "lf-tab-on text-sky-400"
+                      : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                  }`}
+                >
                   <Icon className="text-base" />
                   {item.label}
                 </a>
               );
             })}
           </nav>
+
           <div className="mt-auto hidden border-t border-slate-800 lg:block">
             <a href="#photographer"
               className="flex items-center gap-3 border-l-4 border-transparent px-6 py-3 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white">
@@ -590,7 +930,7 @@ function ClientPortalPage() {
           </div>
         </aside>
         <div className="min-w-0 flex-1 lg:ml-[248px]">
-          <header className="flex min-h-[64px] flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0B1120]/95 px-4 py-3 sm:px-6 lg:px-8">
+          <header className="lf-header-in flex min-h-[64px] flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0B1120]/95 px-4 py-3 sm:px-6 lg:px-8">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.16em] text-sky-400">LensFlow / Client Space</p>
               <p className="mt-1 text-sm text-slate-300">Your photographer, your moments.</p>
@@ -598,7 +938,7 @@ function ClientPortalPage() {
             <div className="flex flex-wrap items-center gap-2">
               {connections.length > 1 && connections.map((c) => (
                 <button key={c.photographer_id} type="button" onClick={() => setActiveId(c.photographer_id)}
-                  className={`max-w-[180px] truncate rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                  className={`lf-btn max-w-[180px] truncate rounded-lg border px-3 py-2 text-xs font-medium transition ${
                     activeId === c.photographer_id
                       ? "border-sky-400 bg-sky-500/10 text-sky-300"
                       : "border-slate-700 bg-[#10192C] text-slate-400 hover:border-slate-600 hover:text-white"
@@ -608,34 +948,45 @@ function ClientPortalPage() {
               ))}
               {!noConnections && (
                 <button type="button" onClick={() => { setCodeError(""); setShowCodeForm(true); }}
-                  className="flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400">
+                  className="lf-cta flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400">
                   <FaKey /> Enter Connection Code
                 </button>
               )}
               <button type="button" onClick={handleSignOut}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-white lg:hidden">
+                className="lf-btn flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-white lg:hidden">
                 <FaSignOutAlt /> Sign out
               </button>
             </div>
           </header>
       <main id="home" className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
         <div className="mx-auto w-full max-w-[1500px]">
+          {/* HERO with Ken Burns, viewfinder and focus-pull */}
           <section className="relative mb-4 min-h-[220px] overflow-hidden rounded-2xl border border-slate-700 bg-[#10192C] sm:min-h-[260px]">
-            <div className="absolute inset-0 bg-cover bg-center"
+            <div className="lf-kenburns absolute inset-0 bg-cover bg-center"
               style={{ backgroundImage: "linear-gradient(90deg, rgba(5,12,24,.94) 0%, rgba(5,12,24,.72) 46%, rgba(5,12,24,.10) 100%), url('https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1800&q=85')" }}
               aria-hidden="true" />
+            <span className="lf-vf lf-vf-tl" />
+            <span className="lf-vf lf-vf-tr" />
+            <span className="lf-vf lf-vf-bl" />
+            <span className="lf-vf lf-vf-br" />
+            <span className="absolute right-10 top-5 flex items-center gap-2 text-[10px] font-semibold tracking-widest text-slate-300">
+              <span className="lf-rec" /> LIVE
+            </span>
             <div className="relative flex min-h-[220px] max-w-3xl flex-col justify-center px-6 py-8 sm:min-h-[260px] sm:px-10">
-              <p className="mb-3 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-300 sm:text-xs">
+              <p className="lf-rise mb-3 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-300 sm:text-xs"
+                style={{ "--d": "100ms" }}>
                 <span className="h-0.5 w-8 bg-sky-400" /> Welcome to LensFlow
               </p>
-              <h2 className="max-w-2xl text-3xl font-extrabold leading-[1.08] tracking-tight text-white sm:text-4xl lg:text-5xl">
-                Capturing<br />Your <span className="text-sky-400">Special Moments</span>
+              <h2 className="lf-focus-pull max-w-2xl text-3xl font-extrabold leading-[1.08] tracking-tight text-white sm:text-4xl lg:text-5xl">
+                Capturing<br />Your <span className="lf-shimmer-text">Special Moments</span>
               </h2>
-              <p className="mt-4 text-sm text-slate-200 sm:text-base">Authentic photos for real stories.</p>
+              <p className="lf-rise mt-4 text-sm text-slate-200 sm:text-base" style={{ "--d": "700ms" }}>
+                Authentic photos for real stories.
+              </p>
             </div>
           </section>
       {connLoading && connections.length === 0 ? (
-        <p className="py-16 text-center text-sm text-slate-500">Loading...</p>
+        <PortalSkeleton />
       ) : noConnections || showCodeForm ? (
         <div className="py-3 sm:py-6">
           <CodeForm
@@ -646,7 +997,7 @@ function ClientPortalPage() {
           />
         </div>
       ) : portalLoading && !portal ? (
-        <p className="py-16 text-center text-sm text-slate-500">Loading photographer...</p>
+        <PortalSkeleton />
       ) : portalError ? (
         <p className="rounded-xl border border-dashed border-rose-500/40 py-10 text-center text-sm text-rose-300">
           {portalError}
@@ -654,13 +1005,15 @@ function ClientPortalPage() {
       ) : portal && profile ? (
           <div className="min-w-0 space-y-4 sm:space-y-5">
             {/* Profile + rating */}
-            <section id="photographer" className="min-w-0 scroll-mt-6 rounded-2xl border border-slate-700/80 bg-gradient-to-r from-[#102338] to-[#0B1628] p-4 shadow-sm shadow-black/10 sm:p-5">
+            <section id="photographer" className="lf-reveal min-w-0 scroll-mt-6 rounded-2xl border border-slate-700/80 bg-gradient-to-r from-[#102338] to-[#0B1628] p-4 shadow-sm shadow-black/10 sm:p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <Avatar
-                  path={profile.avatar_path}
-                  name={profile.display_name || profile.username || profile.name || "Photographer"}
-                  className="h-20 w-20 flex-shrink-0 rounded-full border-2 border-sky-400 p-0.5"
-                />
+                <div className="lf-ring h-[88px] w-[88px]">
+                  <Avatar
+                    path={profile.avatar_path}
+                    name={profile.display_name || profile.username || profile.name || "Photographer"}
+                    className="h-full w-full rounded-full"
+                  />
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                     <h3 className="text-xl font-bold text-white">{profile.display_name || profile.username || profile.name || "Photographer"}</h3>
@@ -728,7 +1081,8 @@ function ClientPortalPage() {
                       key={photo.id}
                       type="button"
                       onClick={() => setLightboxIndex(index)}
-                      className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-slate-700 bg-slate-800 transition hover:-translate-y-0.5 hover:border-sky-400"
+                      style={{ "--d": `${index * 80}ms` }}
+                      className="lf-photo lf-sheen group relative aspect-[4/3] overflow-hidden rounded-xl border border-slate-700 bg-slate-800 transition hover:-translate-y-0.5 hover:border-sky-400"
                     >
                       <img
                         src={publicUrl(photo.image_path)}
@@ -747,9 +1101,9 @@ function ClientPortalPage() {
                 </div>
               )}
             </Section>
-            
+
             {/* Home booking shortcut */}
-            <section className="group flex min-h-[190px] items-center justify-between gap-4 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-[#10263D] via-[#0D1D30] to-[#0B1628] p-5 transition duration-300 hover:border-sky-400/40 sm:p-6">
+            <section className="lf-reveal group flex min-h-[190px] items-center justify-between gap-4 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-[#10263D] via-[#0D1D30] to-[#0B1628] p-5 transition duration-300 hover:border-sky-400/40 sm:p-6">
               <div className="min-w-0">
                 <div className="mb-3 flex items-center gap-2">
                   <span className="h-1 w-7 rounded-full bg-sky-400" />
@@ -768,14 +1122,15 @@ function ClientPortalPage() {
 
                 <a
                   href="#schedule"
-                  className="mt-4 inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0B1628]"
+                  onClick={() => handleNavClick("#schedule")}
+                  className="lf-cta mt-4 inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0B1628]"
                 >
                   View Calendar
                   <FaChevronRight className="text-[10px] transition-transform group-hover:translate-x-0.5" />
                 </a>
               </div>
 
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-sky-400/15 bg-sky-400/10 text-3xl text-sky-400 transition group-hover:bg-sky-400/15 sm:h-24 sm:w-24">
+              <div className="lf-float flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-sky-400/15 bg-sky-400/10 text-3xl text-sky-400 transition group-hover:bg-sky-400/15 sm:h-24 sm:w-24">
                 <FaCalendarAlt />
               </div>
             </section>
@@ -806,7 +1161,7 @@ function ClientPortalPage() {
               </div>
             </Section>
             {/* Full photographer schedule */}
-            <section id="schedule" className="scroll-mt-6">
+            <section id="schedule" className="lf-reveal scroll-mt-6">
               <div className="mb-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-400">Availability</p>
                 <h2 className="mt-1 text-2xl font-bold text-white">Schedule</h2>
@@ -856,10 +1211,11 @@ function ClientPortalPage() {
                     No reviews yet.
                   </p>
                 ) : (
-                  reviews.map((review) => (
+                  reviews.map((review, i) => (
                     <article
                       key={review.id}
-                      className="rounded-lg border border-slate-700 bg-slate-950/40 p-3"
+                      style={{ "--d": `${i * 70}ms` }}
+                      className="lf-row rounded-lg border border-slate-700 bg-slate-950/40 p-3"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
@@ -909,7 +1265,7 @@ function ClientPortalPage() {
       {/* Lightbox */}
       {lightboxIndex !== null && featured[lightboxIndex] && (
         <div
-          className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-black/95 px-1 backdrop-blur-sm sm:px-2"
+          className="lf-lightbox fixed inset-0 z-50 flex flex-col overflow-hidden bg-black/95 px-1 backdrop-blur-sm sm:px-2"
           onClick={() => setLightboxIndex(null)}
         >
           <div
@@ -946,9 +1302,10 @@ function ClientPortalPage() {
               </button>
             )}
             <img
+              key={lightboxIndex}
               src={publicUrl(featured[lightboxIndex].image_path)}
               alt={featured[lightboxIndex].caption || "Featured photo"}
-              className="max-h-[72vh] max-h-[min(78vh,900px)] max-w-full rounded-lg object-contain shadow-2xl"
+              className="lf-lightbox-img max-h-[72vh] max-h-[min(78vh,900px)] max-w-full rounded-lg object-contain shadow-2xl"
             />
             {featured.length > 1 && (
               <button

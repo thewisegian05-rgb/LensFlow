@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+
 import {
   FaUsers,
   FaCalendarDay,
@@ -144,6 +146,8 @@ function Reveal({ delay = 0, className = "", children }) {
 }
 
 function Dashboard() {
+    const { reportPageReady, routeKey } = useOutletContext();
+
   const [stats, setStats] = useState({
     clientsToday: 0,
     pendingClients: 0,
@@ -154,7 +158,14 @@ function Dashboard() {
     heldDownpayments: 0,
     requests: null,
   });
+  
   const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    if (!loadingStats) {
+      reportPageReady(routeKey);
+    }
+  }, [loadingStats, reportPageReady, routeKey]);
 
   useEffect(() => {
     const fetchStats = async () => {

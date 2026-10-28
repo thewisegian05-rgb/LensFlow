@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 
 import ScheduleHeader from "../components/Schedule/ScheduleHeader";
 import ScheduleSummary from "../components/Schedule/ScheduleSummary";
@@ -158,9 +158,16 @@ function EventList({
 }
 
 function SchedulePage() {
+  const { reportPageReady, routeKey } = useOutletContext();
 
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!loading) {
+      reportPageReady(routeKey);
+    }
+  }, [loading, reportPageReady, routeKey]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CATEGORY_KEYS,
   CATEGORY_LABELS,
@@ -67,6 +68,19 @@ function AddEventModal({
     date: todayString(),
   });
   const [savingPayment, setSavingPayment] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+
+  // Animate the modal in after it mounts. Keep it mounted while closing.
+  useEffect(() => {
+    if (!open) {
+      setIsVisible(false);
+      return;
+    }
+
+    setIsVisible(false);
+    const frame = requestAnimationFrame(() => setIsVisible(true));
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   const filteredClients = clients.filter((client) =>
     client.name
@@ -202,6 +216,20 @@ function AddEventModal({
     return null;
   }
 
+  const handleClose = () => {
+    setIsVisible(false);
+  };
+
+  const handleOverlayTransitionEnd = (e) => {
+    if (
+      e.target === e.currentTarget &&
+      e.propertyName === "opacity" &&
+      !isVisible
+    ) {
+      onClose();
+    }
+  };
+
   const handleChange = (e) => {
     setForm((prev) => ({
       ...prev,
@@ -322,16 +350,24 @@ function AddEventModal({
 
   const activeColor = CATEGORY_HEX[form.category] || CATEGORY_HEX.default;
 
-  return (
-    <div className="event-modal custom-scrollbar">
+  return createPortal(
+    <div
+      className={`fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm transition-opacity duration-200 ease-out ${
+        isVisible ? "opacity-100" : "pointer-events-none opacity-0"
+      }`}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+      onTransitionEnd={handleOverlayTransitionEnd}
+    >
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
-        onClick={onClose}
+        className={`w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl transition-all duration-300 ease-out dark:border-slate-700 dark:bg-slate-900 ${
+          isVisible
+            ? "translate-y-0 scale-100 opacity-100"
+            : "translate-y-2 scale-95 opacity-0"
+        }`}
+        onMouseDown={(e) => e.stopPropagation()}
       >
-        <div
-          className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl transition-colors dark:border-slate-700 dark:bg-slate-900"
-          onClick={(e) => e.stopPropagation()}
-        >
           <h2 className="mb-6 text-2xl font-bold text-slate-900 dark:text-white">
             {editingEvent ? "Edit Event" : "Add New Event"}
           </h2>
@@ -793,8 +829,8 @@ function AddEventModal({
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="rounded-lg border border-slate-200 bg-slate-100 px-5 py-2 text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                onClick={handleClose}
+                className="rounded-lg border border-slate-200 bg-slate-100 px-5 py-2 text-slate-700 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-slate-200 active:translate-y-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 Cancel
               </button>
@@ -807,9 +843,9 @@ function AddEventModal({
               </button>
             </div>
           </form>
-        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

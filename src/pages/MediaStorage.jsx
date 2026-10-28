@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   FaFolder,
   FaFolderOpen,
@@ -120,6 +121,7 @@ function MediaStorage() {
   const [toasts, setToasts] = useState([]); // { id, name, status: "deleting" | "done" | "error" }
   const [deletingIds, setDeletingIds] = useState([]);
   const [viewingFile, setViewingFile] = useState(null); // { id, name, url, isVideo }
+  const [isViewClosing, setIsViewClosing] = useState(false);
   const [activeView, setActiveView] = useState("files"); // files | trash
   // Prototype-only trash metadata is stored in this browser, not in Supabase.
   const [trashEntries, setTrashEntries] = useState([]); // { key, id, isFile, deletedAt }
@@ -735,6 +737,22 @@ function MediaStorage() {
     });
   };
 
+  const closeFilePreview = () => {
+    if (isViewClosing) return;
+    setIsViewClosing(true);
+  };
+
+  const handleFilePreviewAnimationEnd = (e) => {
+    if (
+      e.target === e.currentTarget &&
+      e.animationName === "mi-fade-out" &&
+      isViewClosing
+    ) {
+      setViewingFile(null);
+      setIsViewClosing(false);
+    }
+  };
+
   const getFolderCounts = useCallback(
     (folderId) => ({
       folders: folders.filter((folder) => folder.parentId === folderId).length,
@@ -771,6 +789,14 @@ function MediaStorage() {
           from { opacity: 0; transform: translateY(12px) scale(0.95); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
+        @keyframes mi-fade-out {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
+        @keyframes mi-modal-out {
+          from { opacity: 1; transform: translateY(0) scale(1); }
+          to { opacity: 0; transform: translateY(8px) scale(0.97); }
+        }
         @keyframes mi-menu {
           from { opacity: 0; transform: translateY(-6px) scale(0.96); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -793,6 +819,8 @@ function MediaStorage() {
         .mi-view-enter { animation: mi-view-enter 0.28s ease-out both; }
         .mi-fade  { animation: mi-fade 0.25s ease-out both; }
         .mi-modal { animation: mi-modal 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .mi-fade-out { animation: mi-fade-out 0.2s ease-in both; }
+        .mi-modal-out { animation: mi-modal-out 0.2s ease-in both; }
         .mi-menu  { animation: mi-menu 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top right; }
         .mi-spinner { animation: mi-spin 0.8s linear infinite; }
         .mi-toast { animation: mi-toast 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -803,7 +831,7 @@ function MediaStorage() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .mi-item, .mi-view-enter, .mi-fade, .mi-modal, .mi-menu, .mi-shimmer, .mi-bar, .mi-toast { animation: none; }
+          .mi-item, .mi-view-enter, .mi-fade, .mi-modal, .mi-fade-out, .mi-modal-out, .mi-menu, .mi-shimmer, .mi-bar, .mi-toast { animation: none; }
         }
       `}</style>
 
@@ -1208,19 +1236,30 @@ function MediaStorage() {
       {activeView === "trash" && trashPath.length === 0 && trashEntries.length > 0 && <div className="mt-4 flex justify-end"><button onClick={() => setPermanentDeleteTarget({ isEmptyTrash: true, name: "all items in Trash" })} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500">Empty Trash</button></div>}
 
       {/* File Preview Modal */}
-      {viewingFile && (
-        <div className="mi-fade fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className={`mi-modal relative max-w-4xl w-full max-h-[90vh] border rounded-xl p-4 flex flex-col shadow-2xl ${modalContentClasses}`}>
-            <div className={`flex items-center justify-between pb-3 border-b mb-4 ${modalHeaderClasses}`}>
-              <h3 className="font-semibold text-lg truncate">{viewingFile.name}</h3>
+      {viewingFile && createPortal(
+        <div
+          className={`${isViewClosing ? "mi-fade-out" : "mi-fade"} fixed inset-0 z-[999999] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm`}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeFilePreview();
+          }}
+          onAnimationEnd={handleFilePreviewAnimationEnd}
+        >
+          <div
+            className={`${isViewClosing ? "mi-modal-out" : "mi-modal"} relative my-auto flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border p-4 shadow-2xl ${modalContentClasses}`}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className={`mb-4 flex shrink-0 items-center justify-between border-b pb-3 ${modalHeaderClasses}`}>
+              <h3 className="truncate text-lg font-semibold">{viewingFile.name}</h3>
               <button
-                onClick={() => setViewingFile(null)}
-                className={`rounded-lg p-2 transition ${modalButtonClasses}`}
+                type="button"
+                onClick={closeFilePreview}
+                aria-label="Close file preview"
+                className={`rounded-lg p-2 transition-all duration-200 hover:rotate-90 active:scale-95 ${modalButtonClasses}`}
               >
                 <FaTimes />
               </button>
             </div>
-            <div className="flex-1 flex items-center justify-center overflow-hidden">
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
               {viewingFile.isVideo ? (
                 <video controls src={viewingFile.url} className="max-h-[70vh] max-w-full rounded object-contain" />
               ) : (
@@ -1228,7 +1267,8 @@ function MediaStorage() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirmation Modal */}

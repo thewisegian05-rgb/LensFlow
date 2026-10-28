@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabaseClient";
 const STATUS = {
   pending: { label: "Waiting for photographer", cls: "bg-amber-500/10 text-amber-300" },
   offered: { label: "Quote received", cls: "bg-sky-500/10 text-sky-300" },
+  awaiting_dp: { label: "Awaiting downpayment", cls: "bg-amber-500/10 text-amber-300" },
   approved: { label: "Booked", cls: "bg-emerald-500/10 text-emerald-400" },
   declined: { label: "Declined by photographer", cls: "bg-rose-500/10 text-rose-300" },
   rejected: { label: "You declined the quote", cls: "bg-slate-700/50 text-slate-400" },
@@ -27,6 +28,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   const [rows, setRows] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
+  const [errorId, setErrorId] = useState(null); // which card the error belongs to
   const [loadError, setLoadError] = useState("");
 
   const load = useCallback(async () => {
@@ -64,9 +66,14 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   async function run(id, call) {
     setBusyId(id);
     setError("");
+    setErrorId(null);
     const { error: err } = await call();
     setBusyId(null);
-    if (err) setError(err.message);
+    if (err) {
+      console.error("Booking action failed:", err);
+      setError(err.message);
+      setErrorId(id);
+    }
     await load();
     onChanged?.();
   }
@@ -74,6 +81,8 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   const accept = (id) => run(id, () => supabase.rpc("respond_to_offer", { p_id: id, p_accept: true }));
   const decline = (id) => run(id, () => supabase.rpc("respond_to_offer", { p_id: id, p_accept: false }));
   const cancel = (id) => run(id, () => supabase.rpc("cancel_booking", { p_id: id }));
+  const cancelAwaiting = (id) =>
+    run(id, () => supabase.rpc("cancel_awaiting_request", { p_id: id }));
 
   if (loadError) {
     return (
@@ -93,7 +102,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
 
   return (
     <div className="custom-scrollbar max-h-[420px] space-y-2 overflow-y-auto pr-2">
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && !errorId && <p className="text-xs text-red-400">{error}</p>}
 
       {rows.map((r) => {
         const s = STATUS[r.status] || STATUS.cancelled;
@@ -165,6 +174,21 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
               </div>
             )}
 
+            {r.status === "awaiting_dp" && (
+              <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                <p className="text-sm text-slate-300">
+                  Send your downpayment of{" "}
+                  <span className="font-semibold text-white">{peso(r.downpayment_amount)}</span> to
+                  your photographer. Your date is added to their schedule once they confirm they
+                  received it.
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Total fee {peso(r.offered_fee)} · balance of {peso(balance)} is due at the end of
+                  the event. The downpayment is non-refundable.
+                </p>
+              </div>
+            )}
+
             {r.status === "approved" && r.offered_fee != null && (
               <div className="mt-2 space-y-0.5 text-xs text-slate-400">
                 <p>Agreed fee: {peso(r.offered_fee)}</p>
@@ -183,16 +207,24 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
               </div>
             )}
 
+            {error && errorId === r.id && (
+              <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
+                {error}
+              </p>
+            )}
+
             {r.status === "declined" && r.admin_message && (
               <p className="mt-2 text-xs text-slate-400">{r.admin_message}</p>
             )}
 
-            {["pending", "offered", "approved"].includes(r.status) && (
+            {["pending", "offered", "awaiting_dp", "approved"].includes(r.status) && (
               <div className="mt-2 flex justify-end">
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => cancel(r.id)}
+                  onClick={() =>
+                    r.status === "awaiting_dp" ? cancelAwaiting(r.id) : cancel(r.id)
+                  }
                   className="text-xs text-slate-500 hover:text-white disabled:opacity-50"
                 >
                   Cancel request

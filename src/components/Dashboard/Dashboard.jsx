@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useOutletContext } from "react-router-dom";
-
 import {
   FaUsers,
   FaCalendarDay,
@@ -146,7 +144,6 @@ function Reveal({ delay = 0, className = "", children }) {
 }
 
 function Dashboard() {
-  const { reportPageReady, routeKey } = useOutletContext();
   const [stats, setStats] = useState({
     clientsToday: 0,
     pendingClients: 0,
@@ -287,7 +284,7 @@ function Dashboard() {
       const { count: requestCount, error: requestError } = await supabase
         .from("booking_requests")
         .select("id", { count: "exact", head: true })
-        .eq("status", "pending");
+        .in("status", ["pending", "awaiting_dp"]);
 
       if (requestError) {
         console.error("Failed to load booking requests:", requestError.message);
@@ -308,18 +305,8 @@ function Dashboard() {
       setLoadingStats(false);
     };
 
-    fetchStats().catch((error) => {
-      console.error("Failed to load dashboard statistics:", error);
-      setLoadingStats(false);
-    });
+    fetchStats();
   }, []);
-
-  // Tell the shared layout overlay when this route's essential stats are ready.
-  useEffect(() => {
-    if (!loadingStats) {
-      reportPageReady(routeKey);
-    }
-  }, [loadingStats, reportPageReady, routeKey]);
 
   // Total Clients = Clients Today + Pending Clients
   const totalClients = stats.clientsToday + stats.pendingClients;
@@ -376,9 +363,9 @@ function Dashboard() {
             title="Total Clients"
             value={totalClients}
             subtitle={totalClients === 0 ? "No clients yet" : "Today + upcoming"}
-            dot="bg-teal-400"
+            dot="bg-sky-400"
             icon={<FaUsers />}
-            iconClass="bg-teal-500/10 text-teal-400"
+            iconClass="bg-sky-500/10 text-sky-400"
           />
           <StatCell
             index={1}
@@ -396,9 +383,9 @@ function Dashboard() {
             title="Pending Clients"
             value={stats.pendingClients}
             subtitle={stats.pendingClients === 0 ? "None pending" : "From tomorrow on"}
-            dot="bg-violet-400"
+            dot="bg-sky-400"
             icon={<FaHourglassHalf />}
-            iconClass="bg-violet-500/10 text-violet-400"
+            iconClass="bg-sky-500/10 text-sky-400"
           />
           <StatCell
             index={3}
@@ -406,7 +393,7 @@ function Dashboard() {
             title="Booking Requests"
             value={stats.requests}
             subtitle={
-              stats.requests === 0 ? "All caught up" : "Awaiting your quote"
+              stats.requests === 0 ? "All caught up" : "Needs your action"
             }
             dot={stats.requests > 0 ? "bg-rose-400" : "bg-emerald-400"}
             icon={<FaInbox />}
@@ -419,9 +406,9 @@ function Dashboard() {
             value={stats.monthFees}
             format={(n) => `₱${n.toLocaleString("en-PH")}`}
             subtitle="Cash received this month"
-            dot="bg-emerald-400"
+            dot="bg-sky-400"
             icon={<FaCoins />}
-            iconClass="bg-emerald-500/10 text-emerald-400"
+            iconClass="bg-sky-500/10 text-sky-400"
           />
           <StatCell
             index={5}
@@ -434,9 +421,9 @@ function Dashboard() {
                 ? `${peso(stats.heldDownpayments)} held as downpayments`
                 : "Balance owed on events"
             }
-            dot="bg-orange-400"
+            dot="bg-emerald-400"
             icon={<FaCalendarCheck />}
-            iconClass="bg-orange-500/10 text-orange-400"
+            iconClass="bg-emerald-500/10 text-emerald-400"
           />
           <StatCell
             index={6}
@@ -444,9 +431,9 @@ function Dashboard() {
             title="Projects Editing"
             value={stats.editing}
             subtitle={stats.editing === 0 ? "Nothing in editing" : "In progress"}
-            dot="bg-fuchsia-400"
+            dot="bg-sky-400"
             icon={<FaPhotoVideo />}
-            iconClass="bg-fuchsia-500/10 text-fuchsia-400"
+            iconClass="bg-sky-500/10 text-sky-400"
           />
           <StatCell
             index={7}
@@ -456,7 +443,7 @@ function Dashboard() {
             subtitle={stats.totalFolders === 0 ? "No folders yet" : "Across Media Storage"}
             dot="bg-sky-400"
             icon={<FaFolder />}
-            iconClass="bg-pink-500/10 text-pink-400"
+            iconClass="bg-sky-500/10 text-sky-400"
           />
         </div>
       </section>

@@ -287,7 +287,7 @@ const PhotoTile = memo(function PhotoTile({
 
       {/* Top row: filename and Best Pick */}
       <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2">
-        <span className="max-w-[60%] truncate rounded-md bg-black/70 px-2 py-1 font-mono text-[9px] text-white shadow">
+        <span className="max-w-[60%] truncate rounded-md bg-white/90 px-2 py-1 font-mono text-[9px] text-slate-800 shadow dark:bg-black/70 dark:text-white">
           {img.fileName}
         </span>
 
@@ -687,6 +687,57 @@ function AuthGate() {
   );
 }
 
+function getPhotoDefects(aiResult) {
+  const defects = aiResult?.metrics?.defects;
+  return Array.isArray(defects) ? defects : [];
+}
+
+function matchesDefectFilter(aiResult, defectFilter) {
+  const defects = getPhotoDefects(aiResult);
+
+  if (defectFilter === "all") return true;
+
+  if (defectFilter === "has_defects") {
+    return defects.length > 0;
+  }
+
+  if (defectFilter === "no_defects") {
+    return Boolean(aiResult) && defects.length === 0;
+  }
+
+  return defects.some((defect) => {
+    const type = String(defect?.type || "").toLowerCase();
+    const message = String(defect?.message || "").toLowerCase();
+
+    switch (defectFilter) {
+      case "underexposed":
+        return message.includes("underexposure") ||
+          message.includes("underexposed");
+
+      case "overexposed":
+        return message.includes("overexposure") ||
+          message.includes("overexposed");
+
+      case "blur":
+        return type === "face_blur" ||
+          type === "sharpness" ||
+          message.includes("blur") ||
+          message.includes("sharpness");
+
+      case "closed_eyes":
+        return type === "closed_eyes" ||
+          message.includes("closed eyes");
+
+      case "blink":
+        return type === "blink" ||
+          message.includes("partial blink");
+
+      default:
+        return true;
+    }
+  });
+}
+
 function CullingPage() {
   const { reportPageReady, routeKey } = useOutletContext();
 
@@ -739,6 +790,7 @@ function CullingPage() {
     }
   });
   const [filter, setFilter] = useState("all");
+  const [defectFilter, setDefectFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
   const [showDetailInfo, setShowDetailInfo] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -2006,25 +2058,40 @@ function CullingPage() {
   const visibleImages = useMemo(
     () =>
       folderImages.filter((img) => {
-        const aiDecision = aiResults[img.id]?.ai_decision;
+        const aiResult = aiResults[img.id];
+        const aiDecision = aiResult?.ai_decision;
+
+        let matchesCurrentFilter = true;
+
         switch (filter) {
           case "star":
-            return culls[img.id] === "star";
+            matchesCurrentFilter = culls[img.id] === "star";
+            break;
           case "reject":
-            return culls[img.id] === "reject";
+            matchesCurrentFilter = culls[img.id] === "reject";
+            break;
           case "unrated":
-            return !culls[img.id];
+            matchesCurrentFilter = !culls[img.id];
+            break;
           case "ai_keep":
-            return aiDecision === "KEEP";
+            matchesCurrentFilter = aiDecision === "KEEP";
+            break;
           case "ai_review":
-            return aiDecision === "REVIEW";
+            matchesCurrentFilter = aiDecision === "REVIEW";
+            break;
           case "ai_reject":
-            return aiDecision === "REJECT";
+            matchesCurrentFilter = aiDecision === "REJECT";
+            break;
           default:
-            return true;
+            matchesCurrentFilter = true;
         }
+
+        return (
+          matchesCurrentFilter &&
+          matchesDefectFilter(aiResult, defectFilter)
+        );
       }),
-    [folderImages, filter, culls, aiResults]
+    [folderImages, filter, culls, aiResults, defectFilter]
   );
 
   // All folder counters in a single pass.
@@ -2680,6 +2747,44 @@ function CullingPage() {
                             </div>
                           )}
                         </div>
+                      </div>
+
+                      <div className="mb-4 flex flex-wrap items-center gap-3">
+                        <label
+                          htmlFor="defect-filter"
+                          className="text-xs font-medium text-slate-600 dark:text-slate-300"
+                        >
+                          Filter by defect
+                        </label>
+
+                        <select
+                          id="defect-filter"
+                          value={defectFilter}
+                          onChange={(event) => setDefectFilter(event.target.value)}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        >
+                          <option value="all">All photos</option>
+                          <option value="has_defects">Any detected defect</option>
+                          <option value="no_defects">No detected defects</option>
+                          <option value="underexposed">Underexposed</option>
+                          <option value="overexposed">Overexposed</option>
+                          <option value="blur">Blurry / Low sharpness</option>
+                          <option value="closed_eyes">Closed eyes</option>
+                          <option value="blink">Partial blink</option>
+                        </select>
+
+                        {defectFilter !== "all" && (
+                          <button
+                            type="button"
+                            onClick={() => setDefectFilter("all")}
+                            className="text-xs font-medium text-sky-500 hover:text-sky-400"
+                          >
+                            Clear filter
+                          </button>
+                        )}
+                        
+                        {/* Horizontal divider */}
+                        <div className="hidden h-px min-w-8 flex-1 bg-slate-300 dark:bg-slate-700 sm:block" />
                       </div>
 
                       {/* Filter groups */}

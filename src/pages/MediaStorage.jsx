@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
 import {
   FaFolder,
+  FaFolderOpen,
   FaPlus,
   FaEdit,
   FaTrash,
@@ -67,6 +68,13 @@ function MediaStorage() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  const filesTabRef = useRef(null);
+  const trashTabRef = useRef(null);
+  const [sliderStyle, setSliderStyle] = useState({
+    left: 4,
+    width: 105,
+  });
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user ?? null);
@@ -119,6 +127,33 @@ function MediaStorage() {
   const [trashLoaded, setTrashLoaded] = useState(false);
   const [countdownTick, setCountdownTick] = useState(0);
   const purgeInProgressRef = useRef(new Set());
+
+  useLayoutEffect(() => {
+    const updateSlider = () => {
+      const activeTab =
+        activeView === "files"
+          ? filesTabRef.current
+          : trashTabRef.current;
+
+      const container = activeTab?.parentElement;
+
+      if (!activeTab || !container) return;
+
+      const tabRect = activeTab.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      setSliderStyle({
+        left: tabRect.left - containerRect.left,
+        width: tabRect.width,
+      });
+    };
+
+    updateSlider();
+
+    window.addEventListener("resize", updateSlider);
+
+    return () => window.removeEventListener("resize", updateSlider);
+  }, [activeView]);
 
   useEffect(() => {
     setTrashLoaded(false);
@@ -727,6 +762,10 @@ function MediaStorage() {
           from { opacity: 0; transform: translateY(14px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
+        @keyframes mi-view-enter {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
         @keyframes mi-fade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes mi-modal {
           from { opacity: 0; transform: translateY(12px) scale(0.95); }
@@ -751,6 +790,7 @@ function MediaStorage() {
         }
 
         .mi-item  { animation: mi-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .mi-view-enter { animation: mi-view-enter 0.28s ease-out both; }
         .mi-fade  { animation: mi-fade 0.25s ease-out both; }
         .mi-modal { animation: mi-modal 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
         .mi-menu  { animation: mi-menu 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top right; }
@@ -763,7 +803,7 @@ function MediaStorage() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .mi-item, .mi-fade, .mi-modal, .mi-menu, .mi-shimmer, .mi-bar, .mi-toast { animation: none; }
+          .mi-item, .mi-view-enter, .mi-fade, .mi-modal, .mi-menu, .mi-shimmer, .mi-bar, .mi-toast { animation: none; }
         }
       `}</style>
 
@@ -776,54 +816,88 @@ function MediaStorage() {
       />
 
       {/* Files / Trash navigation */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className={`flex items-center gap-1 rounded-xl p-1 ${isDark ? "bg-slate-900" : "bg-slate-100"}`}>
-          <button onClick={() => { setActiveView("files"); setPath([]); setTrashPath([]); }} className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${activeView === "files" ? (isDark ? "bg-slate-700 text-white" : "bg-white text-slate-900 shadow-sm") : (isDark ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900")}`}>My Files</button>
-          <button onClick={() => { setActiveView("trash"); setPath([]); setTrashPath([]); }} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${activeView === "trash" ? (isDark ? "bg-slate-700 text-white" : "bg-white text-slate-900 shadow-sm") : (isDark ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900")}`}><FaRegTrashAlt /> Trash Bin <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[10px] text-white">{trashEntries.filter((entry) => !entry.isFile || !isFolderHiddenByTrash(entry.id)).length}</span></button>
-        </div>
-        {(activeView === "files" ? path.length > 0 : trashPath.length > 0) ? (
-          <button
-            onClick={() => {
-              if (activeView === "files") handleBack();
-              else setTrashPath((prev) => prev.slice(0, -1));
-            }}
-            className={`rounded-lg px-3 py-1.5 text-sm transition ${topButtonClasses}`}
-          >
-            ← Back
-          </button>
-        ) : <div />}
+      <div
+        className={`relative inline-flex w-fit items-center gap-1 rounded-xl p-1 ${
+          isDark ? "bg-slate-900" : "bg-slate-100"
+        }`}
+      >
+        {/* Sliding active background */}
+        <span
+          aria-hidden="true"
+          className={`absolute bottom-1 top-1 rounded-lg transition-all duration-300 ease-in-out ${
+            isDark ? "bg-slate-700" : "bg-white shadow-sm"
+          }`}
+          style={{
+            left: sliderStyle.left,
+            width: sliderStyle.width,
+          }}
+        />
 
-        {activeView === "files" && <div className="relative">
-          <button
-            onClick={() => setShowAddMenu(!showAddMenu)}
-            className="add-client-btn text-sm font-semibold text-slate-950 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            <FaPlus/> <span>Add</span>
-          </button>
+        <button
+          ref={filesTabRef}
+          onClick={() => {
+            setActiveView("files");
+            setPath([]);
+            setTrashPath([]);
+          }}
+          className={`relative z-10 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors duration-200 ${
+            activeView === "files"
+              ? isDark
+                ? "text-white"
+                : "text-slate-900"
+              : isDark
+                ? "text-slate-400 hover:text-white"
+                : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <FaFolder
+            className={
+              activeView === "files"
+                ? "text-sky-400"
+                : isDark
+                  ? "text-slate-400"
+                  : "text-slate-500"
+            }
+          />
+          My Files
+        </button>
 
-          {showAddMenu && (
-            <div className={`mi-menu absolute right-0 mt-2 w-36 rounded-lg border shadow-xl z-20 py-1 ${menuClasses}`}>
-              <button
-                onClick={() => {
-                  setShowAddMenu(false);
-                  setIsAddingFolder(true);
-                }}
-                className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${menuClasses}`}
-              >
-                <FaFolder aria-hidden="true" className="shrink-0 text-sky-500 dark:text-sky-400" /> <span>Folder</span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowAddMenu(false);
-                  fileInputRef.current.click();
-                }}
-                className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${menuClasses}`}
-              >
-                <FaFile aria-hidden="true" className="shrink-0 text-sky-400" /> <span>File</span>
-              </button>
-            </div>
-          )}
-        </div>}
+        <button
+          ref={trashTabRef}
+          onClick={() => {
+            setActiveView("trash");
+            setShowAddMenu(false);
+            setPath([]);
+            setTrashPath([]);
+          }}
+          className={`relative z-10 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors duration-200 ${
+            activeView === "trash"
+              ? isDark
+                ? "text-white"
+                : "text-slate-900"
+              : isDark
+                ? "text-slate-400 hover:text-white"
+                : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <FaRegTrashAlt
+            className={
+              activeView === "trash"
+                ? "text-sky-400"
+                : isDark
+                  ? "text-slate-400"
+                  : "text-slate-500"
+            }
+          />
+          Trash Bin
+
+          <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[10px] text-white">
+            {trashEntries.filter(
+              (entry) =>
+                !entry.isFile || !isFolderHiddenByTrash(entry.id)
+            ).length}
+          </span>
+        </button>
       </div>
 
       {/* Breadcrumb Navigation */}
@@ -874,6 +948,77 @@ function MediaStorage() {
           : "Items in Trash are automatically deleted after 30 days. Open folders to inspect their contents or restore items before they expire."}
       </p>
 
+      {/* Add menu — available in My Files only */}
+      {activeView === "files" && (
+          <div className="mb-4 flex items-center gap-5">
+            {/* Horizontal divider fills the empty space */}
+            <div
+              className={`h-0.5 flex-1 ${
+                isDark ? "bg-slate-800" : "bg-slate-200"
+              }`}
+            />
+
+            {/* Add button */}
+            <div className="relative flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowAddMenu((open) => !open)}
+                aria-expanded={showAddMenu}
+                aria-haspopup="menu"
+                className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              >
+                <FaPlus className="text-xs" />
+                Add
+              </button>
+
+            {showAddMenu && (
+              <div
+                role="menu"
+                className={`mi-menu absolute right-0 top-full z-30 mt-2 min-w-44 overflow-hidden rounded-xl border p-1 shadow-xl ${
+                  isDark
+                    ? "border-slate-700 bg-slate-900"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setShowAddMenu(false);
+                    setNewName("");
+                    setIsAddingFolder(true);
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
+                    isDark
+                      ? "text-slate-200 hover:bg-slate-800"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <FaFolder className="text-sky-400" />
+                  New folder
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setShowAddMenu(false);
+                    fileInputRef.current?.click();
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
+                    isDark
+                      ? "text-slate-200 hover:bg-slate-800"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <FaFile className="text-sky-400" />
+                  Upload file
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeView === "files" && isAddingFolder && (
         <form onSubmit={handleAddFolderSubmit} className={`mi-fade mb-4 flex gap-2 rounded-lg border p-3 ${formClasses}`}>
           <input
@@ -890,7 +1035,10 @@ function MediaStorage() {
       )}
 
       {/* key re-mounts the list on folder change so the pop-in animation replays */}
-      <div key={currentFolderId ?? "root"} className="space-y-3">
+      <div
+        key={`${activeView}-${activeView === "files" ? currentFolderId ?? "root" : currentTrashFolderId ?? "trash-root"}`}
+        className="mi-view-enter space-y-3"
+      >
         {showLoading &&
           [0, 1, 2].map((i) => (
             <div

@@ -70,7 +70,7 @@ function PageLoader({ visible }) {
           LensFlow
         </h2>
 
-        <p className="text-[13px] text-slate-200">
+        <p className="text-[13px] text-slate-500 dark:text-slate-100">
           Preparing your workspace...
         </p>
 

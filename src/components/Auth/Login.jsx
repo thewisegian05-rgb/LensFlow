@@ -21,6 +21,16 @@ import {
 
 function Login() {
   const navigate = useNavigate();
+  const prepareAuthTransition = () => {
+    try {
+      sessionStorage.setItem(
+        "lensflow_auth_transition",
+        "true"
+      );
+    } catch {
+      // Continue even if session storage is unavailable.
+    }
+  };
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -84,6 +94,7 @@ function Login() {
 
       // Single-role accounts go directly to their dashboard.
       if (accountType === "photographer") {
+        prepareAuthTransition();
         navigate("/dashboard");
         return;
       }
@@ -123,6 +134,7 @@ function Login() {
 
     if (selectedRole === "photographer") {
       setShowRoleModal(false);
+      prepareAuthTransition();
       navigate("/dashboard");
       return;
     }

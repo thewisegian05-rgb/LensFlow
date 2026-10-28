@@ -1,11 +1,10 @@
-
 import { FaCameraRetro } from "react-icons/fa";
 
-function PageLoader({ visible }) {
+function PageLoader({ visible, fixed = false }) {
   return (
     <div
       className={`
-        absolute inset-0 z-[100]
+        ${fixed ? "fixed" : "absolute"} inset-0 z-[100]
         flex items-center justify-center
         bg-slate-950/40 text-slate-50
         backdrop-blur-[2px]
@@ -34,9 +33,7 @@ function PageLoader({ visible }) {
           motion-reduce:transform-none motion-reduce:transition-none
         `}
       >
-        {/* Animated camera icon */}
         <div className="relative grid h-[76px] w-[76px] place-items-center">
-          {/* Outer rotating ring */}
           <div
             className="
               absolute inset-0 animate-spin rounded-full
@@ -46,7 +43,6 @@ function PageLoader({ visible }) {
             "
           />
 
-          {/* Inner rotating ring */}
           <div
             className="
               absolute inset-[9px]
@@ -65,7 +61,6 @@ function PageLoader({ visible }) {
           />
         </div>
 
-        {/* Brand */}
         <h2 className="text-[23px] font-bold tracking-tight text-blue-400">
           LensFlow
         </h2>
@@ -74,7 +69,6 @@ function PageLoader({ visible }) {
           Preparing your workspace...
         </p>
 
-        {/* Progress indicator */}
         <div className="mt-2 h-1 w-[150px] overflow-hidden rounded-full bg-blue-950/70">
           <div className="h-full w-full animate-pulse rounded-full bg-blue-500 motion-reduce:animate-none" />
         </div>

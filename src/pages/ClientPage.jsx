@@ -26,6 +26,12 @@ const VIEW_TYPE_STORAGE_KEY = "clients:viewType";
 // Must match the longest delete animation duration in ClientPageAnimations.css
 const DELETE_ANIM_MS = 500;
 
+// Event statuses come from the Workflow tab (schedule_events.status).
+const statusOf = (event) => String(event?.status || "").toLowerCase();
+// "Completed" is the last Workflow stage (after Delivered).
+const isCompleted = (event) => statusOf(event) === "completed";
+const isCancelled = (event) => statusOf(event) === "cancelled";
+
 function ClientPage() {
   const { reportPageReady, routeKey } = useOutletContext();
 
@@ -73,8 +79,10 @@ function ClientPage() {
     }
   }, [loadingClients, reportPageReady, routeKey]);
 
-  const fetchClients = async () => {
-    setLoadingClients(true);
+  // silent = refresh the data without showing the loading skeleton.
+  // Returns the mapped clients so callers can use the fresh data.
+  const fetchClients = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoadingClients(true);
 
     const {
       data: { user },
@@ -83,7 +91,7 @@ function ClientPage() {
     if (!user) {
       setClients([]);
       setLoadingClients(false);
-      return;
+      return [];
     }
 
     // Load clients
@@ -96,7 +104,7 @@ function ClientPage() {
     if (clientsError) {
       console.error("Failed to load clients:", clientsError.message);
       setLoadingClients(false);
-      return;
+      return null;
     }
 
     // Load schedule events
@@ -121,7 +129,7 @@ function ClientPage() {
     if (eventsError) {
       console.error("Failed to load client events:", eventsError.message);
       setLoadingClients(false);
-      return;
+      return null;
     }
 
     const now = new Date();
@@ -144,14 +152,29 @@ function ClientPage() {
           status: event.status,
         }));
 
-      // Upcoming events only
-      const upcomingProjects = projects.filter(
+      // Events that still need work (not completed, not cancelled)
+      const openProjects = projects.filter(
+        (project) => !isCompleted(project) && !isCancelled(project)
+      );
+
+      // Query is already ascending, so index 0 is the nearest event.
+      const upcomingOpen = openProjects.filter(
         (project) => new Date(project.start) >= now
       );
 
-      // Query is already ascending, so index 0 is the nearest upcoming event.
+      // Prefer the next upcoming open event, then any open event,
+      // then fall back to the most recent one (e.g. all delivered).
       const activeProject =
-        upcomingProjects[0] || projects[projects.length - 1] || null;
+        upcomingOpen[0] ||
+        openProjects[openProjects.length - 1] ||
+        projects[projects.length - 1] ||
+        null;
+
+      // Keep the Client tab in sync with the Workflow tab:
+      // when every (non-cancelled) event is completed, the client is Completed.
+      const countedProjects = projects.filter((p) => !isCancelled(p));
+      const allDelivered =
+        countedProjects.length > 0 && countedProjects.every(isCompleted);
 
       return {
         id: row.id,
@@ -160,7 +183,7 @@ function ClientPage() {
         contact: row.contact,
         email: row.email,
 
-        projectStatus: row.project_status,
+        projectStatus: allDelivered ? "Completed" : row.project_status,
         talentFee: row.talent_fee,
         initials: row.initials,
 
@@ -179,15 +202,65 @@ function ClientPage() {
 
     setClients(mappedClients);
     setLoadingClients(false);
-  };
+    return mappedClients;
+  }, []);
 
   useEffect(() => {
     fetchClients();
-  }, []);
+  }, [fetchClients]);
+
+  // Pick up changes made on other tabs (e.g. Workflow marking an event
+  // delivered) whenever the user comes back to this page or window.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        fetchClients({ silent: true });
+      }
+    };
+
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [fetchClients]);
+
+  // Live sync: refresh whenever events or clients change in Supabase
+  // (needs Realtime enabled for these tables), plus a light poll as a fallback.
+  useEffect(() => {
+    const refresh = () => fetchClients({ silent: true });
+
+    const channel = supabase
+      .channel("clients-page-sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "schedule_events" },
+        refresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "clients" },
+        refresh
+      )
+      .subscribe();
+
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, 15000);
+
+    return () => {
+      clearInterval(poll);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchClients]);
 
   // Add New Client
   const handleAddClient = (newClient) => {
     setClients((previousClients) => [...previousClients, newClient]);
+    // Pull the saved row + its events so everything stays in sync.
+    fetchClients({ silent: true });
   };
 
   // Delete Client — opens the confirm modal.
@@ -326,42 +399,29 @@ function ClientPage() {
       initials: updatedClient.initials,
     };
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("clients")
       .update(payload)
       .eq("id", updatedClient.id)
-      .eq("user_id", user.id)
-      .select()
-      .single();
+      .eq("user_id", user.id);
 
     if (error) {
       console.error("Failed to update client:", error.message);
       return;
     }
 
-    const mappedClient = {
-      id: data.id,
-      name: data.name,
-      type: data.type,
-      contact: data.contact,
-      email: data.email,
-      project: data.project,
-      venue: data.venue,
-      category: data.category,
-      projectStatus: data.project_status,
-      talentFee: data.talent_fee,
-      initials: data.initials,
-    };
+    // Reload so the client keeps its events and the status stays in sync
+    // with the Workflow tab (a plain row update would drop both).
+    const fresh = await fetchClients({ silent: true });
 
-    setClients((previousClients) =>
-      previousClients.map((client) =>
-        client.id === mappedClient.id ? mappedClient : client
-      )
-    );
-
-    setSelectedClient((previousClient) =>
-      previousClient?.id === mappedClient.id ? mappedClient : previousClient
-    );
+    if (fresh) {
+      setSelectedClient((previousClient) =>
+        previousClient?.id === updatedClient.id
+          ? fresh.find((client) => client.id === updatedClient.id) ||
+            previousClient
+          : previousClient
+      );
+    }
 
     setEditingClient(null);
   };

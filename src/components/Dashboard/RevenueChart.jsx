@@ -70,6 +70,27 @@ const RANGES = [
 
 const fmt = (metric, v) => (metric.money ? peso(v) : String(Math.round(v)));
 
+// Chart geometry, shared by the chart and the frozen Y axis labels.
+const CHART_HEIGHT = 288; // Tailwind h-72
+const CHART_TOP = 16; // chart margin.top
+const X_AXIS_HEIGHT = 30;
+const PLOT_HEIGHT = CHART_HEIGHT - CHART_TOP - X_AXIS_HEIGHT;
+
+// One shared Y scale, so the frozen axis on the left lines up exactly with the
+// scrolling chart (both use the same domain and ticks).
+function niceScale(max, money) {
+  const safeMax = max > 0 ? max : money ? 1000 : 4;
+  const rough = safeMax / 4;
+  const pow = 10 ** Math.floor(Math.log10(rough));
+  const norm = rough / pow;
+  let step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * pow;
+  if (!money) step = Math.max(1, Math.round(step));
+  const top = Math.ceil(safeMax / step) * step;
+  const ticks = [];
+  for (let v = 0; v <= top + step / 1000; v += step) ticks.push(Math.round(v * 100) / 100);
+  return { max: top, ticks };
+}
+
 // Build the list of columns (days, months or years) the chart and table show.
 function buildBuckets(gran, range) {
   const now = new Date();
@@ -185,7 +206,7 @@ async function fetchRevenue(from, to) {
   };
 }
 
-function RevenueChart() {
+function RevenueChart({ refreshTick = 0 }) {
   const [gran, setGran] = useState("M");
   const [range, setRange] = useState("12m");
   const [metricId, setMetricId] = useState("total");
@@ -193,6 +214,7 @@ function RevenueChart() {
   const [rows, setRows] = useState({ events: [], payments: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const loadedOnce = useRef(false); // only the first load shows the skeleton
 
   const metric = METRICS.find((m) => m.id === metricId) || METRICS[0];
   const buckets = useMemo(() => buildBuckets(gran, range), [gran, range]);
@@ -201,7 +223,7 @@ function RevenueChart() {
     let cancelled = false;
 
     const load = async () => {
-      setLoading(true);
+      if (!loadedOnce.current) setLoading(true);
       setError("");
 
       const now = new Date();
@@ -219,6 +241,7 @@ function RevenueChart() {
       } else {
         setRows({ events: result.events, payments: result.payments });
       }
+      loadedOnce.current = true;
       setLoading(false);
     };
 
@@ -226,7 +249,7 @@ function RevenueChart() {
     return () => {
       cancelled = true;
     };
-  }, [buckets]);
+  }, [buckets, refreshTick]);
 
   // Totals per column of the chart / table.
   const byBucket = useMemo(
@@ -262,7 +285,7 @@ function RevenueChart() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshTick]);
 
   const sideByMonth = useMemo(
     () => aggregate(sideRows.events, sideRows.payments, monthKey),
@@ -396,7 +419,13 @@ function RevenueChart() {
   const multi = Boolean(metric.fee);
 
   const axisFmt = (v) =>
-    metric.money ? (v >= 1000 ? `₱${Math.round(v / 1000)}k` : `₱${v}`) : String(v);
+    metric.money ? (v >= 1000 ? `₱${+(v / 1000).toFixed(1)}k` : `₱${v}`) : String(v);
+
+  const yMax = Math.max(
+    0,
+    ...chartData.map((d) => (multi ? Math.max(d.total, d.completed, d.upcoming) : d.value))
+  );
+  const yScale = niceScale(yMax, metric.money);
 
   // Tooltip stays dark in both themes so it is always readable.
   const tooltipStyle = {
@@ -557,95 +586,119 @@ function RevenueChart() {
               No events with fees in this period yet.
             </p>
           ) : (
-            <div ref={scrollRef} className="overflow-x-auto pb-2 text-slate-500">
-              <div className="h-72" style={{ minWidth: "100%", width: chartWidth }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  {chartType === "line" ? (
-                    <LineChart data={chartData} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.12} />
-                      <XAxis
-                        dataKey="name"
-                        stroke="currentColor"
-                        strokeOpacity={0.3}
-                        tick={axisTick}
-                        fontSize={11}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        stroke="currentColor"
-                        strokeOpacity={0.3}
-                        tick={axisTick}
-                        fontSize={11}
-                        tickFormatter={axisFmt}
-                      />
-                      <Tooltip
-                        formatter={(v, name) => [fmt(metric, v), name]}
-                        contentStyle={tooltipStyle}
-                      />
-                      {todayMarker}
-                      {multi ? (
-                        <>
-                          {FEE_LINES.map((l) => (
-                            <Line
-                              key={l.key}
-                              type="monotone"
-                              dataKey={l.key}
-                              name={l.name}
-                              stroke={l.color}
-                              strokeWidth={metricId === l.key ? 3 : 2}
-                              strokeDasharray={l.dashed ? "6 4" : undefined}
-                              strokeOpacity={metricId === l.key || metricId === "total" ? 1 : 0.45}
-                              dot={{ r: 3 }}
-                            />
-                          ))}
-                        </>
-                      ) : (
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          name={metric.label}
-                          stroke="#38bdf8"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
+            <div className="flex text-slate-500">
+              {/* Frozen Y axis: plain labels lined up with the chart's gridlines */}
+              <div className="relative h-72 w-14 flex-shrink-0">
+                {yScale.ticks.map((t) => (
+                  <span
+                    key={t}
+                    className="absolute right-2 -translate-y-1/2 whitespace-nowrap text-[11px] tabular-nums opacity-70"
+                    style={{ top: CHART_TOP + (1 - t / yScale.max) * PLOT_HEIGHT }}
+                  >
+                    {axisFmt(t)}
+                  </span>
+                ))}
+              </div>
+              <div ref={scrollRef} className="min-w-0 flex-1 overflow-x-auto pb-2">
+                <div className="h-72" style={{ minWidth: "100%", width: chartWidth }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    {chartType === "line" ? (
+                      <LineChart
+                        data={chartData}
+                        margin={{ top: CHART_TOP, right: 8, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.12} />
+                        <XAxis
+                          dataKey="name"
+                          stroke="currentColor"
+                          strokeOpacity={0.3}
+                          tick={axisTick}
+                          fontSize={11}
+                          height={X_AXIS_HEIGHT}
+                          interval="preserveStartEnd"
                         />
-                      )}
-                    </LineChart>
-                  ) : (
-                    <BarChart data={chartData} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.12} />
-                      <XAxis
-                        dataKey="name"
-                        stroke="currentColor"
-                        strokeOpacity={0.3}
-                        tick={axisTick}
-                        fontSize={11}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        stroke="currentColor"
-                        strokeOpacity={0.3}
-                        tick={axisTick}
-                        fontSize={11}
-                        tickFormatter={axisFmt}
-                      />
-                      <Tooltip
-                        formatter={(v, name) => [fmt(metric, v), name]}
-                        contentStyle={tooltipStyle}
-                        cursor={{ fill: "currentColor", fillOpacity: 0.08 }}
-                      />
-                      {todayMarker}
-                      {multi ? (
-                        <>
-                          <Bar dataKey="total" name="Booked" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="completed" name="Collected" fill="#34d399" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="upcoming" name="Outstanding" fill="#fbbf24" radius={[4, 4, 0, 0]} />
-                        </>
-                      ) : (
-                        <Bar dataKey="value" name={metric.label} fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                      )}
-                    </BarChart>
-                  )}
-                </ResponsiveContainer>
+                        <YAxis
+                          width={0}
+                          tick={false}
+                          axisLine={false}
+                          tickLine={false}
+                          domain={[0, yScale.max]}
+                          ticks={yScale.ticks}
+                        />
+                        <Tooltip
+                          formatter={(v, name) => [fmt(metric, v), name]}
+                          contentStyle={tooltipStyle}
+                        />
+                        {todayMarker}
+                        {multi ? (
+                          <>
+                            {FEE_LINES.map((l) => (
+                              <Line
+                                key={l.key}
+                                type="monotone"
+                                dataKey={l.key}
+                                name={l.name}
+                                stroke={l.color}
+                                strokeWidth={metricId === l.key ? 3 : 2}
+                                strokeDasharray={l.dashed ? "6 4" : undefined}
+                                strokeOpacity={metricId === l.key || metricId === "total" ? 1 : 0.45}
+                                dot={{ r: 3 }}
+                              />
+                            ))}
+                          </>
+                        ) : (
+                          <Line
+                            type="monotone"
+                            dataKey="value"
+                            name={metric.label}
+                            stroke="#38bdf8"
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                          />
+                        )}
+                      </LineChart>
+                    ) : (
+                      <BarChart
+                        data={chartData}
+                        margin={{ top: CHART_TOP, right: 8, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.12} />
+                        <XAxis
+                          dataKey="name"
+                          stroke="currentColor"
+                          strokeOpacity={0.3}
+                          tick={axisTick}
+                          fontSize={11}
+                          height={X_AXIS_HEIGHT}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis
+                          width={0}
+                          tick={false}
+                          axisLine={false}
+                          tickLine={false}
+                          domain={[0, yScale.max]}
+                          ticks={yScale.ticks}
+                        />
+                        <Tooltip
+                          formatter={(v, name) => [fmt(metric, v), name]}
+                          contentStyle={tooltipStyle}
+                          cursor={{ fill: "currentColor", fillOpacity: 0.08 }}
+                        />
+                        {todayMarker}
+                        {multi ? (
+                          <>
+                            <Bar dataKey="total" name="Booked" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="completed" name="Collected" fill="#34d399" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="upcoming" name="Outstanding" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+                          </>
+                        ) : (
+                          <Bar dataKey="value" name={metric.label} fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                        )}
+                      </BarChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
           )}
@@ -743,7 +796,7 @@ function RevenueChart() {
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-500/10 text-xs text-slate-500">
-                <th className="sticky left-0 bg-slate-900 px-4 py-2 font-medium">Metric</th>
+                <th className="sticky left-0 z-10 border-r border-slate-800 bg-slate-900 px-4 py-2 font-medium">Metric</th>
                 {columns.map((c) => (
                   <th
                     key={c.key}
@@ -763,7 +816,7 @@ function RevenueChart() {
                   key={row.id}
                   className={`border-b border-slate-800/70 last:border-0 ${i % 2 ? "bg-slate-500/10" : ""}`}
                 >
-                  <td className="sticky left-0 whitespace-nowrap bg-slate-900 px-4 py-2.5 font-medium">
+                  <td className="sticky left-0 z-10 whitespace-nowrap border-r border-slate-800 bg-slate-900 px-4 py-2.5 font-medium">
                     {row.label}
                   </td>
                   {columns.map((c) => (

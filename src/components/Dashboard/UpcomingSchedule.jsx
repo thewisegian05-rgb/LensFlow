@@ -41,7 +41,7 @@ const TONE = {
   later: "bg-slate-500/20 text-slate-500",
 };
 
-function UpcomingSchedule() {
+function UpcomingSchedule({ refreshTick = 0 }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -70,6 +70,11 @@ function UpcomingSchedule() {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [load]);
+
+  // The dashboard asks for a reload after bookings change.
+  useEffect(() => {
+    if (refreshTick > 0) load();
+  }, [refreshTick, load]);
 
   const visible = events.slice(0, SHOW);
   const hidden = events.length - visible.length;

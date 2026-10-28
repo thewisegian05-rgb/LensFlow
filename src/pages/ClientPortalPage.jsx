@@ -577,6 +577,7 @@ function ClientPortalPage() {
 
   /* ---- animations: sliding tab indicator ---- */
   const navRef = useRef(null);
+  const spyLockRef = useRef(0); // pauses scroll-spy while a tab click is scrolling
   const [indicator, setIndicator] = useState({
     x: 0,
     y: 0,
@@ -600,6 +601,9 @@ function ClientPortalPage() {
         ready: true,
         animate: prev.ready, // first placement has no animation
       }));
+      if (nav.scrollWidth > nav.clientWidth + 4) {
+        nav.scrollTo({ left: Math.max(0, a.offsetLeft - 16), behavior: "smooth" });
+      }
     };
     measure();
     window.addEventListener("resize", measure);
@@ -608,6 +612,7 @@ function ClientPortalPage() {
 
   /* ---- animations: tab click -> section slides in ---- */
   const handleNavClick = (href) => {
+    spyLockRef.current = Date.now() + 1000;
     setActiveNav(href);
     if (href === "#home") return;
     const el = document.querySelector(href);
@@ -617,6 +622,44 @@ function ClientPortalPage() {
     el.classList.add("lf-arrive");
     setTimeout(() => el.classList.remove("lf-arrive"), 1000);
   };
+
+  /* ---- scroll-spy: the sidebar highlight follows the section you are viewing ---- */
+  useEffect(() => {
+    const ids = NAV_ITEMS.map((item) => item.href.slice(1));
+    let ticking = false;
+
+    const update = () => {
+      ticking = false;
+      if (Date.now() < spyLockRef.current) return; // a tab click is scrolling
+      const line = window.innerHeight * 0.35; // the "reading line"
+      let current = "home";
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= line) current = id;
+      }
+      // at the very bottom of the page, select the last tab
+      const scrollable = document.documentElement.scrollHeight > window.innerHeight + 8;
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      if (scrollable && atBottom && document.getElementById("reviews")) current = "reviews";
+
+      setActiveNav((prev) => (prev === `#${current}` ? prev : `#${current}`));
+    };
+
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(update);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    window.addEventListener("resize", onScroll);
+    update();
+    return () => {
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [portal]);
 
   useEffect(() => {
     const syncHash = () => setActiveNav(window.location.hash || "#home");

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { supabase } from "../../lib/supabaseClient";
 import { CATEGORY_LABELS } from "./eventCategory";
@@ -28,6 +29,7 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked }) {
 
   // "Downpayment received / Cancel" modal
   const [modal, setModal] = useState(null); // the request being reviewed
+  const [modalVisible, setModalVisible] = useState(false);
   const [paidDate, setPaidDate] = useState(todayString());
   const [modalBusy, setModalBusy] = useState(null); // "confirm" | "cancel" | null
   const [modalError, setModalError] = useState("");
@@ -127,15 +129,31 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked }) {
 
   function openModal(r) {
     setModal(r);
+    setModalVisible(false);
     setPaidDate(todayString());
     setModalError("");
     setModalBusy(null);
+
+    // Let the browser render the hidden state before starting the transition.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setModalVisible(true));
+    });
   }
 
   function closeModal() {
     if (modalBusy) return;
-    setModal(null);
+    setModalVisible(false);
     setModalError("");
+  }
+
+  function handleModalTransitionEnd(e) {
+    if (
+      e.target === e.currentTarget &&
+      e.propertyName === "opacity" &&
+      !modalVisible
+    ) {
+      setModal(null);
+    }
   }
 
   async function confirmDownpayment() {
@@ -157,7 +175,7 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked }) {
       return;
     }
 
-    setModal(null);
+    setModalVisible(false);
     await load();
     onBooked?.();
   }
@@ -186,7 +204,7 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked }) {
       return;
     }
 
-    setModal(null);
+    setModalVisible(false);
     await load();
   }
 
@@ -372,16 +390,31 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked }) {
       </div>
 
       {/* ---------- Downpayment received / Cancel ---------- */}
-      {modal && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
-          onClick={closeModal}
+      {modal &&
+        createPortal(
+          <div
+          className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm transition-opacity duration-200 ease-out motion-reduce:transition-none ${
+            modalVisible ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeModal();
+          }}
+          onTransitionEnd={handleModalTransitionEnd}
         >
           <div
-            className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="booking-downpayment-title"
+            className={`my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl transition-all duration-300 ease-out motion-reduce:transform-none motion-reduce:transition-none ${
+              modalVisible
+                ? "translate-y-0 scale-100 opacity-100"
+                : "translate-y-2 scale-[0.97] opacity-0"
+            }`}
+            onMouseDown={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-white">Downpayment</h3>
+            <h3 id="booking-downpayment-title" className="text-lg font-bold text-white">
+              Downpayment
+            </h3>
             <p className="mt-1 text-sm text-slate-400">
               The client accepted the quote. The date is added to your schedule once you confirm
               the downpayment.
@@ -431,17 +464,17 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked }) {
                 type="button"
                 onClick={closeModal}
                 disabled={!!modalBusy}
-                className="text-xs text-slate-500 hover:text-white disabled:opacity-50"
+                className="text-xs text-slate-500 transition-colors duration-200 hover:text-white disabled:opacity-50"
               >
                 Close
               </button>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={cancelAwaiting}
                   disabled={!!modalBusy}
-                  className="rounded-lg border border-rose-500/50 px-4 py-2 text-sm font-semibold text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"
+                  className="rounded-lg border border-rose-500/50 px-4 py-2 text-sm font-semibold text-rose-500 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-rose-500/10 active:translate-y-0 disabled:opacity-50"
                 >
                   {modalBusy === "cancel" ? "Cancelling…" : "Cancel booking"}
                 </button>
@@ -449,15 +482,17 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked }) {
                   type="button"
                   onClick={confirmDownpayment}
                   disabled={!!modalBusy}
-                  className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400 disabled:opacity-50"
+                  className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-900 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-sky-400 active:translate-y-0 disabled:opacity-50"
                 >
                   {modalBusy === "confirm" ? "Saving…" : "Downpayment received"}
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
+
     </section>
   );
 }

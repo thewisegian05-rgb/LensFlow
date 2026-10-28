@@ -1,12 +1,18 @@
-/* =========================================================
-   SCHEDULE PAGE - PRETTY ANIMATIONS
-   Save as: src/components/Schedule/schedule-animations.css
-   Import in SchedulePage.jsx AFTER "schedule.css"
-   ========================================================= */
 
-/* NOTE: entrance animations use fill-mode "backwards" (not "both"/"forwards")
-   on purpose. A lingering transform would trap position:fixed modals inside
-   their parent and break them. */
+/* ---------- 0. PAGE LOADER / ENTRANCE COORDINATION ---------- */
+
+/*
+  Keep the existing schedule entrance animations paused while the initial
+  data is loading. SchedulePage adds/removes the schedule-page-loading class
+  when it is ready to reveal the page alongside the shared PageLoader fade-out.
+*/
+.schedule-page.schedule-page-loading > *:not(.fixed),
+.schedule-page.schedule-page-loading .rbc-month-view,
+.schedule-page.schedule-page-loading .rbc-time-view,
+.schedule-page.schedule-page-loading .rbc-agenda-view,
+.schedule-page.schedule-page-loading .rbc-event {
+  animation-play-state: paused;
+}
 
 /* ---------- 1. PAGE SECTIONS CASCADE IN ---------- */
 
@@ -38,7 +44,7 @@
   box-shadow: 0 12px 40px -18px rgba(0, 0, 0, 0.6);
 }
 
-/* light sweep across the panel when it first appears */
+/* Light sweep across the panel when it first appears. */
 .event-list::before {
   content: "";
   position: absolute;
@@ -57,7 +63,7 @@
   to   { left: 130%; }
 }
 
-/* pulsing status dot */
+/* Pulsing status dot. */
 .event-dot { position: relative; }
 .event-dot::after {
   content: "";
@@ -73,7 +79,7 @@
   75%, 100% { transform: scale(3); opacity: 0; }
 }
 
-/* count badge bounces whenever the number changes (re-keyed in JSX) */
+/* Count badge bounces whenever the number changes (re-keyed in JSX). */
 .event-count {
   display: inline-block;
   animation: badgePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
@@ -110,7 +116,7 @@
   to   { opacity: 1; transform: translateX(0) scale(1); }
 }
 
-/* newly added / edited event: slide in + glowing ring */
+/* Newly added / edited event: slide in + glowing ring. */
 .event-row-new {
   animation:
     rowIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards,
@@ -236,8 +242,6 @@
 }
 
 /* ---------- 7. ACCESSIBILITY ---------- */
-/* Turns everything off if your device has "reduce motion" enabled.
-   While testing, delete this block if you don't see any animation. */
 
 @media (prefers-reduced-motion: reduce) {
   .schedule-page *,

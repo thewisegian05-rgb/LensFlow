@@ -9,6 +9,7 @@ import {
   FaUndo,
   FaRegTrashAlt,
 } from "react-icons/fa";
+import { useOutletContext } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { supabase } from "../lib/supabaseClient";
 
@@ -59,6 +60,7 @@ function looksLikeVideo(fileName) {
 }
 
 function MediaStorage() {
+  const { reportPageReady, routeKey } = useOutletContext();
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -82,6 +84,7 @@ function MediaStorage() {
   const [folders, setFolders] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
+  const initialDataReady = useRef(false);
 
   // Loading indicator: hides as soon as data is ready, and never stays past 2s
   const [showLoading, setShowLoading] = useState(false);
@@ -195,6 +198,7 @@ function MediaStorage() {
 
     if (folderErr) {
       console.error(folderErr);
+      initialDataReady.current = true;
       setDataLoading(false);
       return;
     }
@@ -207,6 +211,7 @@ function MediaStorage() {
 
     if (photoErr) {
       console.error(photoErr);
+      initialDataReady.current = true;
       setDataLoading(false);
       return;
     }
@@ -223,18 +228,30 @@ function MediaStorage() {
       }))
     );
 
+    initialDataReady.current = true;
     setDataLoading(false);
   }, []);
 
   useEffect(() => {
     if (user) {
-      loadData(user.id);
-    } else {
+      loadData(user.id).catch((error) => {
+        console.error("Failed to load initial media data:", error);
+        initialDataReady.current = true;
+        setDataLoading(false);
+      });
+    } else if (!authLoading) {
       setFolders([]);
       setPhotos([]);
       setPath([]);
+      initialDataReady.current = true;
     }
-  }, [user, loadData]);
+  }, [user, authLoading, loadData]);
+
+  useEffect(() => {
+    if (!authLoading && initialDataReady.current && !dataLoading && trashLoaded) {
+      reportPageReady(routeKey);
+    }
+  }, [authLoading, dataLoading, reportPageReady, routeKey, trashLoaded]);
 
   const isInTrash = useCallback((id, isFile) => trashEntries.some((entry) => entry.id === id && entry.isFile === isFile), [trashEntries]);
   const trashedFolderIds = useMemo(() => new Set(trashEntries.filter((entry) => !entry.isFile).map((entry) => entry.id)), [trashEntries]);

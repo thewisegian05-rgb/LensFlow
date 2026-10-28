@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useOutletContext } from "react-router-dom";
 import {
   FaEye,
   FaCamera,
@@ -217,6 +218,7 @@ function ProfileSkeleton() {
 
 
 export default function Profile() {
+  const { reportPageReady, routeKey } = useOutletContext();
 
   // PROFILE INFORMATION STATES
   const [username, setUsername] = useState("LENSFLOW");
@@ -288,6 +290,12 @@ export default function Profile() {
     const timer = setTimeout(() => setMinLoadDone(true), LOADING_DELAY);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (minLoadDone && profileLoaded) {
+      reportPageReady(routeKey);
+    }
+  }, [minLoadDone, profileLoaded, reportPageReady, routeKey]);
 
 
   // ========================================

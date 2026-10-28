@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
+import { useOutletContext } from "react-router-dom";
 import {
   FaTimes,
   FaStar,
@@ -687,6 +688,8 @@ function AuthGate() {
 }
 
 function CullingPage() {
+  const { reportPageReady, routeKey } = useOutletContext();
+
   /* ============ AUTH ============ */
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -743,6 +746,7 @@ function CullingPage() {
 
   const [isDragging, setIsDragging] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
+  const initialDataReady = useRef(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState("");
@@ -1251,12 +1255,14 @@ function CullingPage() {
 
     if (folderErr) {
       console.error(folderErr);
+      initialDataReady.current = true;
       setDataLoading(false);
       return;
     }
 
     if (photoErr) {
       console.error(photoErr);
+      initialDataReady.current = true;
       setDataLoading(false);
       return;
     }
@@ -1343,6 +1349,7 @@ function CullingPage() {
 
     setCulls(ratingsMap);
     setAiResults(aiResultMap);
+    initialDataReady.current = true;
     setDataLoading(false);
   }, []);
 
@@ -1399,15 +1406,26 @@ function CullingPage() {
   // CHANGE 2: don't clear state (and the saved path) while auth is still loading.
   useEffect(() => {
     if (user) {
-      loadData(user.id);
+      loadData(user.id).catch((error) => {
+        console.error("Failed to load initial culling data:", error);
+        initialDataReady.current = true;
+        setDataLoading(false);
+      });
     } else if (!authLoading) {
       setFolders([]);
       setPhotos([]);
       setCulls({});
       setAiResults({});
       setPath([]);
+      initialDataReady.current = true;
     }
   }, [user, authLoading, loadData]);
+
+  useEffect(() => {
+    if (!authLoading && initialDataReady.current && !dataLoading) {
+      reportPageReady(routeKey);
+    }
+  }, [authLoading, dataLoading, reportPageReady, routeKey]);
 
   // CHANGE 1 (continued): remember which folder is open when you leave the page.
   useEffect(() => {

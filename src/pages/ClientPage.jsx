@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useOutletContext } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 
 import ClientCard from "../components/Clients/ClientCard.jsx";
@@ -22,13 +23,12 @@ import { FaFilter, FaPlus } from "react-icons/fa";
 // page navigations and reloads.
 const VIEW_TYPE_STORAGE_KEY = "clients:viewType";
 
-// Loading display is ALWAYS this long, no matter how fast the data arrives.
-const LOADER_DURATION_MS = 2000;
-
 // Must match the longest delete animation duration in ClientPageAnimations.css
 const DELETE_ANIM_MS = 500;
 
 function ClientPage() {
+  const { reportPageReady, routeKey } = useOutletContext();
+
   // Modal States
   const [showAddClient, setShowAddClient] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -67,13 +67,11 @@ function ClientPage() {
   const [clients, setClients] = useState([]);
   const [loadingClients, setLoadingClients] = useState(true);
 
-  // Fixed 2-second loading display.
-  const [showLoader, setShowLoader] = useState(true);
-
   useEffect(() => {
-    const timer = setTimeout(() => setShowLoader(false), LOADER_DURATION_MS);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!loadingClients) {
+      reportPageReady(routeKey);
+    }
+  }, [loadingClients, reportPageReady, routeKey]);
 
   const fetchClients = async () => {
     setLoadingClients(true);
@@ -401,8 +399,8 @@ function ClientPage() {
       <div className="clients-toolbar">
         {/* CLIENT COUNT */}
         <div className="client-count">
-          <span>{showLoader ? "–" : filteredClients.length}</span>{" "}
-          {!showLoader && filteredClients.length === 1 ? "client" : "clients"}
+          <span>{loadingClients ? "–" : filteredClients.length}</span>{" "}
+          {!loadingClients && filteredClients.length === 1 ? "client" : "clients"}
         </div>
 
         {/* VIEW SWITCHER */}
@@ -484,10 +482,10 @@ function ClientPage() {
       </div>
 
       {/* ==========================================
-          LOADER (2s) / GRID / LIST
+          LOADER / GRID / LIST
       ========================================== */}
 
-      {showLoader ? (
+      {loadingClients ? (
         <div className="clients-grid clients-skeleton-grid" aria-busy="true">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="client-skeleton" style={{ "--i": i }}>

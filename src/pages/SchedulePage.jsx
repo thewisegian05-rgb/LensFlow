@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams, useOutletContext } from "react-router-dom";
 
 import ScheduleHeader from "../components/Schedule/ScheduleHeader";
 import ScheduleSummary from "../components/Schedule/ScheduleSummary";
@@ -23,6 +23,7 @@ import {
 } from "../components/Schedule/eventCategory";
 
 const MIN_DELETE_MS = 1000; // keeps the toast visible long enough to read
+const MIN_PAGE_LOADER_MS = 700; // minimum loader duration during navigation
 
 const formatDateForInput = (date) => {
   const value = new Date(date);
@@ -161,6 +162,44 @@ function SchedulePage() {
 
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const {
+    reportPageReady,
+    routeKey,
+    isNavigationLoading = false,
+  } = useOutletContext();
+
+  // Track when this page mounted so very fast Supabase responses don't
+  // make the navigation loader disappear immediately.
+  const pageMountedAt = useRef(Date.now());
+  const [pageEntranceReady, setPageEntranceReady] = useState(false);
+
+  useEffect(() => {
+    if (loading || pageEntranceReady) return;
+
+    // On initial app load, don't add an artificial waiting period.
+    if (!isNavigationLoading) {
+      setPageEntranceReady(true);
+      reportPageReady(routeKey);
+      return;
+    }
+
+    // On navigation, keep the loader visible for at least 700ms from mount.
+    const elapsed = Date.now() - pageMountedAt.current;
+    const remaining = Math.max(0, MIN_PAGE_LOADER_MS - elapsed);
+
+    const timeoutId = window.setTimeout(() => {
+      setPageEntranceReady(true);
+      reportPageReady(routeKey);
+    }, remaining);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    loading,
+    pageEntranceReady,
+    isNavigationLoading,
+    reportPageReady,
+    routeKey,
+  ]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -811,7 +850,11 @@ function SchedulePage() {
   // =========================================================
 
   return (
-    <div className="schedule-page">
+    <div
+      className={`schedule-page ${
+        pageEntranceReady ? "schedule-page-ready" : "schedule-page-loading"
+      }`}
+    >
 
       <ScheduleHeader
         onAdd={() => {

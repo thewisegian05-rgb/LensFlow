@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 
 import { flushSync } from "react-dom";
+import { useOutletContext } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useRef, useState, useEffect } from "react";
 
@@ -94,6 +95,7 @@ function SettingsSkeleton() {
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 function SettingsPage() {
+  const { reportPageReady, routeKey } = useOutletContext();
   const { theme, setTheme } = useTheme();
 
   const themeButtonRef = useRef(null);
@@ -190,6 +192,12 @@ function SettingsPage() {
     const timer = setTimeout(() => setIsLoading(false), 2000);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      reportPageReady(routeKey);
+    }
+  }, [isLoading, reportPageReady, routeKey]);
 
   const handleChangePassword = async ({ currentPassword, newPassword }) => {
     setChangingPassword(true);

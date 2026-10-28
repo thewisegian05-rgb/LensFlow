@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+
 import {
   FaUsers,
   FaCalendarDay,
@@ -144,6 +146,7 @@ function Reveal({ delay = 0, className = "", children }) {
 }
 
 function Dashboard() {
+  const { reportPageReady, routeKey } = useOutletContext();
   const [stats, setStats] = useState({
     clientsToday: 0,
     pendingClients: 0,
@@ -305,8 +308,18 @@ function Dashboard() {
       setLoadingStats(false);
     };
 
-    fetchStats();
+    fetchStats().catch((error) => {
+      console.error("Failed to load dashboard statistics:", error);
+      setLoadingStats(false);
+    });
   }, []);
+
+  // Tell the shared layout overlay when this route's essential stats are ready.
+  useEffect(() => {
+    if (!loadingStats) {
+      reportPageReady(routeKey);
+    }
+  }, [loadingStats, reportPageReady, routeKey]);
 
   // Total Clients = Clients Today + Pending Clients
   const totalClients = stats.clientsToday + stats.pendingClients;

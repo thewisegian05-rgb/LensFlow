@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup, MotionConfig } from "framer-motion";
 import {
   FaChevronLeft,
@@ -252,9 +253,11 @@ function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
 
 /* ============ Page ============ */
 function WorkflowPage() {
+  const { reportPageReady, routeKey } = useOutletContext();
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [projects, setProjects] = useState([]);
+  const projectsLoaded = useRef(false);
   const [error, setError] = useState("");
 
   // Fixed-length loading display: starts true, flips to false after
@@ -354,9 +357,29 @@ function WorkflowPage() {
   }, []);
 
   useEffect(() => {
-    if (user) loadProjects();
-    else setProjects([]);
-  }, [user, loadProjects]);
+    if (user) {
+      projectsLoaded.current = false;
+      loadProjects().then(
+        () => {
+          projectsLoaded.current = true;
+        },
+        (loadError) => {
+          console.error("Failed to load workflow projects:", loadError);
+          setError(loadError?.message || "Could not load workflow projects.");
+          projectsLoaded.current = true;
+        }
+      );
+    } else if (!authLoading) {
+      setProjects([]);
+      projectsLoaded.current = true;
+    }
+  }, [user, authLoading, loadProjects]);
+
+  useEffect(() => {
+    if (!authLoading && !loading && projectsLoaded.current) {
+      reportPageReady(routeKey);
+    }
+  }, [authLoading, loading, projects, reportPageReady, routeKey]);
 
   /* ---- move a shoot to another stage ---- */
   const moveProject = useCallback(

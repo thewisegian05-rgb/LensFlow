@@ -56,15 +56,48 @@ function timeAgo(timestamp) {
 function NotificationBell() {
   const navigate = useNavigate();
   const containerRef = useRef(null);
+  const closeTimerRef = useRef(null);
+  const previousUnreadIdsRef = useRef(null);
 
   const stored = useSyncExternalStore(subscribeNotifications, getNotifications);
 
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [ringing, setRinging] = useState(false);
   const [todayEvents, setTodayEvents] = useState([]);
   const [todaySeen, setTodaySeen] = useState(
     () => localStorage.getItem(TODAY_SEEN_KEY) || ""
   );
   const [unreadAtOpen, setUnreadAtOpen] = useState(new Set());
+
+  const closePanel = useCallback(() => {
+    setClosing(true);
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+      closeTimerRef.current = null;
+    }, 180);
+  }, []);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+  }, []);
+
+  // Ring only when a notification becomes newly unread after the initial render.
+  useEffect(() => {
+    const unreadIds = new Set(stored.filter((item) => !item.read).map((item) => item.id));
+    const previousUnreadIds = previousUnreadIdsRef.current;
+    previousUnreadIdsRef.current = unreadIds;
+    if (previousUnreadIds !== null) {
+      const hasNewUnread = [...unreadIds].some((id) => !previousUnreadIds.has(id));
+      if (hasNewUnread) {
+        setRinging(true);
+        const timer = setTimeout(() => setRinging(false), 700);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [stored]);
 
   /* ---- today's scheduled work ---- */
   const loadToday = useCallback(async () => {
@@ -115,13 +148,13 @@ function NotificationBell() {
 
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false);
+        closePanel();
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  }, [open, closePanel]);
 
   /* ---- unread state ---- */
   const todayKey = `${localDateKey()}:${todayEvents.length}`;
@@ -131,9 +164,11 @@ function NotificationBell() {
 
   const toggle = () => {
     if (open) {
-      setOpen(false);
+      closePanel();
       return;
     }
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    setClosing(false);
 
     // Remember what was unread so it stays highlighted while the panel is open.
     setUnreadAtOpen(
@@ -149,7 +184,7 @@ function NotificationBell() {
 
   const openItem = (item) => {
     if (item.to) navigate(item.to);
-    setOpen(false);
+    closePanel();
   };
 
   const isEmpty = todayEvents.length === 0 && stored.length === 0;
@@ -171,17 +206,43 @@ function NotificationBell() {
           WebkitAppearance: "none",
         }}
       >
-        <FaBell className="text-lg" />
+        <style>{`
+          @keyframes lensflow-bell-ring {
+            0%, 100% { transform: rotate(0); }
+            12%, 36%, 60%, 84% { transform: rotate(9deg); }
+            24%, 48%, 72% { transform: rotate(-9deg); }
+          }
+          @keyframes lensflow-notification-in {
+            from { opacity: 0; transform: translateY(-7px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          @keyframes lensflow-notification-out {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(-5px) scale(0.98); }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .lensflow-bell-ring, .lensflow-notification-in, .lensflow-notification-out { animation: none !important; }
+          }
+        `}</style>
+        <span className={`relative inline-flex origin-top ${ringing ? "lensflow-bell-ring" : ""}`} style={ringing ? { animation: "lensflow-bell-ring 650ms ease-in-out" } : undefined}>
+          <FaBell className="text-lg" />
+        </span>
 
         {unreadCount > 0 && (
-          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-sky-500"></span>
+          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-sky-500 ring-2 ring-white dark:ring-slate-900" />
         )}
       </button>
 
       {open && (
         <div
-          className="absolute right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
-          style={{ width: 340, maxWidth: "calc(100vw - 1.5rem)" }}
+          className={`absolute right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ${closing ? "lensflow-notification-out" : "lensflow-notification-in"}`}
+          style={{ width: 340, maxWidth: "calc(100vw - 1.5rem)", animation: `${closing ? "lensflow-notification-out" : "lensflow-notification-in"} 180ms cubic-bezier(0.22, 1, 0.36, 1) both` }}
+          onAnimationEnd={(e) => {
+            if (closing && e.target === e.currentTarget) {
+              setOpen(false);
+              setClosing(false);
+            }
+          }}
         >
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">

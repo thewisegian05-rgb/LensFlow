@@ -60,7 +60,7 @@ function createEmptyCounts() {
   return Object.fromEntries(STAGES.map(({ key }) => [key, 0]));
 }
 
-function WorkflowSummary() {
+function WorkflowSummary({ refreshTick = 0 }) {
   const [counts, setCounts] = useState(createEmptyCounts());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -172,6 +172,11 @@ function WorkflowSummary() {
       );
     };
   }, [fetchCounts]);
+
+  // The dashboard asks for a reload after bookings change (silent: no "Updating..." flash).
+  useEffect(() => {
+    if (refreshTick > 0) fetchCounts(true);
+  }, [refreshTick, fetchCounts]);
 
   const total = STAGES.reduce(
     (sum, { key }) => sum + (counts[key] || 0),

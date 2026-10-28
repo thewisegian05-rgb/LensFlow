@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 
 import {
@@ -32,6 +32,7 @@ function plural(count, word) {
 function useCountUp(target, ready, duration = 900) {
   const [display, setDisplay] = useState(0);
   const frame = useRef(null);
+  const from = useRef(0); // last value shown, so refreshes count from there
 
   useEffect(() => {
     if (!ready || target === null || target === undefined) return;
@@ -40,17 +41,21 @@ function useCountUp(target, ready, duration = 900) {
       "(prefers-reduced-motion: reduce)"
     ).matches;
 
-    if (reduceMotion || target === 0) {
+    if (reduceMotion || target === 0 || from.current === target) {
       setDisplay(target);
+      from.current = target;
       return;
     }
 
     const start = performance.now();
+    const begin = from.current;
 
     const tick = (now) => {
       const progress = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3); // ease-out
-      setDisplay(Math.round(target * eased));
+      const value = Math.round(begin + (target - begin) * eased);
+      from.current = value;
+      setDisplay(value);
       if (progress < 1) frame.current = requestAnimationFrame(tick);
     };
 
@@ -146,7 +151,7 @@ function Reveal({ delay = 0, className = "", children }) {
 }
 
 function Dashboard() {
-    const { reportPageReady, routeKey } = useOutletContext();
+  const { reportPageReady, routeKey } = useOutletContext();
 
   const [stats, setStats] = useState({
     clientsToday: 0,
@@ -158,18 +163,20 @@ function Dashboard() {
     heldDownpayments: 0,
     requests: null,
   });
-  
   const [loadingStats, setLoadingStats] = useState(true);
+  // Bumped on every refresh so the sections below reload too.
+  const [refreshTick, setRefreshTick] = useState(0);
 
+  // Tell the layout the page has finished its first load.
   useEffect(() => {
     if (!loadingStats) {
       reportPageReady(routeKey);
     }
   }, [loadingStats, reportPageReady, routeKey]);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      setLoadingStats(true);
+  // `silent` refreshes the numbers without the loading skeleton.
+  const fetchStats = useCallback(async (silent = false) => {
+      if (!silent) setLoadingStats(true);
 
       const { data: projects, error: projectsError } = await supabase
         .from("projects")
@@ -314,10 +321,31 @@ function Dashboard() {
         requests,
       });
       setLoadingStats(false);
-    };
-
-    fetchStats();
   }, []);
+
+  const refreshAll = useCallback(() => {
+    fetchStats(true);
+    setRefreshTick((t) => t + 1);
+  }, [fetchStats]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  // Keep the dashboard current without a page reload: when you come back to
+  // this tab, and every 15 seconds while it is open and visible.
+  useEffect(() => {
+    const onFocus = () => refreshAll();
+    const timer = setInterval(() => {
+      if (!document.hidden) refreshAll();
+    }, 15000);
+
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      clearInterval(timer);
+    };
+  }, [refreshAll]);
 
   // Total Clients = Clients Today + Pending Clients
   const totalClients = stats.clientsToday + stats.pendingClients;
@@ -355,7 +383,7 @@ function Dashboard() {
       </div>
 
       {/* New client booking requests (only shows when there are some) */}
-      <BookingRequests hideWhenEmpty />
+      <BookingRequests hideWhenEmpty onBooked={refreshAll} />
 
       {/* Overview: one connected panel, divided by thin lines */}
       <section className="mb-4 overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
@@ -462,7 +490,7 @@ function Dashboard() {
       {/* The day-to-day info comes first */}
       <div className="mb-4 grid gap-4 lg:grid-cols-3">
         <Reveal delay={200} className="lg:col-span-2">
-          <UpcomingSchedule />
+          <UpcomingSchedule refreshTick={refreshTick} />
         </Reveal>
         <Reveal delay={260} className="h-full">
           <Grow>
@@ -473,12 +501,12 @@ function Dashboard() {
 
       <Reveal delay={320} className="mb-4">
         <Grow wide>
-          <WorkflowSummary />
+          <WorkflowSummary refreshTick={refreshTick} />
         </Grow>
       </Reveal>
 
       <Reveal delay={380}>
-        <RevenueChart />
+        <RevenueChart refreshTick={refreshTick} />
       </Reveal>
     </div>
   );

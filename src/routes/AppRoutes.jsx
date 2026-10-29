@@ -1,9 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 import Login from "../components/Auth/Login";
 import Layout from "../components/Layout/Layout";
 import ProtectedRoute from "./ProtectedRoute";
 
+import LandingPage from "../landingPage/LandingPage";
 import DashboardPage from "../pages/DashboardPage";
 import SchedulePage from "../pages/SchedulePage";
 import WorkflowPage from "../pages/WorkflowPage";
@@ -17,12 +18,21 @@ import ResetPasswordPage from "../pages/ResetPasswordPage";
 import SignUpPage from "../pages/SignUpPage";
 import ClientPortalPage from "../pages/ClientPortalPage";
 
+// Landing page buttons go to the login page
+function Landing() {
+  const navigate = useNavigate();
+  return <LandingPage onLogin={() => navigate("/login")} />;
+}
+
 function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Login */}
-        <Route path="/" element={<Login />} />
+        {/* Landing page */}
+        <Route path="/" element={<Landing />} />
+
+        {/* Auth */}
+        <Route path="/login" element={<Login />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="/signup" element={<SignUpPage />} />
 

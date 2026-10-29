@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import PageLoader from "./PageLoader";
+import useSessionGuard from "../../hooks/useSessionGuard";
 
 const isDesktop = () =>
   typeof window !== "undefined" &&
@@ -17,6 +18,10 @@ function hasAuthTransition() {
 }
 
 function Layout() {
+  // Sends this device to the login page if its session was signed out
+  // from another device ("Sign Out Other Devices").
+  useSessionGuard("/login");
+
   const location = useLocation();
 
   const [sidebarOpen, setSidebarOpen] = useState(() => {

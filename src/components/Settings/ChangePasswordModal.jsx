@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   FaTimes,
@@ -53,6 +54,37 @@ function ChangePasswordModal({
     useState(false);
 
   const [error, setError] = useState("");
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const firstFrame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setIsVisible(true));
+    });
+    return () => cancelAnimationFrame(firstFrame);
+  }, []);
+
+  const handleClose = () => {
+    if (loading) return;
+    setIsVisible(false);
+  };
+
+  const handleOverlayTransitionEnd = (e) => {
+    if (
+      e.target === e.currentTarget &&
+      e.propertyName === "opacity" &&
+      !isVisible
+    ) {
+      onClose?.();
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && !loading) handleClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [loading]);
 
 
   /* ==========================================
@@ -151,15 +183,27 @@ function ChangePasswordModal({
   };
 
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={onClose}
+      className={`fixed inset-0 z-[10000] flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm transition-opacity duration-200 ease-out motion-reduce:transition-none ${
+        isVisible ? "opacity-100" : "pointer-events-none opacity-0"
+      }`}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+      onTransitionEnd={handleOverlayTransitionEnd}
     >
 
       <div
-        className="custom-scrollbar max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-slate-300 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
-        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="change-password-title"
+        className={`custom-scrollbar my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-slate-300 bg-white p-6 shadow-2xl transition-all duration-300 ease-out motion-reduce:transform-none motion-reduce:transition-none dark:border-slate-700 dark:bg-slate-900 ${
+          isVisible
+            ? "translate-y-0 scale-100 opacity-100"
+            : "translate-y-2 scale-[0.97] opacity-0"
+        }`}
+        onMouseDown={(e) => e.stopPropagation()}
       >
 
         {/* ==========================================
@@ -177,7 +221,7 @@ function ChangePasswordModal({
 
             <div>
 
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">
+              <h3 id="change-password-title" className="text-xl font-semibold text-slate-900 dark:text-white">
                 Change Password
               </h3>
 
@@ -192,7 +236,7 @@ function ChangePasswordModal({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={loading}
             className="rounded-lg border-none bg-transparent p-2 text-slate-500 transition hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-400 dark:hover:text-white"
             title="Close"
@@ -427,7 +471,7 @@ function ChangePasswordModal({
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={loading}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
             >
@@ -456,7 +500,8 @@ function ChangePasswordModal({
 
       </div>
 
-    </div>
+    </div>,
+    document.body
   );
 }
 

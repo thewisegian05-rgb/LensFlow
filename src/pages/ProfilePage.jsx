@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import {
   FaEye,
@@ -12,7 +13,6 @@ import {
   FaHeart,
   FaHome,
   FaPencilAlt,
-  FaTimes,
   FaImages,
   FaPlus,
   FaMinus,
@@ -21,6 +21,8 @@ import {
   FaCheck,
   FaShareAlt,
 } from "react-icons/fa";
+
+import { FiX } from "react-icons/fi"
 
 import { supabase } from "../lib/supabaseClient";
 import {
@@ -103,14 +105,16 @@ const animationStyles = `
     opacity: 0;
     animation: profileFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
-  .modal-overlay-anim { animation: overlayFade 0.2s ease-out; }
-  .modal-card-pop     { animation: modalPop 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
-  .menu-pop           { animation: menuFade 0.2s cubic-bezier(0.22, 1, 0.36, 1); transform-origin: top center; }
+  .modal-overlay-anim { animation: overlayFade 0.22s ease-out both; will-change: opacity; }
+  .modal-card-pop     { animation: modalPop 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; will-change: opacity, transform; }
+  .menu-pop           { animation: menuFade 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top center; }
 
   @media (prefers-reduced-motion: reduce) {
     .profile-reveal, .modal-overlay-anim, .modal-card-pop, .menu-pop {
       animation: none;
       opacity: 1;
+      transform: none;
+      will-change: auto;
     }
   }
 `;
@@ -1381,17 +1385,19 @@ export default function Profile() {
       </div>
 
 
+      {createPortal(
+        <>
       {/* ========================================
           ABOUT DETAILS MODAL
           ======================================== */}
       {viewDetails && (
-        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="modal-card-pop relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
 
             {/* ========================================
                 ABOUT MODAL HEADER
                 ======================================== */}
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-6 py-4">
               <div>
                 <h2 className="text-xl font-bold">
                   About
@@ -1407,7 +1413,7 @@ export default function Profile() {
                 onClick={() => setViewDetails(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                <FaTimes />
+                <FiX />
               </button>
             </div>
 
@@ -1532,7 +1538,7 @@ export default function Profile() {
                           className="text-slate-500 transition hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400"
                           title={`Remove ${niche}`}
                         >
-                          <FaTimes className="text-[10px]" />
+                          <FiX className="text-[10px]" />
                         </button>
                       </span>
                     ))}
@@ -1552,7 +1558,7 @@ export default function Profile() {
                           className="text-slate-500 transition hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400"
                           title={`Remove ${profileInfo.customNiche}`}
                         >
-                          <FaTimes className="text-[10px]" />
+                          <FiX className="text-[10px]" />
                         </button>
                       </span>
                     )}
@@ -1651,7 +1657,7 @@ export default function Profile() {
             {/* ========================================
                 ABOUT MODAL SAVE BUTTON
                 ======================================== */}
-            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+            <div className="flex justify-end border-t border-slate-800 bg-slate-900 px-6 py-4">
               <button
                 type="button"
                 onClick={() => setViewDetails(false)}
@@ -1685,11 +1691,11 @@ export default function Profile() {
       {profilePreview && (
         <div
           onClick={() => setProfilePreview(false)}
-          className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+          className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="modal-card-pop relative max-w-lg overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
+            className="modal-card-pop relative max-w-lg overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
               <p className="text-sm font-bold text-white">
@@ -1700,7 +1706,7 @@ export default function Profile() {
                 onClick={() => setProfilePreview(false)}
                 className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300 hover:text-white"
               >
-                <FaTimes />
+                <FiX />
               </button>
             </div>
 
@@ -1722,11 +1728,11 @@ export default function Profile() {
       {featuredPreview && (
         <div
           onClick={() => setFeaturedPreview(null)}
-          className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+          className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="modal-card-pop relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
+            className="modal-card-pop relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-5 py-3">
               <p className="max-w-[75%] truncate text-sm font-bold text-white">
@@ -1758,79 +1764,66 @@ export default function Profile() {
           EDIT PROFILE MODAL
           ======================================== */}
       {editProfile && (
-        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
 
-            {/* ========================================
-                EDIT PROFILE MODAL HEADER
-                ======================================== */}
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+            {/* EDIT PROFILE MODAL HEADER */}
+            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-6 py-4">
               <div>
-                <h2 className="text-xl font-bold">
+                <h2 className="text-xl font-bold text-white">
                   Edit Profile
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-400">
                   Update your account information.
                 </p>
               </div>
 
               <button
                 onClick={() => setEditProfile(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-800 hover:text-white"
               >
-                <FaTimes />
+                <FiX />
               </button>
             </div>
 
-
-            {/* ========================================
-                EDIT PROFILE FORM
-                ======================================== */}
-            <div className="flex-1 space-y-4 overflow-y-auto p-6">
+            {/* EDIT PROFILE FORM */}
+            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-900 p-6">
 
               {/* Username */}
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Username
                 </label>
 
                 <input
                   type="text"
                   value={tempUsername}
-                  onChange={(e) =>
-                    setTempUsername(e.target.value)
-                  }
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                  onChange={(e) => setTempUsername(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
                 />
               </div>
 
-
               {/* Bio */}
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Bio
                 </label>
 
                 <textarea
                   rows={4}
                   value={tempBio}
-                  onChange={(e) =>
-                    setTempBio(e.target.value)
-                  }
-                  className="w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                  onChange={(e) => setTempBio(e.target.value)}
+                  className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
                 />
               </div>
             </div>
 
-
-            {/* ========================================
-                EDIT PROFILE ACTION BUTTONS
-                ======================================== */}
-            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+            {/* EDIT PROFILE ACTION BUTTONS */}
+            <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-900 px-6 py-4">
               <button
                 onClick={() => setEditProfile(false)}
-                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
               >
                 Cancel
               </button>
@@ -1851,8 +1844,8 @@ export default function Profile() {
           CAROUSEL SETUP MODAL
           ======================================== */}
       {carouselSetup && (
-        <div className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
 
             {/* Carousel Setup Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -1870,7 +1863,7 @@ export default function Profile() {
                 onClick={() => setCarouselSetup(null)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                <FaTimes />
+                <FiX />
               </button>
             </div>
 
@@ -1938,8 +1931,8 @@ export default function Profile() {
           FEATURED PHOTO SETUP MODAL
           ======================================== */}
       {featuredSetup.length > 0 && (
-        <div className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
 
             {/* Featured Setup Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -1957,7 +1950,7 @@ export default function Profile() {
                 onClick={() => setFeaturedSetup([])}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                <FaTimes />
+                <FiX />
               </button>
             </div>
 
@@ -2039,7 +2032,7 @@ export default function Profile() {
           className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-2 backdrop-blur-md sm:p-4"
         >
           <div
-            className="modal-card-pop relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
+            className="modal-card-pop relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
 
@@ -2053,7 +2046,7 @@ export default function Profile() {
                 onClick={() => setActiveAlbum(null)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
               >
-                <FaTimes />
+                <FiX />
               </button>
             </div>
 
@@ -2141,13 +2134,13 @@ export default function Profile() {
           CAROUSEL MANAGER MODAL
           ======================================== */}
       {carouselManager && (
-        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
 
             {/* Carousel Manager Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                <h2 className="text-xl font-bold text-white">
                   Carousel Manager
                 </h2>
 
@@ -2160,7 +2153,7 @@ export default function Profile() {
                 onClick={() => setCarouselManager(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                <FaTimes />
+                <FiX />
               </button>
             </div>
 
@@ -2252,7 +2245,7 @@ export default function Profile() {
                           }
                           className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white opacity-0 shadow transition group-hover:opacity-100"
                         >
-                          <FaTimes className="text-[10px]" />
+                          <FiX className="text-[10px]" />
                         </button>
                       </div>
                     ))}
@@ -2285,7 +2278,7 @@ export default function Profile() {
 
 
             {/* Carousel Manager Done Button */}
-            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <button
                 onClick={() => setCarouselManager(false)}
                 className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-400"
@@ -2302,8 +2295,8 @@ export default function Profile() {
           FEATURED PHOTOS MANAGER MODAL
           ======================================== */}
       {featuredManager && (
-        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
 
             {/* Featured Manager Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -2321,7 +2314,7 @@ export default function Profile() {
                 onClick={() => setFeaturedManager(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
-                <FaTimes />
+                <FiX />
               </button>
             </div>
 
@@ -2357,8 +2350,8 @@ export default function Profile() {
           DELETE CONFIRMATION MODAL
           ======================================== */}
       {confirmModal.isOpen && (
-        <div className="modal-overlay-anim fixed inset-0 z-[150] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="modal-overlay-anim fixed inset-0 z-[150] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="modal-card-pop relative flex w-full max-w-sm flex-col rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center shadow-2xl">
             <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">
               {confirmModal.title}
             </h3>
@@ -2389,6 +2382,9 @@ export default function Profile() {
             </div>
           </div>
         </div>
+      )}
+        </>,
+        document.body
       )}
     </div>
   );
@@ -2498,8 +2494,8 @@ function DetailEditor({
   // DETAIL EDITOR UI
   // ========================================
   return (
-    <div className="modal-overlay-anim fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+    <div className="modal-overlay-anim fixed inset-0 z-[130] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+      <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
 
         {/* ========================================
             DETAIL EDITOR HEADER
@@ -2519,7 +2515,7 @@ function DetailEditor({
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
           >
-            <FaTimes />
+            <FiX />
           </button>
         </div>
 

@@ -65,6 +65,52 @@ function reportError(message, err) {
 // Fixed loading time (ms) para sa skeleton, kahit ready na ang data
 const LOADING_DELAY = 2000;
 
+// Keeps modal content mounted briefly so its exit animation can finish.
+function useAnimatedModalState(initialValue, isOpenValue) {
+  const [value, setValueState] = useState(initialValue);
+  const [isClosing, setIsClosing] = useState(false);
+  const closeTimer = useRef(null);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
+
+  const setValue = (nextValue) => {
+    const current = valueRef.current;
+    const resolved = typeof nextValue === "function" ? nextValue(current) : nextValue;
+    const wasOpen = isOpenValue(current);
+    const willBeOpen = isOpenValue(resolved);
+
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+
+    if (wasOpen && !willBeOpen) {
+      setIsClosing(true);
+      closeTimer.current = setTimeout(() => {
+        valueRef.current = resolved;
+        setValueState(resolved);
+        setIsClosing(false);
+        closeTimer.current = null;
+      }, 280);
+      return;
+    }
+
+    setIsClosing(false);
+    valueRef.current = resolved;
+    setValueState(resolved);
+  };
+
+  return [value, setValue, isClosing];
+}
+
+
 // ========================================
 // ANIMATIONS 
 // ========================================
@@ -109,8 +155,26 @@ const animationStyles = `
   .modal-card-pop     { animation: modalPop 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; will-change: opacity, transform; }
   .menu-pop           { animation: menuFade 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top center; }
 
+  /* Exit animations: keep the overlay and card visible while fading out. */
+  @keyframes overlayFadeOut {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+  @keyframes modalPopOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(10px) scale(0.97); }
+  }
+  .modal-overlay-anim.modal-exit {
+    animation: overlayFadeOut 0.28s ease-in both;
+    pointer-events: none;
+  }
+  .modal-card-pop.modal-exit {
+    animation: modalPopOut 0.28s cubic-bezier(0.4, 0, 1, 1) both;
+    pointer-events: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .profile-reveal, .modal-overlay-anim, .modal-card-pop, .menu-pop {
+    .profile-reveal, .modal-overlay-anim, .modal-card-pop, .menu-pop, .modal-exit {
       animation: none;
       opacity: 1;
       transform: none;
@@ -236,16 +300,16 @@ export default function Profile() {
   const [featuredPhotos, setFeaturedPhotos] = useState([]);
 
   // MODAL & EDITING STATES
-  const [editProfile, setEditProfile] = useState(false);
-  const [viewDetails, setViewDetails] = useState(false);
-  const [carouselManager, setCarouselManager] = useState(false);
-  const [featuredManager, setFeaturedManager] = useState(false);
-  const [activeAlbum, setActiveAlbum] = useState(null);
+  const [editProfile, setEditProfile, editProfileClosing] = useAnimatedModalState(false, (v) => v === true);
+  const [viewDetails, setViewDetails, viewDetailsClosing] = useAnimatedModalState(false, (v) => v === true);
+  const [carouselManager, setCarouselManager, carouselManagerClosing] = useAnimatedModalState(false, (v) => v === true);
+  const [featuredManager, setFeaturedManager, featuredManagerClosing] = useAnimatedModalState(false, (v) => v === true);
+  const [activeAlbum, setActiveAlbum, activeAlbumClosing] = useAnimatedModalState(null, (v) => v !== null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [profileMenu, setProfileMenu] = useState(false);
-  const [profilePreview, setProfilePreview] = useState(false);
-  const [featuredPreview, setFeaturedPreview] = useState(null);
-  const [detailEditor, setDetailEditor] = useState(null);
+  const [profilePreview, setProfilePreview, profilePreviewClosing] = useAnimatedModalState(false, (v) => v === true);
+  const [featuredPreview, setFeaturedPreview, featuredPreviewClosing] = useAnimatedModalState(null, (v) => v !== null);
+  const [detailEditor, setDetailEditor, detailEditorClosing] = useAnimatedModalState(null, (v) => v !== null);
 
   // SUPABASE LOADING STATES
   const [userId, setUserId] = useState(null);
@@ -266,17 +330,17 @@ export default function Profile() {
   const [tempUsername, setTempUsername] = useState(username);
   const [tempBio, setTempBio] = useState(bio);
   const [tempDetails, setTempDetails] = useState(profileInfo);
-  const [carouselSetup, setCarouselSetup] = useState(null);
-  const [featuredSetup, setFeaturedSetup] = useState([]);
+  const [carouselSetup, setCarouselSetup, carouselSetupClosing] = useAnimatedModalState(null, (v) => v !== null);
+  const [featuredSetup, setFeaturedSetup, featuredSetupClosing] = useAnimatedModalState([], (v) => Array.isArray(v) && v.length > 0);
 
   // DELETE CONFIRMATION MODAL STATE
-  const [confirmModal, setConfirmModal] = useState({
+  const [confirmModal, setConfirmModal, confirmModalClosing] = useAnimatedModalState({
     isOpen: false,
     title: "Delete Item?",
     message:
       "Are you sure you want to delete this item? This action cannot be undone.",
     onConfirm: () => {},
-  });
+  }, (v) => Boolean(v?.isOpen));
 
   // REFS
   const scrollContainerRef = useRef(null);
@@ -993,7 +1057,7 @@ export default function Profile() {
             PROFILE HEADER & PROFILE PICTURE
             ======================================== */}
         <div
-          className="profile-reveal flex flex-col gap-7 md:flex-row md:items-center"
+          className={`profile-reveal relative flex flex-col gap-7 md:flex-row md:items-center ${profileMenu ? "z-[60]" : "z-0"}`}
           style={{ animationDelay: "80ms" }}
         >
           <div
@@ -1017,7 +1081,7 @@ export default function Profile() {
                 PROFILE PICTURE MENU
                 ======================================== */}
             {profileMenu && (
-              <div className="absolute left-1/2 top-full z-50 mt-3 w-56 -translate-x-1/2">
+              <div className="absolute left-1/2 top-full z-[70] mt-3 w-56 -translate-x-1/2">
                 <div className="menu-pop overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                   <button
                     type="button"
@@ -1083,7 +1147,7 @@ export default function Profile() {
             ======================================== */}
         <button
           onClick={openEditProfile}
-          className="profile-reveal mt-7 w-full rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold transition-colors duration-300 hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+          className="profile-reveal relative z-0 mt-7 w-full rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold transition-colors duration-300 hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
           style={{ animationDelay: "140ms" }}
         >
           Edit Profile
@@ -1391,8 +1455,8 @@ export default function Profile() {
           ABOUT DETAILS MODAL
           ======================================== */}
       {viewDetails && (
-        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${viewDetailsClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${viewDetailsClosing ? "modal-exit" : ""}`}>
 
             {/* ========================================
                 ABOUT MODAL HEADER
@@ -1411,7 +1475,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => setViewDetails(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
               >
                 <FiX />
               </button>
@@ -1681,6 +1745,7 @@ export default function Profile() {
           setDetails={setTempDetails}
           onClose={() => setDetailEditor(null)}
           onSave={saveDetailEditor}
+          isClosing={detailEditorClosing}
         />
       )}
 
@@ -1691,11 +1756,11 @@ export default function Profile() {
       {profilePreview && (
         <div
           onClick={() => setProfilePreview(false)}
-          className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+          className={`modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${profilePreviewClosing ? "modal-exit" : ""}`}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="modal-card-pop relative max-w-lg overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
+            className={`modal-card-pop relative max-w-lg overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${profilePreviewClosing ? "modal-exit" : ""}`}
           >
             <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
               <p className="text-sm font-bold text-white">
@@ -1704,7 +1769,7 @@ export default function Profile() {
 
               <button
                 onClick={() => setProfilePreview(false)}
-                className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
               >
                 <FiX />
               </button>
@@ -1728,11 +1793,11 @@ export default function Profile() {
       {featuredPreview && (
         <div
           onClick={() => setFeaturedPreview(null)}
-          className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+          className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${featuredPreviewClosing ? "modal-exit" : ""}`}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="modal-card-pop relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
+            className={`modal-card-pop relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${featuredPreviewClosing ? "modal-exit" : ""}`}
           >
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-5 py-3">
               <p className="max-w-[75%] truncate text-sm font-bold text-white">
@@ -1764,8 +1829,8 @@ export default function Profile() {
           EDIT PROFILE MODAL
           ======================================== */}
       {editProfile && (
-        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${editProfileClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${editProfileClosing ? "modal-exit" : ""}`}>
 
             {/* EDIT PROFILE MODAL HEADER */}
             <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-6 py-4">
@@ -1781,7 +1846,7 @@ export default function Profile() {
 
               <button
                 onClick={() => setEditProfile(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
               >
                 <FiX />
               </button>
@@ -1844,8 +1909,8 @@ export default function Profile() {
           CAROUSEL SETUP MODAL
           ======================================== */}
       {carouselSetup && (
-        <div className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div className={`modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${carouselSetupClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${carouselSetupClosing ? "modal-exit" : ""}`}>
 
             {/* Carousel Setup Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -1861,7 +1926,7 @@ export default function Profile() {
 
               <button
                 onClick={() => setCarouselSetup(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               >
                 <FiX />
               </button>
@@ -1931,8 +1996,8 @@ export default function Profile() {
           FEATURED PHOTO SETUP MODAL
           ======================================== */}
       {featuredSetup.length > 0 && (
-        <div className="modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div className={`modal-overlay-anim fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${featuredSetupClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${featuredSetupClosing ? "modal-exit" : ""}`}>
 
             {/* Featured Setup Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -1948,7 +2013,7 @@ export default function Profile() {
 
               <button
                 onClick={() => setFeaturedSetup([])}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
               >
                 <FiX />
               </button>
@@ -2029,10 +2094,10 @@ export default function Profile() {
       {activeAlbum && (
         <div
           onClick={() => setActiveAlbum(null)}
-          className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-2 backdrop-blur-md sm:p-4"
+          className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-2 backdrop-blur-md sm:p-4 ${activeAlbumClosing ? "modal-exit" : ""}`}
         >
           <div
-            className="modal-card-pop relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
+            className={`modal-card-pop relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${activeAlbumClosing ? "modal-exit" : ""}`}
             onClick={(e) => e.stopPropagation()}
           >
 
@@ -2044,7 +2109,7 @@ export default function Profile() {
 
               <button
                 onClick={() => setActiveAlbum(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
               >
                 <FiX />
               </button>
@@ -2134,8 +2199,8 @@ export default function Profile() {
           CAROUSEL MANAGER MODAL
           ======================================== */}
       {carouselManager && (
-        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${carouselManagerClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${carouselManagerClosing ? "modal-exit" : ""}`}>
 
             {/* Carousel Manager Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
@@ -2151,7 +2216,7 @@ export default function Profile() {
 
               <button
                 onClick={() => setCarouselManager(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
               >
                 <FiX />
               </button>
@@ -2295,8 +2360,8 @@ export default function Profile() {
           FEATURED PHOTOS MANAGER MODAL
           ======================================== */}
       {featuredManager && (
-        <div className="modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${featuredManagerClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${featuredManagerClosing ? "modal-exit" : ""}`}>
 
             {/* Featured Manager Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
@@ -2312,7 +2377,7 @@ export default function Profile() {
 
               <button
                 onClick={() => setFeaturedManager(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
               >
                 <FiX />
               </button>
@@ -2350,8 +2415,8 @@ export default function Profile() {
           DELETE CONFIRMATION MODAL
           ======================================== */}
       {confirmModal.isOpen && (
-        <div className="modal-overlay-anim fixed inset-0 z-[150] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-          <div className="modal-card-pop relative flex w-full max-w-sm flex-col rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center shadow-2xl">
+        <div className={`modal-overlay-anim fixed inset-0 z-[150] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${confirmModalClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex w-full max-w-sm flex-col rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center shadow-2xl ${confirmModalClosing ? "modal-exit" : ""}`}>
             <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">
               {confirmModal.title}
             </h3>
@@ -2424,6 +2489,7 @@ function DetailEditor({
   setDetails,
   onClose,
   onSave,
+  isClosing = false,
 }) {
   // ========================================
   // DETAIL EDITOR TITLES
@@ -2494,8 +2560,8 @@ function DetailEditor({
   // DETAIL EDITOR UI
   // ========================================
   return (
-    <div className="modal-overlay-anim fixed inset-0 z-[130] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-      <div className="modal-card-pop relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+    <div className={`modal-overlay-anim fixed inset-0 z-[130] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${isClosing ? "modal-exit" : ""}`}>
+      <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${isClosing ? "modal-exit" : ""}`}>
 
         {/* ========================================
             DETAIL EDITOR HEADER
@@ -2513,7 +2579,7 @@ function DetailEditor({
 
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
           >
             <FiX />
           </button>

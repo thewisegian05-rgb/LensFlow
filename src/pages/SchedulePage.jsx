@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useOutletContext, useSearchParams } from "react-router-dom";
+import { useOutletContext, useSearchParams, useLocation } from "react-router-dom";
 
 import ScheduleHeader from "../components/Schedule/ScheduleHeader";
 import ScheduleSummary from "../components/Schedule/ScheduleSummary";
@@ -79,6 +79,7 @@ function EventList({
   limit = 5,
   onSelect,
   leavingIds,
+  highlightedEventId,
 }) {
   const visible = events.slice(0, limit);
   const hidden = events.length - visible.length;
@@ -115,7 +116,11 @@ function EventList({
                 onClick={() => onSelect(event)}
                 style={getCategoryStyle(event)}
                 className={`flex w-full items-center gap-3 rounded-lg border border-l-4 px-3 py-2 text-left transition hover:brightness-125 ${
-                  isLeaving ? "event-row-leaving" : ""
+                  `${isLeaving ? "event-row-leaving" : ""} ${
+                    event.id === highlightedEventId
+                      ? "ring-2 ring-sky-400 shadow-lg shadow-sky-500/20"
+                      : ""
+                  }`
                 }`}
               >
                 <div className="w-16 flex-shrink-0 text-xs">
@@ -159,6 +164,8 @@ function EventList({
 
 function SchedulePage() {
   const { reportPageReady, routeKey } = useOutletContext();
+  const location = useLocation();
+  const [highlightedEventId, setHighlightedEventId] = useState(null);
 
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -197,6 +204,18 @@ function SchedulePage() {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const targetId = location.state?.highlightEventId;
+    if (!targetId || events.length === 0) return;
+    const target = events.find((event) => event.id === targetId);
+    if (!target) return;
+    setHighlightedEventId(targetId);
+    setSelectedEvent(target);
+    setDetailsOpen(true);
+    const timer = setTimeout(() => setHighlightedEventId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [location.key, location.state, events]);
 
   // =========================================================
   // FETCH CLIENTS FOR SCHEDULE
@@ -853,6 +872,7 @@ function SchedulePage() {
           emptyText="No events today."
           onSelect={openEventDetails}
           leavingIds={pendingIds}
+          highlightedEventId={highlightedEventId}
         />
         <EventList
           title="Coming Events"
@@ -863,6 +883,7 @@ function SchedulePage() {
           showDate
           onSelect={openEventDetails}
           leavingIds={pendingIds}
+          highlightedEventId={highlightedEventId}
         />
       </div>
 

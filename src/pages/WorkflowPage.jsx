@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useLocation } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup, MotionConfig } from "framer-motion";
 import {
   FaChevronLeft,
@@ -139,7 +139,7 @@ function SkeletonCard({ delay = 0 }) {
 
 /* ============ Card ============ */
 
-function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
+function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0, highlighted = false }) {
   const index = STAGE_INDEX[project.stage];
   const locked = isFutureEvent(project);
   const isToday = project.event_date === todayString();
@@ -172,6 +172,7 @@ function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
           hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-md
           dark:border-slate-700 dark:bg-slate-800/70 dark:hover:border-sky-500/50
           ${dragging ? "scale-95 opacity-40" : ""}
+          ${highlighted ? "ring-4 ring-sky-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-900" : ""}
           cursor-grab active:cursor-grabbing`}
       >
         <div className="min-w-0">
@@ -254,6 +255,17 @@ function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0 }) {
 /* ============ Page ============ */
 function WorkflowPage() {
   const { reportPageReady, routeKey } = useOutletContext();
+  const location = useLocation();
+  const [highlightedProjectId, setHighlightedProjectId] = useState(null);
+
+  // Briefly emphasize the event selected from global header search.
+  useEffect(() => {
+    const targetId = location.state?.highlightProjectId;
+    if (!targetId) return;
+    setHighlightedProjectId(targetId);
+    const timer = setTimeout(() => setHighlightedProjectId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [location.key, location.state]);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [projects, setProjects] = useState([]);
@@ -308,12 +320,13 @@ function WorkflowPage() {
   /* ---- load scheduled shoots ---- */
   // NOTE: no setLoading in here anymore. The loading display is the fixed
   // 2s timer above, so refetching never brings the skeletons back.
-  const loadProjects = useCallback(async () => {
+  const loadProjects = useCallback(async (userId) => {
     setError("");
 
     const { data: rows, error: eventErr } = await supabase
       .from("schedule_events")
       .select("*")
+      .eq("user_id", userId)
       .order("start_time", { ascending: true });
 
     if (eventErr) {
@@ -359,7 +372,7 @@ function WorkflowPage() {
   useEffect(() => {
     if (user) {
       projectsLoaded.current = false;
-      loadProjects().then(
+      loadProjects(user.id).then(
         () => {
           projectsLoaded.current = true;
         },
@@ -610,6 +623,7 @@ function WorkflowPage() {
                             onDragStart={handleDragStart}
                             // stagger only on first reveal, capped so long columns don't lag
                             delay={introDone ? 0 : 0.1 + i * 0.07 + Math.min(n, 6) * 0.07}
+                            highlighted={highlightedProjectId === project.id}
                           />
                         ))
                       )}

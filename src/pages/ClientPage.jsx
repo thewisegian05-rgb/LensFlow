@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 
 import ClientCard from "../components/Clients/ClientCard.jsx";
@@ -34,6 +34,18 @@ const isCancelled = (event) => statusOf(event) === "cancelled";
 
 function ClientPage() {
   const { reportPageReady, routeKey } = useOutletContext();
+  const location = useLocation();
+  const [highlightedClientId, setHighlightedClientId] = useState(null);
+
+  // Briefly emphasize the client selected from global header search.
+  useEffect(() => {
+    const targetId = location.state?.highlightClientId;
+    if (!targetId) return;
+    setHighlightedClientId(targetId);
+    setViewType("grid");
+    const timer = setTimeout(() => setHighlightedClientId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [location.key, location.state]);
 
   // Modal States
   const [showAddClient, setShowAddClient] = useState(false);
@@ -584,9 +596,9 @@ function ClientPage() {
               {filteredClients.map((client, index) => (
                 <div
                   key={client.id}
-                  className={`client-card-wrap${
+                  className={`client-card-wrap transition-all duration-500 ${
                     leavingIds.has(client.id) ? " client-leaving" : ""
-                  }`}
+                  } ${highlightedClientId === client.id ? "rounded-2xl ring-4 ring-sky-400 ring-offset-4 ring-offset-slate-100 dark:ring-offset-slate-950" : ""}`}
                   style={{ "--i": Math.min(index, 12) }}
                 >
                   <ClientCard

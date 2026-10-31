@@ -11,7 +11,7 @@ import {
   FaUndo,
   FaRegTrashAlt,
 } from "react-icons/fa";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { supabase } from "../lib/supabaseClient";
 
@@ -63,6 +63,8 @@ function looksLikeVideo(fileName) {
 
 function MediaStorage() {
   const { reportPageReady, routeKey } = useOutletContext();
+  const location = useLocation();
+  const [highlightedFolderId, setHighlightedFolderId] = useState(null);
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -283,6 +285,29 @@ function MediaStorage() {
       initialDataReady.current = true;
     }
   }, [user, authLoading, loadData]);
+
+  // Open a folder selected from global search, including its parent path.
+  useEffect(() => {
+    const targetId = location.state?.highlightFolderId;
+    if (!targetId || folders.length === 0) return;
+    const target = folders.find((folder) => folder.id === targetId);
+    if (!target) return;
+
+    const ancestors = [];
+    let current = target;
+    while (current) {
+      ancestors.unshift(current.id);
+      current = folders.find((folder) => folder.id === current.parentId);
+    }
+
+    setActiveView("files");
+    setTrashPath([]);
+    setPath(ancestors.slice(0, -1));
+    setHighlightedFolderId(targetId);
+
+    const timer = setTimeout(() => setHighlightedFolderId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [location.key, location.state, folders]);
 
   useEffect(() => {
     if (!authLoading && initialDataReady.current && !dataLoading && trashLoaded) {
@@ -1093,7 +1118,7 @@ function MediaStorage() {
                 else if (activeView === "files") setPath([...path, item.id]);
                 else setTrashPath([...trashPath, item.id]);
               }}
-              className={`mi-item flex items-center justify-between rounded-lg border p-4 cursor-pointer transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md ${itemClasses} ${deletingIds.includes(item.id) ? "opacity-40 pointer-events-none" : ""}`}
+              className={`mi-item flex items-center justify-between rounded-lg border p-4 cursor-pointer transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md ${itemClasses} ${!item.isFile && item.id === highlightedFolderId ? "ring-2 ring-sky-400 shadow-lg shadow-sky-500/20" : ""} ${deletingIds.includes(item.id) ? "opacity-40 pointer-events-none" : ""}`}
             >
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 {item.isFile ? (

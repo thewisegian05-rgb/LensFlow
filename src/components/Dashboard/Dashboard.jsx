@@ -350,6 +350,14 @@ function Dashboard() {
   // Total Clients = Clients Today + Pending Clients
   const totalClients = stats.clientsToday + stats.pendingClients;
 
+  const currentHour = new Date().getHours();
+  const greeting =
+    currentHour < 12
+      ? "Good morning"
+      : currentHour < 18
+        ? "Good afternoon"
+        : "Good evening";
+
   const dateLine = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -365,9 +373,16 @@ function Dashboard() {
         </div>
       )}
 
-      {/* Header (same pattern as the Schedule page) */}
+      {/* Dashboard Header */}
       <div className="mb-5">
-        <h2 className="text-3xl font-bold text-white">Dashboard</h2>
+        <h2 className="text-3xl font-bold text-white">
+          Dashboard
+        </h2>
+
+        <p className="mt-1 text-xl font-medium text-sky-400">
+          {greeting}!
+        </p>
+
         <p className="mt-1 min-h-[1.5rem] text-slate-400">
           {dateLine}
           {!loadingStats && (
@@ -402,9 +417,9 @@ function Dashboard() {
             title="Total Clients"
             value={totalClients}
             subtitle={totalClients === 0 ? "No clients yet" : "Today + upcoming"}
-            dot="bg-sky-400"
+            dot="bg-teal-400"
             icon={<FaUsers />}
-            iconClass="bg-sky-500/10 text-sky-400"
+            iconClass="bg-teal-500/10 text-teal-400"
           />
           <StatCell
             index={1}
@@ -422,9 +437,9 @@ function Dashboard() {
             title="Pending Clients"
             value={stats.pendingClients}
             subtitle={stats.pendingClients === 0 ? "None pending" : "From tomorrow on"}
-            dot="bg-sky-400"
+            dot="bg-violet-400"
             icon={<FaHourglassHalf />}
-            iconClass="bg-sky-500/10 text-sky-400"
+            iconClass="bg-violet-500/10 text-violet-400"
           />
           <StatCell
             index={3}
@@ -432,7 +447,7 @@ function Dashboard() {
             title="Booking Requests"
             value={stats.requests}
             subtitle={
-              stats.requests === 0 ? "All caught up" : "Needs your action"
+              stats.requests === 0 ? "All caught up" : "Awaiting your quote"
             }
             dot={stats.requests > 0 ? "bg-rose-400" : "bg-emerald-400"}
             icon={<FaInbox />}
@@ -445,9 +460,9 @@ function Dashboard() {
             value={stats.monthFees}
             format={(n) => `₱${n.toLocaleString("en-PH")}`}
             subtitle="Cash received this month"
-            dot="bg-sky-400"
+            dot="bg-emerald-400"
             icon={<FaCoins />}
-            iconClass="bg-sky-500/10 text-sky-400"
+            iconClass="bg-emerald-500/10 text-emerald-400"
           />
           <StatCell
             index={5}
@@ -460,9 +475,9 @@ function Dashboard() {
                 ? `${peso(stats.heldDownpayments)} held as downpayments`
                 : "Balance owed on events"
             }
-            dot="bg-emerald-400"
+            dot="bg-orange-400"
             icon={<FaCalendarCheck />}
-            iconClass="bg-emerald-500/10 text-emerald-400"
+            iconClass="bg-orange-500/10 text-orange-400"
           />
           <StatCell
             index={6}
@@ -470,9 +485,9 @@ function Dashboard() {
             title="Projects Editing"
             value={stats.editing}
             subtitle={stats.editing === 0 ? "Nothing in editing" : "In progress"}
-            dot="bg-sky-400"
+            dot="bg-fuchsia-400"
             icon={<FaPhotoVideo />}
-            iconClass="bg-sky-500/10 text-sky-400"
+            iconClass="bg-fuchsia-500/10 text-fuchsia-400"
           />
           <StatCell
             index={7}
@@ -482,7 +497,7 @@ function Dashboard() {
             subtitle={stats.totalFolders === 0 ? "No folders yet" : "Across Media Storage"}
             dot="bg-sky-400"
             icon={<FaFolder />}
-            iconClass="bg-sky-500/10 text-sky-400"
+            iconClass="bg-pink-500/10 text-pink-400"
           />
         </div>
       </section>

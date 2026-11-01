@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { FaTimes } from "react-icons/fa";
+import { supabase } from "../../lib/supabaseClient";
+
 
 function ReportProblemModal({ onClose }) {
   const [isVisible, setIsVisible] = useState(false);
   const [isMounted, setIsMounted] = useState(true);
+  const [subject, setSubject] = useState("");
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
   const closeTimerRef = useRef(null);
   const closeStartedRef = useRef(false);
 
@@ -42,6 +50,48 @@ function ReportProblemModal({ onClose }) {
 
   const handleBackdropMouseDown = (event) => {
     if (event.target === event.currentTarget) closeModal();
+  };
+
+  // Saves the report straight to the problem_reports table in Supabase.
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (submitting || sent) return;
+
+    if (!subject.trim() || !category || !description.trim()) {
+      setError("Please fill in the subject, category and description.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const { error: insertError } = await supabase
+        .from("problem_reports")
+        .insert({
+          user_id: user?.id ?? null,
+          user_email: user?.email ?? null,
+          subject: subject.trim(),
+          category,
+          description: description.trim(),
+          page_url: window.location.href,
+          user_agent: navigator.userAgent,
+        });
+
+      if (insertError) throw insertError;
+
+      setSent(true);
+      closeTimerRef.current = setTimeout(closeModal, 1800);
+    } catch (err) {
+      console.error("Could not send problem report:", err);
+      setError("Could not send your report. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (!isMounted) return null;
@@ -92,7 +142,7 @@ function ReportProblemModal({ onClose }) {
         </div>
 
         {/* Form */}
-        <form>
+        <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -101,6 +151,8 @@ function ReportProblemModal({ onClose }) {
 
               <input
                 type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
                 placeholder="Briefly describe the problem"
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
@@ -111,13 +163,17 @@ function ReportProblemModal({ onClose }) {
                 Category
               </label>
 
-              <select className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
                 <option value="">Select a category</option>
-                <option value="bug">Bug</option>
-                <option value="performance">Performance</option>
-                <option value="account">Account</option>
-                <option value="feature">Feature Issue</option>
-                <option value="other">Other</option>
+                <option value="Bug">Bug</option>
+                <option value="Performance">Performance</option>
+                <option value="Account">Account</option>
+                <option value="Feature Issue">Feature Issue</option>
+                <option value="Other">Other</option>
               </select>
             </div>
 
@@ -128,11 +184,24 @@ function ReportProblemModal({ onClose }) {
 
               <textarea
                 rows="5"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe what happened..."
                 className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>
           </div>
+
+          {error && (
+            <p role="alert" className="mt-4 text-sm text-rose-500">
+              {error}
+            </p>
+          )}
+          {sent && (
+            <p role="status" className="mt-4 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+              Report sent. Thank you for letting us know!
+            </p>
+          )}
 
           <div className="mt-6 flex justify-end gap-3">
             <button
@@ -145,9 +214,10 @@ function ReportProblemModal({ onClose }) {
 
             <button
               type="submit"
-              className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-black transition-all duration-200 hover:bg-sky-600 active:scale-[0.98]"
+              disabled={submitting || sent}
+              className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-black transition-all duration-200 hover:bg-sky-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Submit Report
+              {submitting ? "Sending..." : sent ? "Sent" : "Submit Report"}
             </button>
           </div>
         </form>

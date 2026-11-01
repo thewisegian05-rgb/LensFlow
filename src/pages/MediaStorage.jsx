@@ -25,6 +25,28 @@ const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const TRASH_CHECK_INTERVAL_MS = 60 * 60 * 1000; // Check every hour
 const TRASH_RETENTION_DAYS = 30;
 
+// Storage limit per user. Trash items still count until permanently deleted.
+const STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+const STORAGE_WARN_RATIO = 0.8; // bar turns amber
+const STORAGE_DANGER_RATIO = 0.95; // bar turns red
+const NOTICE_MS = 7000; // how long the "not enough space" message stays
+
+function formatBytes(bytes) {
+  if (!bytes || bytes < 0) return "0 MB";
+
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unit = 0;
+
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+
+  const text = value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1);
+  return `${text} ${units[unit]}`;
+}
+
 async function getSignedUrl(path) {
   if (!path) return null;
   const { data, error } = await supabase.storage
@@ -91,7 +113,7 @@ function MediaStorage() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Folders flat list {id, name, parentId}; photos flat list {id, folderId, name, storagePath}
+  // Folders flat list {id, name, parentId}; photos flat list {id, folderId, name, storagePath, sizeBytes}
   const [folders, setFolders] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
@@ -131,6 +153,15 @@ function MediaStorage() {
   const [trashLoaded, setTrashLoaded] = useState(false);
   const [countdownTick, setCountdownTick] = useState(0);
   const purgeInProgressRef = useRef(new Set());
+
+  // Shown when an upload is blocked because the storage limit would be exceeded.
+  const [storageNotice, setStorageNotice] = useState("");
+
+  useEffect(() => {
+    if (!storageNotice) return;
+    const timer = setTimeout(() => setStorageNotice(""), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [storageNotice]);
 
   useLayoutEffect(() => {
     const updateSlider = () => {
@@ -225,6 +256,21 @@ function MediaStorage() {
   const currentTrashFolderId = trashPath.length ? trashPath[trashPath.length - 1] : null;
   void countdownTick;
 
+  // Every stored file counts toward the limit, including files sitting in Trash
+  // (they are only freed once permanently deleted).
+  const usedBytes = useMemo(
+    () => photos.reduce((sum, photo) => sum + (photo.sizeBytes || 0), 0),
+    [photos]
+  );
+  const usedRatio = Math.min(usedBytes / STORAGE_LIMIT_BYTES, 1);
+  const storageFull = usedBytes >= STORAGE_LIMIT_BYTES;
+  const storageBarColor =
+    usedRatio >= STORAGE_DANGER_RATIO
+      ? "bg-red-500"
+      : usedRatio >= STORAGE_WARN_RATIO
+        ? "bg-amber-500"
+        : "bg-sky-500";
+
   /* ---- load folders + photos, same tables Culling uses ---- */
   const loadData = useCallback(async (userId) => {
     setDataLoading(true);
@@ -244,7 +290,7 @@ function MediaStorage() {
 
     const { data: photoRows, error: photoErr } = await supabase
       .from("photos")
-      .select("id, folder_id, file_name, storage_path")
+      .select("id, folder_id, file_name, storage_path, size_bytes")
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
 
@@ -264,6 +310,7 @@ function MediaStorage() {
         folderId: p.folder_id,
         name: p.file_name,
         storagePath: p.storage_path,
+        sizeBytes: Number(p.size_bytes) || 0,
       }))
     );
 
@@ -476,6 +523,16 @@ function MediaStorage() {
 
     const file = files[0];
 
+    // Block the upload if it would go over the storage limit.
+    if (usedBytes + file.size > STORAGE_LIMIT_BYTES) {
+      const remaining = Math.max(STORAGE_LIMIT_BYTES - usedBytes, 0);
+      setStorageNotice(
+        `Not enough space. "${file.name}" is ${formatBytes(file.size)}, but only ${formatBytes(remaining)} is left of your ${formatBytes(STORAGE_LIMIT_BYTES)}. Delete files and empty the Trash to free up space.`
+      );
+      e.target.value = "";
+      return;
+    }
+
     let targetFolderId = currentFolderId;
     if (!targetFolderId) {
       targetFolderId = await findOrCreateUploadsFolder();
@@ -518,7 +575,13 @@ function MediaStorage() {
 
     setPhotos((prev) => [
       ...prev,
-      { id: row.id, folderId: targetFolderId, name: file.name, storagePath },
+      {
+        id: row.id,
+        folderId: targetFolderId,
+        name: file.name,
+        storagePath,
+        sizeBytes: file.size,
+      },
     ]);
 
     e.target.value = "";
@@ -1001,6 +1064,58 @@ function MediaStorage() {
           : "Items in Trash are automatically deleted after 30 days. Open folders to inspect their contents or restore items before they expire."}
       </p>
 
+      {/* Storage usage */}
+      <div className={`mb-4 rounded-lg border p-3 ${formClasses}`}>
+        <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+          <span className="font-semibold">Storage</span>
+          <span className={isDark ? "text-slate-400" : "text-slate-600"}>
+            {formatBytes(usedBytes)} of {formatBytes(STORAGE_LIMIT_BYTES)} used
+            {storageFull && (
+              <span className="ml-2 font-semibold text-red-500">Full</span>
+            )}
+          </span>
+        </div>
+
+        <div
+          className={`h-2 w-full overflow-hidden rounded-full ${
+            isDark ? "bg-slate-800" : "bg-slate-200"
+          }`}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(usedRatio * 100)}
+          aria-label="Storage used"
+        >
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${storageBarColor}`}
+            style={{ width: `${usedBytes > 0 ? Math.max(usedRatio * 100, 1) : 0}%` }}
+          />
+        </div>
+
+        <p className={`mt-1.5 text-[11px] ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+          Items in Trash still count until they are permanently deleted.
+        </p>
+      </div>
+
+      {/* Upload blocked message */}
+      {storageNotice && (
+        <div
+          role="alert"
+          className="mi-fade mb-4 flex items-start justify-between gap-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
+        >
+          <span>{storageNotice}</span>
+          <button
+            type="button"
+            onClick={() => setStorageNotice("")}
+            aria-label="Dismiss message"
+            className="mt-0.5 shrink-0"
+            style={{ background: "transparent", border: "none", outline: "none", boxShadow: "none", padding: 0, color: "inherit" }}
+          >
+            <FaTimes />
+          </button>
+        </div>
+      )}
+
       {/* Add menu — available in My Files only */}
       {activeView === "files" && (
           <div className="mb-4 flex items-center gap-5">
@@ -1055,9 +1170,17 @@ function MediaStorage() {
                   role="menuitem"
                   onClick={() => {
                     setShowAddMenu(false);
+                    if (storageFull) {
+                      setStorageNotice(
+                        `Your ${formatBytes(STORAGE_LIMIT_BYTES)} of storage is full. Delete files and empty the Trash to free up space.`
+                      );
+                      return;
+                    }
                     fileInputRef.current?.click();
                   }}
                   className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
+                    storageFull ? "opacity-50" : ""
+                  } ${
                     isDark
                       ? "text-slate-200 hover:bg-slate-800"
                       : "text-slate-700 hover:bg-slate-100"

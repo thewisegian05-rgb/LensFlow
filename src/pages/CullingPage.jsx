@@ -7,8 +7,6 @@ import {
   memo,
   useSyncExternalStore,
 } from "react";
-import { createPortal } from "react-dom";
-import { useOutletContext } from "react-router-dom";
 import {
   FaTimes,
   FaStar,
@@ -47,6 +45,11 @@ import {
   getUploadSnapshot,
   setUploadCardVisible,
 } from "../lib/uploadManager";
+import {
+  STORAGE_LIMIT_BYTES,
+  getUsedBytes,
+  splitByLimit,
+} from "../lib/storageLimit";
 import ConfirmModal from "../components/Common/ConfirmModal";
 
 const FILTERS = [
@@ -286,14 +289,14 @@ const PhotoTile = memo(function PhotoTile({
       )}
 
       {/* Top row: filename and Best Pick */}
-      <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2">
-        <span className="max-w-[60%] truncate rounded-md bg-white/90 px-2 py-1 font-mono text-[9px] text-slate-800 shadow dark:bg-black/70 dark:text-white">
+      <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 p-2">
+        <span className="max-w-[60%] truncate rounded-md bg-black/70 px-2 py-1 font-mono text-[9px] text-white shadow">
           {img.fileName}
         </span>
 
         {isBestPick && (
           <span
-            className="absolute right-2 top-2 z-10 inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/50 bg-amber-400 px-2 py-1 text-[9px] font-extrabold text-slate-950 shadow-lg"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/50 bg-amber-400 px-2 py-1 text-[9px] font-extrabold text-slate-950 shadow-lg"
             title="Photographer-selected keeper"
           >
             <FaStar className="text-[9px]" />
@@ -302,26 +305,16 @@ const PhotoTile = memo(function PhotoTile({
         )}
       </div>
 
-      {/* Star / Reject status indicators */}
+      {/* Existing star / reject status indicators */}
       {state === "star" && (
-        <span
-          className={`absolute right-2 z-10 rounded-full bg-black/70 p-1 text-sky-400 ${
-            isBestPick ? "top-10" : "top-2"
-          }`}
-          title={isBestPick ? "Starred — Best Pick" : "Starred"}
-        >
+        <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-sky-400">
           <FaStar className="text-[10px]" />
         </span>
       )}
 
       {(state === "reject" || aiResult?.ai_decision === "REJECT") &&
         state !== "star" && (
-          <span
-            className={`absolute right-2 z-10 rounded-full bg-black/70 p-1 text-rose-400 ${
-              isBestPick ? "top-10" : "top-2"
-            }`}
-            title="Rejected"
-          >
+          <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-rose-400">
             <FaBan className="text-[10px]" />
           </span>
         )}
@@ -399,6 +392,7 @@ const PhotoTile = memo(function PhotoTile({
     </div>
   );
 });
+
 
 
 function VirtualizedPhotoGrid({
@@ -687,60 +681,7 @@ function AuthGate() {
   );
 }
 
-function getPhotoDefects(aiResult) {
-  const defects = aiResult?.metrics?.defects;
-  return Array.isArray(defects) ? defects : [];
-}
-
-function matchesDefectFilter(aiResult, defectFilter) {
-  const defects = getPhotoDefects(aiResult);
-
-  if (defectFilter === "all") return true;
-
-  if (defectFilter === "has_defects") {
-    return defects.length > 0;
-  }
-
-  if (defectFilter === "no_defects") {
-    return Boolean(aiResult) && defects.length === 0;
-  }
-
-  return defects.some((defect) => {
-    const type = String(defect?.type || "").toLowerCase();
-    const message = String(defect?.message || "").toLowerCase();
-
-    switch (defectFilter) {
-      case "underexposed":
-        return message.includes("underexposure") ||
-          message.includes("underexposed");
-
-      case "overexposed":
-        return message.includes("overexposure") ||
-          message.includes("overexposed");
-
-      case "blur":
-        return type === "face_blur" ||
-          type === "sharpness" ||
-          message.includes("blur") ||
-          message.includes("sharpness");
-
-      case "closed_eyes":
-        return type === "closed_eyes" ||
-          message.includes("closed eyes");
-
-      case "blink":
-        return type === "blink" ||
-          message.includes("partial blink");
-
-      default:
-        return true;
-    }
-  });
-}
-
 function CullingPage() {
-  const { reportPageReady, routeKey } = useOutletContext();
-
   /* ============ AUTH ============ */
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -790,7 +731,6 @@ function CullingPage() {
     }
   });
   const [filter, setFilter] = useState("all");
-  const [defectFilter, setDefectFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
   const [showDetailInfo, setShowDetailInfo] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -798,7 +738,6 @@ function CullingPage() {
 
   const [isDragging, setIsDragging] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
-  const initialDataReady = useRef(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState("");
@@ -814,6 +753,42 @@ function CullingPage() {
   // Uploads run in a shared background manager (src/lib/uploadManager.js),
   // so they keep going when you switch folders, tabs, or pages.
   const uploadProgress = useSyncExternalStore(subscribeUploads, getUploadSnapshot).progress;
+
+  // ---- 10 GB storage limit (shared with Media Storage: same photos table) ----
+  const [storageUsed, setStorageUsed] = useState(null);
+  const [storageNotice, setStorageNotice] = useState("");
+  const pendingUploadBytesRef = useRef(0); // queued uploads not saved to the database yet
+
+  const storageRatio = storageUsed
+    ? Math.min(storageUsed / STORAGE_LIMIT_BYTES, 1)
+    : 0;
+
+  const [storageError, setStorageError] = useState("");
+
+  const refreshStorageUsed = useCallback(async () => {
+    if (!user) return;
+    try {
+      setStorageUsed(await getUsedBytes(user.id));
+      setStorageError("");
+    } catch (error) {
+      console.error("Could not read storage usage:", error);
+      setStorageError(error?.message || "Unknown error");
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!storageNotice) return;
+    const timer = setTimeout(() => setStorageNotice(""), 8000);
+    return () => clearTimeout(timer);
+  }, [storageNotice]);
+
+  // Read usage on load, and again every time an upload batch finishes.
+  useEffect(() => {
+    if (!uploadProgress || uploadProgress.phase === "done") {
+      pendingUploadBytesRef.current = 0;
+      refreshStorageUsed();
+    }
+  }, [uploadProgress, refreshStorageUsed]);
 
   // Add finished uploads to the grid in small batches.
   useEffect(() => {
@@ -1124,6 +1099,35 @@ function CullingPage() {
       return;
     }
 
+    // Export copies the starred photos, so they need free space as well.
+    try {
+      const { data: starRows, error: starError } = await supabase
+        .from("photos")
+        .select("size_bytes")
+        .eq("folder_id", rawFolderId)
+        .eq("user_id", user.id)
+        .eq("rating", "star");
+
+      if (starError) throw starError;
+
+      const needed = (starRows || []).reduce(
+        (sum, row) => sum + (Number(row.size_bytes) || 0),
+        0
+      );
+      const used = await getUsedBytes(user.id);
+
+      if (used + needed > STORAGE_LIMIT_BYTES) {
+        setExportError(
+          `Not enough space to export. The ${starred} starred photo(s) need ${formatBytes(needed)}, but only ${formatBytes(Math.max(STORAGE_LIMIT_BYTES - used, 0))} is left of your ${formatBytes(STORAGE_LIMIT_BYTES)}. Delete files and empty the Trash first.`
+        );
+        return;
+      }
+    } catch (error) {
+      console.error("Could not check storage space:", error);
+      setExportError("Couldn't check your storage space right now. Please try again.");
+      return;
+    }
+
     const confirmed = window.confirm(
       `Finalize this folder?\n\n` +
         `• ${starred} starred photo(s) → copied to Culled\n` +
@@ -1175,6 +1179,7 @@ function CullingPage() {
       setFilter("all");
 
       await loadData(user.id);
+      refreshStorageUsed();
 
       // Stay at the parent/project folder so Raw and Culled are visible together.
       if (rawFolder.parentId) {
@@ -1307,14 +1312,12 @@ function CullingPage() {
 
     if (folderErr) {
       console.error(folderErr);
-      initialDataReady.current = true;
       setDataLoading(false);
       return;
     }
 
     if (photoErr) {
       console.error(photoErr);
-      initialDataReady.current = true;
       setDataLoading(false);
       return;
     }
@@ -1401,7 +1404,6 @@ function CullingPage() {
 
     setCulls(ratingsMap);
     setAiResults(aiResultMap);
-    initialDataReady.current = true;
     setDataLoading(false);
   }, []);
 
@@ -1458,26 +1460,15 @@ function CullingPage() {
   // CHANGE 2: don't clear state (and the saved path) while auth is still loading.
   useEffect(() => {
     if (user) {
-      loadData(user.id).catch((error) => {
-        console.error("Failed to load initial culling data:", error);
-        initialDataReady.current = true;
-        setDataLoading(false);
-      });
+      loadData(user.id);
     } else if (!authLoading) {
       setFolders([]);
       setPhotos([]);
       setCulls({});
       setAiResults({});
       setPath([]);
-      initialDataReady.current = true;
     }
   }, [user, authLoading, loadData]);
-
-  useEffect(() => {
-    if (!authLoading && initialDataReady.current && !dataLoading) {
-      reportPageReady(routeKey);
-    }
-  }, [authLoading, dataLoading, reportPageReady, routeKey]);
 
   // CHANGE 1 (continued): remember which folder is open when you leave the page.
   useEffect(() => {
@@ -1701,6 +1692,7 @@ function CullingPage() {
 
     setFolders((prev) => prev.filter((f) => !idsToDelete.includes(f.id)));
     setPhotos((prev) => prev.filter((p) => !idsToDelete.includes(p.folderId)));
+    refreshStorageUsed();
     setFolderContextMenu(null);
     setFolderToDelete(null);
 
@@ -1742,6 +1734,36 @@ function CullingPage() {
       const files = Array.from(fileList || []);
 
       if (files.length === 0 || !user) return;
+
+      // 10 GB limit: only the files that still fit are uploaded.
+      let usedNow;
+      try {
+        usedNow = await getUsedBytes(user.id);
+      } catch (error) {
+        console.error("Could not check storage usage:", error);
+        setStorageNotice("Couldn't check your storage space right now. Please try again.");
+        return;
+      }
+      setStorageUsed(usedNow);
+
+      const { accepted, rejected, remaining } = splitByLimit(
+        files,
+        usedNow + pendingUploadBytesRef.current
+      );
+
+      if (rejected.length > 0) {
+        const skippedBytes = rejected.reduce((sum, f) => sum + f.size, 0);
+        setStorageNotice(
+          accepted.length === 0
+            ? `Not enough space. ${
+                files.length === 1 ? `"${files[0].name}" is` : "These files are"
+              } ${formatBytes(skippedBytes)}, but only ${formatBytes(remaining)} is left of your ${formatBytes(STORAGE_LIMIT_BYTES)}. Delete files and empty the Trash in Media Storage to free up space.`
+            : `${rejected.length} of ${files.length} files were skipped because they would go over your ${formatBytes(STORAGE_LIMIT_BYTES)} limit. Delete files and empty the Trash in Media Storage to free up space.`
+        );
+      }
+
+      if (accepted.length === 0) return;
+      pendingUploadBytesRef.current += accepted.reduce((sum, f) => sum + f.size, 0);
 
       let mainFolderId = currentFolderId;
 
@@ -1787,7 +1809,7 @@ function CullingPage() {
         setPath([mainFolderId, targetFolderId]);
       }
 
-      enqueueUploads(files, {
+      enqueueUploads(accepted, {
         userId: user.id,
         folderId: targetFolderId,
       });
@@ -2058,40 +2080,25 @@ function CullingPage() {
   const visibleImages = useMemo(
     () =>
       folderImages.filter((img) => {
-        const aiResult = aiResults[img.id];
-        const aiDecision = aiResult?.ai_decision;
-
-        let matchesCurrentFilter = true;
-
+        const aiDecision = aiResults[img.id]?.ai_decision;
         switch (filter) {
           case "star":
-            matchesCurrentFilter = culls[img.id] === "star";
-            break;
+            return culls[img.id] === "star";
           case "reject":
-            matchesCurrentFilter = culls[img.id] === "reject";
-            break;
+            return culls[img.id] === "reject";
           case "unrated":
-            matchesCurrentFilter = !culls[img.id];
-            break;
+            return !culls[img.id];
           case "ai_keep":
-            matchesCurrentFilter = aiDecision === "KEEP";
-            break;
+            return aiDecision === "KEEP";
           case "ai_review":
-            matchesCurrentFilter = aiDecision === "REVIEW";
-            break;
+            return aiDecision === "REVIEW";
           case "ai_reject":
-            matchesCurrentFilter = aiDecision === "REJECT";
-            break;
+            return aiDecision === "REJECT";
           default:
-            matchesCurrentFilter = true;
+            return true;
         }
-
-        return (
-          matchesCurrentFilter &&
-          matchesDefectFilter(aiResult, defectFilter)
-        );
       }),
-    [folderImages, filter, culls, aiResults, defectFilter]
+    [folderImages, filter, culls, aiResults]
   );
 
   // All folder counters in a single pass.
@@ -2338,6 +2345,61 @@ function CullingPage() {
         <div className="flex items-center gap-2 w-full sm:w-auto" />
       </div>
 
+      {/* Storage usage (same 10 GB total as Media Storage) */}
+      <div className="mb-5 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+          <span className="font-semibold text-slate-800 dark:text-slate-100">Storage</span>
+          <span className="text-slate-600 dark:text-slate-400">
+            {storageUsed === null
+              ? storageError
+                ? "Couldn't load"
+                : "Checking..."
+              : `${formatBytes(storageUsed)} of ${formatBytes(STORAGE_LIMIT_BYTES)} used`}
+            {storageUsed !== null && storageUsed >= STORAGE_LIMIT_BYTES && (
+              <span className="ml-2 font-semibold text-rose-500">Full</span>
+            )}
+          </span>
+        </div>
+
+        <div
+          className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(storageRatio * 100)}
+          aria-label="Storage used"
+        >
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              storageRatio >= 0.95
+                ? "bg-rose-500"
+                : storageRatio >= 0.8
+                ? "bg-amber-500"
+                : "bg-sky-500"
+            }`}
+            style={{ width: `${storageUsed > 0 ? Math.max(storageRatio * 100, 1) : 0}%` }}
+          />
+        </div>
+
+        <p className="mt-1.5 text-[11px] text-slate-500">
+          Items in Trash still count until they are permanently deleted.
+        </p>
+
+        {storageError && (
+          <p className="mt-1.5 text-[11px] text-rose-400">
+            Couldn't read storage usage: {storageError}{" "}
+            <button
+              type="button"
+              onClick={refreshStorageUsed}
+              className="font-semibold underline"
+              style={{ background: "transparent", border: "none", padding: 0, color: "inherit" }}
+            >
+              Retry
+            </button>
+          </p>
+        )}
+      </div>
+
       {/* Mode tabs */}
       <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-800">
         <button
@@ -2474,6 +2536,27 @@ function CullingPage() {
                     }}
                     className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-white/5 hover:text-white"
                     aria-label="Dismiss export message"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              {/* Upload blocked message */}
+              {storageNotice && (
+                <div
+                  role="alert"
+                  className="mb-4 flex items-start gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-rose-300"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold">Upload blocked</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed opacity-80">{storageNotice}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStorageNotice("")}
+                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-white/5 hover:text-white"
+                    aria-label="Dismiss message"
                   >
                     ×
                   </button>
@@ -2749,44 +2832,6 @@ function CullingPage() {
                         </div>
                       </div>
 
-                      <div className="mb-4 flex flex-wrap items-center gap-3">
-                        <label
-                          htmlFor="defect-filter"
-                          className="text-xs font-medium text-slate-600 dark:text-slate-300"
-                        >
-                          Filter by defect
-                        </label>
-
-                        <select
-                          id="defect-filter"
-                          value={defectFilter}
-                          onChange={(event) => setDefectFilter(event.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                        >
-                          <option value="all">All photos</option>
-                          <option value="has_defects">Any detected defect</option>
-                          <option value="no_defects">No detected defects</option>
-                          <option value="underexposed">Underexposed</option>
-                          <option value="overexposed">Overexposed</option>
-                          <option value="blur">Blurry / Low sharpness</option>
-                          <option value="closed_eyes">Closed eyes</option>
-                          <option value="blink">Partial blink</option>
-                        </select>
-
-                        {defectFilter !== "all" && (
-                          <button
-                            type="button"
-                            onClick={() => setDefectFilter("all")}
-                            className="text-xs font-medium text-sky-500 hover:text-sky-400"
-                          >
-                            Clear filter
-                          </button>
-                        )}
-                        
-                        {/* Horizontal divider */}
-                        <div className="hidden h-px min-w-8 flex-1 bg-slate-300 dark:bg-slate-700 sm:block" />
-                      </div>
-
                       {/* Filter groups */}
                       <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/70">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -2934,107 +2979,86 @@ function CullingPage() {
                           </div>
                         </div>
 
-                        {showDetailInfo &&
-                          createPortal(
-                            <div
-                              className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-                              role="presentation"
-                              onClick={() => setShowDetailInfo(false)}
+                        {showDetailInfo && (
+                          <div
+                            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+                            role="presentation"
+                            onClick={() => setShowDetailInfo(false)}
+                          >
+                            <section
+                              role="dialog"
+                              aria-modal="true"
+                              aria-labelledby="detail-info-title"
+                              className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                              onClick={(event) => event.stopPropagation()}
                             >
-                              <section
-                                role="dialog"
-                                aria-modal="true"
-                                aria-labelledby="detail-info-title"
-                                className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-xl text-sky-500">
-                                      <FaInfoCircle />
-                                    </div>
-                                    <h3 id="detail-info-title" className="text-lg font-bold text-slate-900 dark:text-white">
-                                      Understanding Photo Details
-                                    </h3>
-                                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                      A quick guide to LensFlow’s photo analysis and recommendation.
-                                    </p>
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-xl text-sky-500">
+                                    <FaInfoCircle />
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowDetailInfo(false)}
-                                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white"
-                                    aria-label="Close information"
-                                  >
-                                    <FaTimes />
-                                  </button>
-                                </div>
-
-                                <div className="mt-5 space-y-4 text-sm text-slate-600 dark:text-slate-300">
-                                  <div>
-                                    <h4 className="font-semibold text-slate-900 dark:text-white">What do the percentages mean?</h4>
-                                    <p className="mt-1">Higher scores generally indicate stronger results for that particular check. Use this scale as a quick guide, not a guarantee of photo quality:</p>
-                                    <div className="mt-3 space-y-2">
-                                <div className="flex items-start gap-3 rounded-lg bg-emerald-500/10 px-3 py-2">
-                                  <span className="w-20 shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">
-                                    80–100%
-                                  </span>
-                                  <span className="min-w-0 flex-1 leading-relaxed">
-                                    High — strong result for this check.
-                                  </span>
-                                </div>
-
-                                <div className="flex items-start gap-3 rounded-lg bg-sky-500/10 px-3 py-2">
-                                  <span className="w-20 shrink-0 font-semibold text-sky-700 dark:text-sky-400">
-                                    60–79%
-                                  </span>
-                                  <span className="min-w-0 flex-1 leading-relaxed">
-                                    Moderate — generally okay, but review the photo.
-                                  </span>
-                                </div>
-
-                                <div className="flex items-start gap-3 rounded-lg bg-amber-500/10 px-3 py-2">
-                                  <span className="w-20 shrink-0 font-semibold text-amber-700 dark:text-amber-400">
-                                    40–59%
-                                  </span>
-                                  <span className="min-w-0 flex-1 leading-relaxed">
-                                    Low — inspect for possible issues.
-                                  </span>
-                                </div>
-
-                                <div className="flex items-start gap-3 rounded-lg bg-rose-500/10 px-3 py-2">
-                                  <span className="w-20 shrink-0 font-semibold text-rose-700 dark:text-rose-400">
-                                    0–39%
-                                  </span>
-                                  <span className="min-w-0 flex-1 leading-relaxed">
-                                    Very low — this check may have found a concern.
-                                  </span>
-                                </div>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold text-slate-900 dark:text-white">What each score checks</h4>
-                                    <ul className="mt-1.5 space-y-1">
-                                      <li><strong>Overall Quality</strong> — combined quality estimate.</li>
-                                      <li><strong>Technical Quality</strong> — sharpness and image clarity.</li>
-                                      <li><strong>Face Quality</strong> — detected-face quality and possible facial blur.</li>
-                                      <li><strong>Eye Quality</strong> — eye-related checks, such as whether eyes appear closed.</li>
-                                      <li><strong>Aesthetic Quality</strong> — estimated visual appeal.</li>
-                                    </ul>
-                                  </div>
-                                  <div>
-                                    <h4 className="font-semibold text-slate-900 dark:text-white">Recommendations and unavailable scores</h4>
-                                    <p className="mt-1"><strong className="text-emerald-600 dark:text-emerald-400">KEEP</strong> = likely a good candidate; <strong className="text-amber-600 dark:text-amber-400">REVIEW</strong> = check it yourself; <strong className="text-rose-600 dark:text-rose-400">REJECT</strong> = issues may make it unsuitable.</p>
-                                    <p className="mt-2">“No face detected” means no face was found for analysis. “Not applicable” means eye analysis does not apply. “Unable to determine” means an eye score could not be calculated. None of these means the score is 0%.</p>
-                                  </div>
-                                  <p className="rounded-xl bg-sky-500/10 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                                    Scores are indicators, not guarantees. Always check the photo yourself before rejecting or deleting it.
+                                  <h3 id="detail-info-title" className="text-lg font-bold text-slate-900 dark:text-white">
+                                    Understanding Photo Details
+                                  </h3>
+                                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                    A quick guide to LensFlow’s photo analysis and recommendation.
                                   </p>
                                 </div>
-                              </section>
-                            </div>,
-                            document.body
-                          )}
+                                <button
+                                  type="button"
+                                  onClick={() => setShowDetailInfo(false)}
+                                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white"
+                                  aria-label="Close information"
+                                >
+                                  <FaTimes />
+                                </button>
+                              </div>
+
+                              <div className="mt-5 space-y-4 text-sm text-slate-600 dark:text-slate-300">
+                                <div>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">What do the percentages mean?</h4>
+                                  <p className="mt-1">Higher scores generally indicate stronger results for that particular check. Use this scale as a quick guide, not a guarantee of photo quality:</p>
+                                  <div className="mt-3 space-y-2">
+                                    <div className="flex items-center gap-3 rounded-lg bg-emerald-500/10 px-3 py-2">
+                                      <span className="w-20 flex-shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">80–100%</span>
+                                      <span>High — strong result for this check.</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 rounded-lg bg-sky-500/10 px-3 py-2">
+                                      <span className="w-20 flex-shrink-0 font-semibold text-sky-700 dark:text-sky-400">60–79%</span>
+                                      <span>Moderate — generally okay, but review the photo.</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 rounded-lg bg-amber-500/10 px-3 py-2">
+                                      <span className="w-20 flex-shrink-0 font-semibold text-amber-700 dark:text-amber-400">40–59%</span>
+                                      <span>Low — inspect for possible issues.</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 rounded-lg bg-rose-500/10 px-3 py-2">
+                                      <span className="w-20 flex-shrink-0 font-semibold text-rose-700 dark:text-rose-400">0–39%</span>
+                                      <span>Very low — this check may have found a concern.</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">What each score checks</h4>
+                                  <ul className="mt-1.5 space-y-1">
+                                    <li><strong>Overall Quality</strong> — combined quality estimate.</li>
+                                    <li><strong>Technical Quality</strong> — sharpness and image clarity.</li>
+                                    <li><strong>Face Quality</strong> — detected-face quality and possible facial blur.</li>
+                                    <li><strong>Eye Quality</strong> — eye-related checks, such as whether eyes appear closed.</li>
+                                    <li><strong>Aesthetic Quality</strong> — estimated visual appeal.</li>
+                                  </ul>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">Recommendations and unavailable scores</h4>
+                                  <p className="mt-1"><strong className="text-emerald-600 dark:text-emerald-400">KEEP</strong> = likely a good candidate; <strong className="text-amber-600 dark:text-amber-400">REVIEW</strong> = check it yourself; <strong className="text-rose-600 dark:text-rose-400">REJECT</strong> = issues may make it unsuitable.</p>
+                                  <p className="mt-2">“No face detected” means no face was found for analysis. “Not applicable” means eye analysis does not apply. “Unable to determine” means an eye score could not be calculated. None of these means the score is 0%.</p>
+                                </div>
+                                <p className="rounded-xl bg-sky-500/10 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                  Scores are indicators, not guarantees. Always check the photo yourself before rejecting or deleting it.
+                                </p>
+                              </div>
+                            </section>
+                          </div>
+                        )}
 
                         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
                           <div className="relative overflow-hidden rounded-xl bg-slate-950">

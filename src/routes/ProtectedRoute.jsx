@@ -23,7 +23,7 @@ function ProtectedRoute() {
     return <div style={{ color: "#888", padding: 40 }}>Loading...</div>;
   }
 
-  return session ? <Outlet /> : <Navigate to="/" replace />;
+  return session ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
 export default ProtectedRoute;

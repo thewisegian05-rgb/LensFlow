@@ -155,7 +155,7 @@ function Sidebar({ isOpen, onToggle, onClose }) {
       return;
     }
 
-    navigate("/");
+    navigate("/login", { replace: true });
   };
 
   return (

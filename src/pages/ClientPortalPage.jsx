@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import {
   FaStar,
   FaRegStar,
@@ -23,6 +23,7 @@ import Calendar from "../components/Schedule/Calendar";
 import BookingModal from "../components/Schedule/BookingModal";
 import MyBookings from "../components/Schedule/MyBookings";
 import { supabase } from "../lib/supabaseClient";
+import HeroBackground from "../landingPage/HeroBackground";
 
 
 /* ============ Scroll reveal hook (adds "lf-in" when a card scrolls into view) ============ */
@@ -52,211 +53,143 @@ function useScrollReveal(dep) {
 
 /* ============ Portal animations (embedded, no extra file needed) ============ */
 const PORTAL_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 /* ==========================================
-   LENSFLOW CLIENT PORTAL, animations
-   (same style as the Clients page; every name is
-   prefixed lf- so nothing collides with Clients CSS)
+   Same design system as the landing page:
+   deep navy background, dark bordered cards, sky-blue accent.
+   Every class is prefixed lf- so nothing collides.
 ========================================== */
-:root {
-  --lf-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --lf-ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+.lf{--bg:#020617;--bar:#0a1122;--card:#0a1020;--line:#17213a;--muted:#8a94ab;--accent:#0ea5e9;
+  --ease:cubic-bezier(.22,1,.36,1);
+  font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:#fff}
+.lf-card{background:var(--card);border:1px solid var(--line);border-radius:14px;transition:border-color .3s ease}
+.lf-dashed{border:1px dashed #243049;border-radius:12px}
+.lf-muted{color:var(--muted)}
+
+/* Buttons */
+.lf-btn{background:var(--accent);color:#fff;font-weight:600;border-radius:8px;
+  transition:background-color .2s ease,transform .2s var(--ease),box-shadow .2s ease}
+.lf-btn:hover{background:#38bdf8;transform:translateY(-1px);box-shadow:0 8px 20px -8px rgba(14,165,233,.6)}
+.lf-btn:active{transform:scale(.97)}
+.lf-btn:disabled{opacity:.5;cursor:not-allowed}
+.lf-btn:disabled:hover{background:var(--accent);transform:none;box-shadow:none}
+.lf-ghost{border:1px solid var(--line);border-radius:8px;font-weight:500;transition:background-color .2s ease,transform .2s var(--ease)}
+.lf-ghost:hover{background:var(--card)}
+.lf-ghost:active{transform:scale(.97)}
+
+/* Inputs */
+.lf-input{background:#070d1c;border:1px solid var(--line);border-radius:8px;color:#fff;
+  transition:border-color .2s ease,box-shadow .2s ease}
+.lf-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(14,165,233,.18)}
+
+.lf a:focus-visible,.lf button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Hover lift for cards and tiles */
+.lf-lift{transition:transform .3s var(--ease),border-color .3s ease,box-shadow .3s ease}
+.lf-lift:hover{transform:translateY(-4px);border-color:rgba(14,165,233,.5);box-shadow:0 14px 32px -14px rgba(14,165,233,.3)}
+.lf-chip{transition:border-color .25s ease,background-color .25s ease,transform .25s var(--ease)}
+.lf-chip:hover{border-color:rgba(14,165,233,.6);background:rgba(14,165,233,.08);transform:translateY(-2px)}
+
+/* Hero background (used by HeroBackground): camera drift on the photo, floating glows */
+@keyframes lfFade{from{opacity:0}to{opacity:1}}
+@keyframes lfDrift{
+  from{transform:scale(1.12) translate3d(-2.5%,-1.5%,0)}
+  to{transform:scale(1.26) translate3d(2.5%,1.5%,0)}}
+.lf-hero-img{animation:lfFade 1.4s ease both,lfDrift 22s ease-in-out 1.4s infinite alternate;will-change:transform}
+.lf-orb{position:absolute;border-radius:9999px;filter:blur(70px);mix-blend-mode:screen;opacity:.55}
+.lf-orb-a{width:26rem;height:26rem;left:-6rem;top:-4rem;background:rgba(14,165,233,.5);animation:lfOrbA 16s ease-in-out infinite alternate}
+.lf-orb-b{width:30rem;height:30rem;right:-8rem;top:10%;background:rgba(99,102,241,.45);animation:lfOrbB 20s ease-in-out infinite alternate}
+.lf-orb-c{width:20rem;height:20rem;left:35%;bottom:-6rem;background:rgba(56,189,248,.35);animation:lfOrbC 18s ease-in-out infinite alternate}
+@keyframes lfOrbA{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(22vw,12vh,0) scale(1.4)}}
+@keyframes lfOrbB{from{transform:translate3d(0,0,0) scale(1.2)}to{transform:translate3d(-24vw,16vh,0) scale(.85)}}
+@keyframes lfOrbC{from{transform:translate3d(0,0,0) scale(.9)}to{transform:translate3d(-20vw,-14vh,0) scale(1.35)}}
+
+/* Sticky header */
+.lf-header{position:sticky;top:0;z-index:50;background:rgba(10,17,34,.85);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+html{scroll-padding-top:5rem}
+
+/* Scroll reveal */
+.lf-reveal{opacity:0;transform:translateY(28px);
+  transition:opacity .8s var(--ease),transform .8s var(--ease);transition-delay:var(--d,0ms)}
+.lf-reveal.lf-in{opacity:1;transform:none}
+
+/* Page-load entrance */
+@keyframes lfRise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes lfDrop{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
+.lf-rise{opacity:0;animation:lfRise .9s var(--ease) forwards}
+.lf-drop{opacity:0;animation:lfDrop .7s var(--ease) forwards}
+
+/* Photos rise in one by one after their section reveals, then lift on hover */
+.lf-reveal:not(.lf-in) .lf-photo{opacity:0}
+.lf-in .lf-photo{animation:lfRise .8s var(--ease) backwards;animation-delay:var(--d,0ms)}
+.lf-photo{transition:transform .3s var(--ease),border-color .3s ease,box-shadow .3s ease}
+.lf-photo:hover{transform:translateY(-4px);border-color:rgba(14,165,233,.5);box-shadow:0 14px 32px -14px rgba(14,165,233,.3)}
+
+/* Review rows slide in one by one */
+@keyframes lfRowIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+.lf-reveal:not(.lf-in) .lf-row{opacity:0}
+.lf-in .lf-row{animation:lfRowIn .7s var(--ease) backwards;animation-delay:var(--d,0ms);transition:background-color .25s ease}
+.lf-row:hover{background-color:rgba(255,255,255,.03)}
+
+/* Rating stars */
+.lf-star{transition:transform .25s var(--ease)}
+.lf-star:hover{transform:scale(1.2)}
+.lf-star:active{transform:scale(.9)}
+
+/* Avatar ring */
+.lf-ring{padding:3px;border-radius:9999px;flex-shrink:0;background:linear-gradient(135deg,#38bdf8,#6366f1)}
+.lf-ring > *{border-radius:9999px}
+
+/* Sidebar tabs and the sliding indicator */
+.lf-tab{position:relative;overflow:hidden;transition:transform .15s ease,background-color .25s ease,color .25s ease}
+.lf-tab:active{transform:scale(.97)}
+.lf-tab svg{transition:transform .3s var(--ease)}
+.lf-tab:hover svg{transform:translateX(3px)}
+.lf-nav-indicator{
+  position:absolute;left:0;top:0;z-index:0;pointer-events:none;
+  border-left:4px solid var(--accent);
+  background:linear-gradient(90deg,rgba(14,165,233,.22),rgba(14,165,233,.05));
+  transition:transform .5s cubic-bezier(.65,0,.35,1),width .5s cubic-bezier(.65,0,.35,1),height .5s cubic-bezier(.65,0,.35,1),opacity .3s ease;
+  will-change:transform}
+.lf-nav-indicator.no-anim{transition:none}
+
+/* The section you jumped to slides in from the right */
+@keyframes lfArrive{
+  0%{transform:translateX(70px);opacity:0}
+  100%{transform:none;opacity:1}}
+.lf-arrive{border-radius:1rem;animation:lfArrive .8s var(--ease) both !important}
+
+/* Skeleton loader */
+@keyframes lfShimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.lf-skeleton{padding:20px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;
+  background:var(--card);border:1px solid var(--line);border-radius:14px;
+  animation:lfFade .5s var(--ease) backwards;animation-delay:calc(var(--i,0) * 60ms)}
+.lf-skeleton-top{display:flex;align-items:center;gap:13px;margin-bottom:6px}
+.lf-skeleton-lines{flex:1;display:flex;flex-direction:column;gap:8px}
+.lf-skeleton-avatar{width:64px;height:64px;border-radius:50%;flex-shrink:0}
+.lf-skeleton-line{display:block;height:12px;border-radius:6px}
+.lf-skeleton-photo{display:block;aspect-ratio:4 / 3;border-radius:10px}
+.w40{width:40%}.w60{width:60%}.w70{width:70%}.w90{width:90%}
+.lf-shimmer-bar{background:linear-gradient(90deg,#0f182c 0%,#1a2742 50%,#0f182c 100%);background-size:800px 100%;animation:lfShimmer 1.4s linear infinite}
+
+/* Lightbox */
+@keyframes lfPop{from{opacity:0;transform:scale(.95) translateY(20px)}to{opacity:1;transform:none}}
+.lf-lightbox{animation:lfFade .3s ease}
+.lf-lightbox-img{animation:lfPop .45s var(--ease) both}
+
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+@media (prefers-reduced-motion:reduce){
+  .lf-reveal,.lf-rise,.lf-drop{opacity:1;transform:none;animation:none;transition:none}
+  .lf-btn,.lf-ghost,.lf-lift,.lf-chip,.lf-card,.lf-photo,.lf-star,.lf-tab{transition:none}
+  .lf-btn:hover,.lf-lift:hover,.lf-chip:hover,.lf-photo:hover,.lf-star:hover,.lf-tab:hover svg{transform:none}
+  .lf-hero-img{animation:none}
+  .lf-orb{display:none}
+  .lf-photo,.lf-row,.lf-shimmer-bar,.lf-arrive,.lf-lightbox,.lf-lightbox-img,.lf-skeleton{animation:none !important}
+  .lf-reveal:not(.lf-in) .lf-photo,.lf-reveal:not(.lf-in) .lf-row{opacity:1}
+  .lf-nav-indicator{transition:none}
 }
-html { scroll-behavior: smooth; }
-
-/* ==========================================
-   KEYFRAMES
-========================================== */
-@keyframes lf-fade-up   { from { opacity: 0; transform: translateY(28px) scale(.97); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
-@keyframes lf-fade-down { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: none; } }
-@keyframes lf-fade-in   { from { opacity: 0; } to { opacity: 1; } }
-@keyframes lf-row-in    { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
-@keyframes lf-modal-pop { from { opacity: 0; transform: scale(.94) translateY(24px); } to { opacity: 1; transform: none; } }
-@keyframes lf-pulse-dot { 0% { transform: scale(1); opacity: .6; } 70%, 100% { transform: scale(3.2); opacity: 0; } }
-@keyframes lf-shimmer   { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
-
-/* ==========================================
-   PAGE LOAD
-========================================== */
-.lf-header-in { animation: lf-fade-down .7s var(--lf-ease-out-expo) backwards; }
-.lf-rise      { animation: lf-fade-up .9s var(--lf-ease-out-expo) backwards; animation-delay: var(--d, 0ms); }
-
-/* ==========================================
-   AURORA BACKGROUND
-========================================== */
-.lf-orb { position: absolute; border-radius: 9999px; filter: blur(90px); opacity: .35; will-change: transform; }
-.lf-orb-1 { width: 520px; height: 520px; top: -140px; left: -120px; background: #0ea5e9; animation: lf-drift-a 22s ease-in-out infinite alternate; }
-.lf-orb-2 { width: 460px; height: 460px; top: 35%; right: -140px; background: #8b5cf6; opacity: .22; animation: lf-drift-b 28s ease-in-out infinite alternate; }
-.lf-orb-3 { width: 400px; height: 400px; bottom: -160px; left: 30%; background: #10b981; opacity: .16; animation: lf-drift-c 32s ease-in-out infinite alternate; }
-@keyframes lf-drift-a { to { transform: translate(180px, 120px) scale(1.15); } }
-@keyframes lf-drift-b { to { transform: translate(-220px, -80px) scale(1.2); } }
-@keyframes lf-drift-c { to { transform: translate(140px, -160px) scale(1.1); } }
-
-/* ==========================================
-   HERO
-========================================== */
-.lf-kenburns { animation: lf-kenburns 18s ease-in-out infinite alternate; transform-origin: 60% 40%; }
-@keyframes lf-kenburns { from { transform: scale(1); } to { transform: scale(1.12) translate(-1.5%, -1%); } }
-
-.lf-focus-pull { animation: lf-focus-pull 1.4s var(--lf-ease-out-expo) backwards; }
-@keyframes lf-focus-pull {
-  0%   { opacity: 0; filter: blur(18px); transform: scale(1.06); letter-spacing: .06em; }
-  60%  { opacity: 1; }
-  100% { opacity: 1; filter: blur(0); transform: scale(1); letter-spacing: normal; }
-}
-
-.lf-shimmer-text {
-  background: linear-gradient(100deg, #38bdf8 20%, #e0f2fe 40%, #a78bfa 60%, #38bdf8 80%);
-  background-size: 250% 100%;
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: lf-text-shimmer 5s linear infinite;
-}
-@keyframes lf-text-shimmer { to { background-position: -250% 0; } }
-
-.lf-vf { position: absolute; width: 22px; height: 22px; border-color: rgba(56,189,248,.85); opacity: 0; animation: lf-vf-in .8s ease-out 1.2s forwards, lf-vf-pulse 3.2s ease-in-out 2s infinite; }
-.lf-vf-tl { top: 16px; left: 16px;  border-top: 2px solid; border-left: 2px solid;  border-top-left-radius: 4px; }
-.lf-vf-tr { top: 16px; right: 16px; border-top: 2px solid; border-right: 2px solid; border-top-right-radius: 4px; }
-.lf-vf-bl { bottom: 16px; left: 16px;  border-bottom: 2px solid; border-left: 2px solid;  border-bottom-left-radius: 4px; }
-.lf-vf-br { bottom: 16px; right: 16px; border-bottom: 2px solid; border-right: 2px solid; border-bottom-right-radius: 4px; }
-@keyframes lf-vf-in    { from { opacity: 0; transform: scale(1.8); } to { opacity: 1; transform: scale(1); } }
-@keyframes lf-vf-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(.82); } }
-
-.lf-rec { width: 8px; height: 8px; border-radius: 9999px; background: #f43f5e; animation: lf-blink 1.4s steps(2, jump-none) infinite; }
-@keyframes lf-blink { 50% { opacity: .15; } }
-
-/* ==========================================
-   SCROLL REVEAL (cards fade up with blur)
-   Staggered with style={{ "--d": "120ms" }}
-========================================== */
-.lf-reveal {
-  opacity: 0;
-  transform: translateY(28px) scale(.97);
-  filter: blur(6px);
-  transition: opacity .8s var(--lf-ease-out-expo), transform .8s var(--lf-ease-out-expo), filter .8s var(--lf-ease-out-expo);
-  transition-delay: var(--d, 0ms);
-}
-.lf-reveal.lf-in { opacity: 1; transform: none; filter: none; }
-
-/* photos: hidden only until the section reveals, so hover still works after */
-.lf-reveal:not(.lf-in) .lf-photo { opacity: 0; }
-.lf-in .lf-photo { animation: lf-fade-up .8s var(--lf-ease-out-expo) backwards; animation-delay: var(--d, 0ms); }
-.lf-photo { transition: transform .35s var(--lf-ease-soft), box-shadow .35s var(--lf-ease-soft), border-color .25s ease; }
-.lf-photo:hover { transform: translateY(-6px); box-shadow: 0 16px 34px rgba(2, 6, 23, .4); }
-
-/* review rows slide in from the left, one by one */
-.lf-reveal:not(.lf-in) .lf-row { opacity: 0; }
-.lf-in .lf-row { animation: lf-row-in .7s var(--lf-ease-out-expo) backwards; animation-delay: var(--d, 0ms); transition: background-color .25s ease; }
-.lf-row:hover { background-color: rgba(255, 255, 255, .04); }
-
-/* light sweep on hover */
-.lf-sheen { position: relative; overflow: hidden; }
-.lf-sheen::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.22) 50%, transparent 65%);
-  transform: translateX(-120%); transition: transform .9s ease; }
-.lf-sheen:hover::after { transform: translateX(120%); }
-
-/* ==========================================
-   STATUS DOT PULSE (section headings)
-========================================== */
-.lf-dot { position: relative; }
-.lf-dot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; animation: lf-pulse-dot 1.8s infinite; }
-
-/* ==========================================
-   BUTTONS
-========================================== */
-.lf-btn { transition: transform .25s var(--lf-ease-soft), box-shadow .25s var(--lf-ease-soft), background-color .2s ease, border-color .2s ease, color .2s ease; }
-.lf-btn:hover:not(:disabled) { transform: translateY(-2px); }
-.lf-btn:active:not(:disabled) { transform: scale(.95); }
-.lf-star { transition: transform .25s var(--lf-ease-soft); }
-.lf-star:hover { transform: scale(1.25) rotate(-8deg); }
-.lf-star:active { transform: scale(.9); }
-
-.lf-cta { position: relative; overflow: hidden; }
-.lf-cta::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%);
-  transform: translateX(-130%); animation: lf-cta-sweep 3.6s ease-in-out infinite; }
-@keyframes lf-cta-sweep { 0%, 55% { transform: translateX(-130%); } 100% { transform: translateX(130%); } }
-
-.lf-float { animation: lf-float 4s ease-in-out infinite; }
-@keyframes lf-float { 50% { transform: translateY(-8px) rotate(-4deg); } }
-
-.lf-lens { animation: lf-lens 4.5s ease-in-out infinite; }
-@keyframes lf-lens {
-  0%, 100% { filter: drop-shadow(0 0 0 rgba(56,189,248,0)); transform: scale(1); }
-  50%      { filter: drop-shadow(0 0 8px rgba(56,189,248,.9)); transform: scale(1.12) rotate(-6deg); }
-}
-
-/* ==========================================
-   AVATAR RING
-========================================== */
-.lf-ring { position: relative; padding: 3px; border-radius: 9999px; flex-shrink: 0; }
-.lf-ring::before { content: ""; position: absolute; inset: 0; border-radius: inherit;
-  background: conic-gradient(from 0deg, #38bdf8, #a78bfa, #34d399, #38bdf8); animation: lf-spin 6s linear infinite; }
-.lf-ring::after { content: ""; position: absolute; inset: -6px; border-radius: inherit; background: inherit;
-  box-shadow: 0 0 28px rgba(56,189,248,.35); opacity: .7; animation: lf-glow 3s ease-in-out infinite; pointer-events: none; }
-.lf-ring > * { position: relative; z-index: 1; border-radius: 9999px; }
-@keyframes lf-spin { to { transform: rotate(360deg); } }
-@keyframes lf-glow { 50% { opacity: .2; transform: scale(1.06); } }
-
-/* ==========================================
-   SIDEBAR: sliding indicator + tab click
-========================================== */
-.lf-tab { position: relative; overflow: hidden; transition: transform .15s ease, background-color .25s ease, color .25s ease; }
-.lf-tab:active { transform: scale(.96); }
-.lf-tab svg { transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
-.lf-tab:hover svg { transform: translateX(3px) scale(1.2) rotate(-6deg); }
-.lf-tab-on svg { animation: lf-icon-nudge .5s cubic-bezier(.34,1.56,.64,1); }
-@keyframes lf-icon-nudge { 0% { transform: translateX(-8px) scale(.8); } 100% { transform: none; } }
-
-.lf-nav-indicator {
-  position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none;
-  border-left: 4px solid #0ea5e9;
-  background: linear-gradient(90deg, rgba(14,165,233,.24), rgba(14,165,233,.06));
-  box-shadow: inset 0 0 24px rgba(14,165,233,.12);
-  transition: transform .5s cubic-bezier(.65,0,.35,1), width .5s cubic-bezier(.65,0,.35,1), height .5s cubic-bezier(.65,0,.35,1), opacity .3s ease;
-  will-change: transform;
-}
-.lf-nav-indicator.no-anim { transition: none; }
-
-/* the section you jumped to slides in from the right */
-.lf-arrive { border-radius: 1rem; animation: lf-slide-in .8s var(--lf-ease-out-expo) both !important; }
-@keyframes lf-slide-in {
-  0%   { transform: translateX(90px); opacity: 0; filter: blur(4px); }
-  60%  { opacity: 1; filter: none; }
-  100% { transform: none; opacity: 1; filter: none; }
-}
-
-/* ==========================================
-   SKELETON LOADER
-========================================== */
-.lf-skeleton { padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;
-  background: #10192c; border: 1px solid #30425f; border-radius: 12px;
-  animation: lf-fade-in .5s var(--lf-ease-soft) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
-.lf-skeleton-top { display: flex; align-items: center; gap: 13px; margin-bottom: 6px; }
-.lf-skeleton-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-.lf-skeleton-avatar { width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0; }
-.lf-skeleton-line { display: block; height: 12px; border-radius: 6px; }
-.lf-skeleton-photo { display: block; aspect-ratio: 4 / 3; border-radius: 10px; }
-.w40 { width: 40%; } .w60 { width: 60%; } .w70 { width: 70%; } .w90 { width: 90%; }
-.lf-shimmer-bar { background: linear-gradient(90deg, #17243a 0%, #22324d 50%, #17243a 100%); background-size: 800px 100%; animation: lf-shimmer 1.4s linear infinite; }
-
-/* ==========================================
-   LIGHTBOX / MODAL
-========================================== */
-.lf-lightbox { animation: lf-fade-in .3s var(--lf-ease-soft); }
-.lf-lightbox-img { animation: lf-modal-pop .45s var(--lf-ease-out-expo) both; }
-
-/* ==========================================
-   ACCESSIBILITY: reduced motion
-========================================== */
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  .lf-orb, .lf-kenburns, .lf-shimmer-text, .lf-vf, .lf-rec, .lf-ring::before, .lf-ring::after,
-  .lf-cta::after, .lf-float, .lf-lens, .lf-dot::after, .lf-shimmer-bar, .lf-tab-on svg, .lf-arrive,
-  .lf-header-in, .lf-rise, .lf-focus-pull, .lf-photo, .lf-row, .lf-lightbox, .lf-lightbox-img { animation: none !important; }
-  .lf-reveal, .lf-vf { opacity: 1 !important; transform: none !important; filter: none !important; transition: none !important; }
-  .lf-nav-indicator { transition: none; }
-}
-
 `;
 
 const PORTFOLIO_BUCKET = "portfolio";
@@ -321,13 +254,10 @@ function Avatar({ path, name, className = "h-20 w-20" }) {
 
 function Section({ title, dot, right, children, id }) {
   return (
-    <section
-      id={id}
-      className="lf-reveal min-w-0 scroll-mt-6 rounded-xl border border-slate-700 bg-[#10192C] p-3 shadow-sm shadow-black/10 sm:p-4"
-    >
+    <section id={id} className="lf-reveal lf-card min-w-0 p-3 sm:p-4">
       <header className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-          <span className={`lf-dot h-2 w-2 rounded-full ${dot}`} />
+          <span className={`h-2 w-2 rounded-full ${dot}`} />
           {title}
         </h3>
         {right}
@@ -364,86 +294,6 @@ function PortalSkeleton() {
   );
 }
 
-/* ============ Sign in (clients use their own account) ============ */
-
-function ClientAuth() {
-  const [mode, setMode] = useState("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    setInfo("");
-    setLoading(true);
-    const { error } =
-      mode === "signin"
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    if (mode === "signup") {
-      setInfo("Check your email to confirm your account, then sign in.");
-    }
-  }
-  return (
-    <main className="flex min-h-[100dvh] w-full items-center justify-center overflow-x-hidden bg-[#070D1D] px-4 py-6 text-slate-100 sm:px-6 sm:py-10">
-      <section className="my-auto w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900/95 p-5 shadow-2xl shadow-black/30 sm:p-7">
-      <h2 className="mb-1 text-lg font-semibold text-white sm:text-xl">
-        {mode === "signin" ? "Client sign in" : "Create a client account"}
-      </h2>
-      <p className="mb-4 text-xs text-slate-500">
-        Sign in, then enter the code your photographer gave you.
-      </p>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          className="min-h-11 w-full min-w-0 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-base text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 sm:text-sm"
-        />
-        <input
-          type="password"
-          required
-          minLength={6}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          className="min-h-11 w-full min-w-0 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-base text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 sm:text-sm"
-        />
-        {error && <p className="text-xs text-red-400">{error}</p>}
-        {info && <p className="text-xs text-sky-400">{info}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="min-h-11 w-full rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition-colors hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {loading ? "Please wait..." : mode === "signin" ? "Sign in" : "Sign up"}
-        </button>
-      </form>
-      <button
-        onClick={() => {
-          setMode(mode === "signin" ? "signup" : "signin");
-          setError("");
-          setInfo("");
-        }}
-        className="mt-3 w-full text-center text-xs text-slate-400 hover:text-white"
-      >
-        {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
-      </button>
-      </section>
-    </main>
-  );
-}
-
 /* ============ Enter-a-code card ============ */
 
 function CodeForm({ onConnect, connecting, error, onCancel }) {
@@ -454,7 +304,7 @@ function CodeForm({ onConnect, connecting, error, onCancel }) {
         e.preventDefault();
         onConnect(code, () => setCode(""));
       }}
-      className="mx-auto w-full max-w-md rounded-2xl border border-slate-700 bg-[#10192C] p-4 shadow-xl shadow-black/20 sm:p-6"
+      className="lf-card mx-auto w-full max-w-md p-4 sm:p-6"
     >
       <div className="mb-1 flex items-center gap-2">
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400">
@@ -462,7 +312,7 @@ function CodeForm({ onConnect, connecting, error, onCancel }) {
         </span>
         <h3 className="font-semibold text-white">Connect to your photographer</h3>
       </div>
-      <p className="mb-4 text-xs text-slate-500">
+      <p className="mb-4 text-xs lf-muted">
         Enter the unique code your photographer shared with you.
       </p>
       <input
@@ -471,7 +321,7 @@ function CodeForm({ onConnect, connecting, error, onCancel }) {
         onChange={(e) => setCode(e.target.value.toUpperCase())}
         placeholder="e.g. A3F9C21B"
         maxLength={16}
-        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-3 text-center font-mono text-lg tracking-[0.25em] text-white placeholder:tracking-normal placeholder:text-slate-600 focus:border-sky-500 focus:outline-none"
+        className="lf-input w-full px-3 py-3 text-center font-mono text-lg tracking-[0.25em] placeholder:tracking-normal placeholder:text-slate-600"
       />
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
       <div className="mt-4 flex justify-end gap-2">
@@ -479,7 +329,7 @@ function CodeForm({ onConnect, connecting, error, onCancel }) {
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700"
+            className="lf-ghost px-4 py-2 text-sm text-slate-300"
           >
             Cancel
           </button>
@@ -487,7 +337,7 @@ function CodeForm({ onConnect, connecting, error, onCancel }) {
         <button
           type="submit"
           disabled={connecting || code.trim().length < 4}
-          className="lf-btn rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-900 transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="lf-btn px-4 py-2 text-sm"
         >
           {connecting ? "Connecting..." : "Connect"}
         </button>
@@ -508,7 +358,7 @@ function ReviewForm({ existing, onSubmit, saving, error }) {
         e.preventDefault();
         if (rating) onSubmit(rating, comment);
       }}
-      className="min-w-0 rounded-lg border border-slate-700 bg-slate-950/50 p-3 sm:p-4"
+      className="min-w-0 rounded-lg border border-[#17213a] bg-[#070d1c] p-3 sm:p-4"
     >
       <p className="mb-2 text-xs font-semibold text-slate-300">
         {existing ? "Update your rating" : "Rate this photographer"}
@@ -534,14 +384,14 @@ function ReviewForm({ existing, onSubmit, saving, error }) {
         rows={2}
         maxLength={500}
         placeholder="Share your experience (optional)"
-        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+        className="lf-input w-full px-3 py-2 text-sm placeholder:text-slate-500"
       />
       {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
       <div className="mt-2 flex justify-end">
         <button
           type="submit"
           disabled={!rating || saving}
-          className="lf-btn rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="lf-btn px-3 py-1.5 text-xs"
         >
           {saving ? "Saving..." : existing ? "Update rating" : "Submit rating"}
         </button>
@@ -673,7 +523,8 @@ function ClientPortalPage() {
       console.error("Sign out failed:", error.message);
       return;
     }
-    navigate("/", { replace: true });
+    // Same login page as the photographer side
+    navigate("/login", { replace: true });
   };
 
   /* ---- auth ---- */
@@ -894,32 +745,30 @@ function ClientPortalPage() {
 
   /* ============ RENDER ============ */
   if (authLoading) {
-    return <div className="min-h-[50vh] px-4 py-16 text-center text-sm text-slate-500">Loading...</div>;
+    return (
+      <div className="lf lf-muted grid min-h-screen place-items-center px-4 text-sm">
+        <style>{PORTAL_CSS}</style>
+        Loading...
+      </div>
+    );
   }
   if (!user) {
-    return <ClientAuth />;
+    // Clients use the same login page as photographers
+    return <Navigate to="/login" replace />;
   }
   const noConnections = !connLoading && connections.length === 0;
   return (
-    <div className="custom-scrollbar relative isolate min-h-screen w-full overflow-x-hidden bg-[#070D1D] text-slate-100">
+    <div className="lf custom-scrollbar relative isolate min-h-screen w-full overflow-x-hidden">
       <style>{PORTAL_CSS}</style>
-      {/* Aurora background */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
-        <span className="lf-orb lf-orb-1" />
-        <span className="lf-orb lf-orb-2" />
-        <span className="lf-orb lf-orb-3" />
-      </div>
-
       <div className="relative z-10 mx-auto w-full max-w-[1600px]">
       <div className="min-h-screen lg:flex">
-        <aside className="border-b border-slate-800 bg-[#0B1120] lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:h-screen lg:w-64 lg:flex-col lg:border-b-0 lg:border-r lg:border-slate-800 lg:bg-slate-900/90 lg:backdrop-blur-lg">
-          <div className="flex items-center gap-3 border-b border-slate-800 px-5 py-6">
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white">
-              <FaCameraRetro className="lf-lens text-sky-500" />
-            </h1>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">LensFlow</h1>
-              <p className="text-xs text-slate-400">Client Portal</p>
+        <aside className="border-b border-[#17213a] bg-[#0a1122] lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:h-screen lg:w-64 lg:flex-col lg:border-b-0 lg:border-r lg:border-[#17213a] lg:bg-[#0a1122]/95 lg:backdrop-blur-lg">
+          <div className="border-b border-[#17213a] px-5 py-5">
+            <div className="leading-tight">
+              <span className="block text-xl font-bold">
+                <span className="mr-2 text-sky-500">◉</span>LensFlow
+              </span>
+              <span className="lf-muted block text-[11px]">Client Portal</span>
             </div>
           </div>
 
@@ -951,7 +800,7 @@ function ClientPortalPage() {
                   className={`lf-tab relative z-10 flex shrink-0 items-center gap-3 border-l-4 border-transparent px-4 py-3 text-sm font-medium ${
                     on
                       ? "lf-tab-on text-sky-400"
-                      : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                      : "lf-muted hover:bg-slate-800/60 hover:text-white"
                   }`}
                 >
                   <Icon className="text-base" />
@@ -961,9 +810,9 @@ function ClientPortalPage() {
             })}
           </nav>
 
-          <div className="mt-auto hidden border-t border-slate-800 lg:block">
+          <div className="mt-auto hidden border-t border-[#17213a] lg:block">
             <a href="#photographer"
-              className="flex items-center gap-3 border-l-4 border-transparent px-6 py-3 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white">
+              className="flex items-center gap-3 border-l-4 border-transparent px-6 py-3 text-sm lf-muted transition hover:bg-slate-800 hover:text-white">
               <FaUser /> Photographer
             </a>
             <button type="button" onClick={handleSignOut}
@@ -973,7 +822,7 @@ function ClientPortalPage() {
           </div>
         </aside>
         <div className="min-w-0 flex-1 lg:ml-[248px]">
-          <header className="lf-header-in flex min-h-[64px] flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0B1120]/95 px-4 py-3 sm:px-6 lg:px-8">
+          <header className="lf-header lf-drop flex min-h-[64px] flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 lg:px-8" style={{ borderColor: "var(--line)" }}>
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.16em] text-sky-400">LensFlow / Client Space</p>
               <p className="mt-1 text-sm text-slate-300">Your photographer, your moments.</p>
@@ -981,49 +830,48 @@ function ClientPortalPage() {
             <div className="flex flex-wrap items-center gap-2">
               {connections.length > 1 && connections.map((c) => (
                 <button key={c.photographer_id} type="button" onClick={() => setActiveId(c.photographer_id)}
-                  className={`lf-btn max-w-[180px] truncate rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                  className={`lf-chip max-w-[180px] truncate rounded-lg border px-3 py-2 text-xs font-medium ${
                     activeId === c.photographer_id
                       ? "border-sky-400 bg-sky-500/10 text-sky-300"
-                      : "border-slate-700 bg-[#10192C] text-slate-400 hover:border-slate-600 hover:text-white"
+                      : "border-[#17213a] bg-[#0a1020] lf-muted hover:text-white"
                   }`}>
                   {c.display_name}
                 </button>
               ))}
               {!noConnections && (
                 <button type="button" onClick={() => { setCodeError(""); setShowCodeForm(true); }}
-                  className="lf-cta flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400">
+                  className="lf-btn flex items-center gap-2 px-4 py-2.5 text-xs">
                   <FaKey /> Enter Connection Code
                 </button>
               )}
               <button type="button" onClick={handleSignOut}
-                className="lf-btn flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-white lg:hidden">
+                className="lf-ghost flex items-center gap-2 px-3 py-2 text-xs lf-muted hover:text-white lg:hidden">
                 <FaSignOutAlt /> Sign out
               </button>
             </div>
           </header>
       <main id="home" className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
         <div className="mx-auto w-full max-w-[1500px]">
-          {/* HERO with Ken Burns, viewfinder and focus-pull */}
-          <section className="relative mb-4 min-h-[220px] overflow-hidden rounded-2xl border border-slate-700 bg-[#10192C] sm:min-h-[260px]">
-            <div className="lf-kenburns absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: "linear-gradient(90deg, rgba(5,12,24,.94) 0%, rgba(5,12,24,.72) 46%, rgba(5,12,24,.10) 100%), url('https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1800&q=85')" }}
-              aria-hidden="true" />
-            <span className="lf-vf lf-vf-tl" />
-            <span className="lf-vf lf-vf-tr" />
-            <span className="lf-vf lf-vf-bl" />
-            <span className="lf-vf lf-vf-br" />
-            <span className="absolute right-10 top-5 flex items-center gap-2 text-[10px] font-semibold tracking-widest text-slate-300">
-              <span className="lf-rec" /> LIVE
-            </span>
-            <div className="relative flex min-h-[220px] max-w-3xl flex-col justify-center px-6 py-8 sm:min-h-[260px] sm:px-10">
-              <p className="lf-rise mb-3 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-300 sm:text-xs"
-                style={{ "--d": "100ms" }}>
+          {/* HERO: same moving background as the landing page */}
+          <section className="lf-card relative mb-4 overflow-hidden">
+            <HeroBackground />
+            <div className="relative max-w-3xl px-6 py-14 sm:px-10 sm:py-20">
+              <p
+                className="lf-rise mb-3 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-300 sm:text-xs"
+                style={{ animationDelay: "100ms" }}
+              >
                 <span className="h-0.5 w-8 bg-sky-400" /> Welcome to LensFlow
               </p>
-              <h2 className="lf-focus-pull max-w-2xl text-3xl font-extrabold leading-[1.08] tracking-tight text-white sm:text-4xl lg:text-5xl">
-                Capturing<br />Your <span className="lf-shimmer-text">Special Moments</span>
+              <h2
+                className="lf-rise max-w-2xl text-3xl font-extrabold leading-tight sm:text-4xl lg:text-5xl"
+                style={{ animationDelay: "220ms" }}
+              >
+                Capturing Your Special Moments
               </h2>
-              <p className="lf-rise mt-4 text-sm text-slate-200 sm:text-base" style={{ "--d": "700ms" }}>
+              <p
+                className="lf-rise mt-4 text-sm text-slate-300 sm:text-base"
+                style={{ animationDelay: "350ms" }}
+              >
                 Authentic photos for real stories.
               </p>
             </div>
@@ -1048,7 +896,7 @@ function ClientPortalPage() {
       ) : portal && profile ? (
           <div className="min-w-0 space-y-4 sm:space-y-5">
             {/* Profile + rating */}
-            <section id="photographer" className="lf-reveal min-w-0 scroll-mt-6 rounded-2xl border border-slate-700/80 bg-gradient-to-r from-[#102338] to-[#0B1628] p-4 shadow-sm shadow-black/10 sm:p-5">
+            <section id="photographer" className="lf-reveal lf-card min-w-0 p-4 sm:p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 <div className="lf-ring h-[88px] w-[88px]">
                   <Avatar
@@ -1066,7 +914,7 @@ function ClientPortalPage() {
                         {portal.rating_count > 0 ? Number(portal.rating_avg).toFixed(1) : "No ratings"}
                       </span>
                       {portal.rating_count > 0 && (
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs lf-muted">
                           ({portal.rating_count} review{portal.rating_count !== 1 ? "s" : ""})
                         </span>
                       )}
@@ -1076,8 +924,8 @@ function ClientPortalPage() {
                     <p className="mt-1 text-sm text-sky-300">{profile.tagline || profile.bio_title}</p>
                   )}
                   {profile.location && (
-                    <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-                      <FaMapMarkerAlt className="text-slate-500" /> {profile.location}
+                    <p className="mt-2 flex items-center gap-1.5 text-xs lf-muted">
+                      <FaMapMarkerAlt className="lf-muted" /> {profile.location}
                     </p>
                   )}
                   {profile.bio && (
@@ -1113,7 +961,7 @@ function ClientPortalPage() {
               }
             >
               {featured.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
+                <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-[#17213a] py-10 text-center text-sm lf-muted">
                   <FaRegImages className="text-2xl text-slate-600" />
                   No featured photos yet.
                 </div>
@@ -1125,7 +973,7 @@ function ClientPortalPage() {
                       type="button"
                       onClick={() => setLightboxIndex(index)}
                       style={{ "--d": `${index * 80}ms` }}
-                      className="lf-photo lf-sheen group relative aspect-[4/3] overflow-hidden rounded-xl border border-slate-700 bg-slate-800 transition hover:-translate-y-0.5 hover:border-sky-400"
+                      className="lf-photo group relative aspect-[4/3] overflow-hidden rounded-xl border border-[#17213a] bg-slate-800"
                     >
                       <img
                         src={publicUrl(photo.image_path)}
@@ -1146,7 +994,8 @@ function ClientPortalPage() {
             </Section>
 
             {/* Home booking shortcut */}
-            <section className="lf-reveal group flex min-h-[190px] items-center justify-between gap-4 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-[#10263D] via-[#0D1D30] to-[#0B1628] p-5 transition duration-300 hover:border-sky-400/40 sm:p-6">
+            <div className="lf-reveal min-w-0">
+            <section className="lf-card lf-lift group flex h-full min-h-[190px] items-center justify-between gap-4 overflow-hidden p-5 sm:p-6">
               <div className="min-w-0">
                 <div className="mb-3 flex items-center gap-2">
                   <span className="h-1 w-7 rounded-full bg-sky-400" />
@@ -1159,24 +1008,25 @@ function ClientPortalPage() {
                   Book a Schedule
                 </h3>
 
-                <p className="mt-2 max-w-[230px] text-sm leading-relaxed text-slate-400">
+                <p className="mt-2 max-w-[230px] text-sm leading-relaxed lf-muted">
                   Check availability and plan your session.
                 </p>
 
                 <a
                   href="#schedule"
                   onClick={() => handleNavClick("#schedule")}
-                  className="lf-cta mt-4 inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0B1628]"
+                  className="lf-btn mt-4 inline-flex items-center gap-2 px-4 py-2.5 text-xs"
                 >
                   View Calendar
                   <FaChevronRight className="text-[10px] transition-transform group-hover:translate-x-0.5" />
                 </a>
               </div>
 
-              <div className="lf-float flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-sky-400/15 bg-sky-400/10 text-3xl text-sky-400 transition group-hover:bg-sky-400/15 sm:h-24 sm:w-24">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-sky-400/15 bg-sky-400/10 text-3xl text-sky-400 transition group-hover:bg-sky-400/15 sm:h-24 sm:w-24">
                 <FaCalendarAlt />
               </div>
             </section>
+            </div>
 
             </div>
             {/* About photographer */}
@@ -1192,7 +1042,7 @@ function ClientPortalPage() {
                     const icons = [FaCalendarAlt, FaUser, FaHeart, FaCameraRetro];
                     const Icon = icons[index % icons.length];
                     return (
-                      <div key={specialty} className="flex flex-col items-center rounded-xl border border-slate-800 bg-[#0B1628] px-2 py-3 text-center">
+                      <div key={specialty} className="lf-lift flex flex-col items-center rounded-xl border border-[#17213a] bg-[#070d1c] px-2 py-3 text-center">
                         <span className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-lg text-sky-400">
                           <Icon />
                         </span>
@@ -1204,11 +1054,11 @@ function ClientPortalPage() {
               </div>
             </Section>
             {/* Full photographer schedule */}
-            <section id="schedule" className="lf-reveal scroll-mt-6">
+            <section id="schedule" className="lf-reveal">
               <div className="mb-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-400">Availability</p>
                 <h2 className="mt-1 text-2xl font-bold text-white">Schedule</h2>
-                <p className="mt-2 text-sm text-slate-400">
+                <p className="mt-2 text-sm lf-muted">
                   View the photographer's availability. Select an available date to start a booking request. Other clients' event details remain private.
                 </p>
               </div>
@@ -1250,7 +1100,7 @@ function ClientPortalPage() {
                   error={reviewError}
                 />
                 {reviews.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">
+                  <p className="rounded-lg border border-dashed border-[#17213a] py-6 text-center text-sm lf-muted">
                     No reviews yet.
                   </p>
                 ) : (
@@ -1258,7 +1108,7 @@ function ClientPortalPage() {
                     <article
                       key={review.id}
                       style={{ "--d": `${i * 70}ms` }}
-                      className="lf-row rounded-lg border border-slate-700 bg-slate-950/40 p-3"
+                      className="lf-row rounded-lg border border-[#17213a] bg-[#070d1c] p-3"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
@@ -1269,7 +1119,7 @@ function ClientPortalPage() {
                             </span>
                           )}
                         </div>
-                        <span className="text-[11px] text-slate-500">
+                        <span className="text-[11px] lf-muted">
                           {new Date(review.created_at).toLocaleDateString(undefined, {
                             month: "short",
                             day: "numeric",
@@ -1289,9 +1139,9 @@ function ClientPortalPage() {
             </Section>
           </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-slate-700 px-4 py-10 text-center">
+        <div className="rounded-xl border border-dashed border-[#17213a] px-4 py-10 text-center">
           <p className="text-sm font-medium text-slate-200">Photographer portal is empty</p>
-          <p className="mt-1 text-xs text-slate-500">The connection is active, but the portal did not return a profile to display.</p>
+          <p className="mt-1 text-xs lf-muted">The connection is active, but the portal did not return a profile to display.</p>
         </div>
       )}
           </div>
@@ -1322,7 +1172,7 @@ function ClientPortalPage() {
             <button
               type="button"
               onClick={() => setLightboxIndex(null)}
-              className="text-slate-400 transition-colors hover:text-white"
+              className="lf-muted transition-colors hover:text-white"
               aria-label="Close"
             >
               <FaTimes className="text-lg" />

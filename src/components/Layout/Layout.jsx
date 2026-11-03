@@ -330,25 +330,6 @@ function Layout() {
           `}</style>
 
           {/* Dashboard content */}
-          <div className="relative z-10 h-full overflow-y-auto custom-scrollbar">
-            <div
-              key={location.pathname}
-              className={`min-h-full p-4 sm:p-6 ${
-                navigation.loading
-                  ? "page-content-waiting"
-                  : "page-content-reveal"
-              }`}
-            >
-              {showingSearch ? (
-                // Keep your existing search results section here
-                <section className="mx-auto max-w-5xl">
-                  {/* Existing search results JSX */}
-                </section>
-              ) : (
-                <Outlet context={{ reportPageReady, routeKey: location.key }} />
-              )}
-            </div>
-          </div>
           <div className="h-full overflow-y-auto custom-scrollbar">
             <div key={location.pathname} className={`min-h-full p-4 sm:p-6 ${navigation.loading ? "page-content-waiting" : "page-content-reveal"}`}>
               {showingSearch ? (

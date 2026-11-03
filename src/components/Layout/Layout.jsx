@@ -228,49 +228,83 @@ function Layout() {
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen((open) => !open)} onClose={() => setSidebarOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header sidebarOpen={sidebarOpen} onMenuClick={() => setSidebarOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-        <main className="relative flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-[#020617]">
+        <main className="relative flex-1 min-h-0 overflow-hidden bg-[#020617]">
           {/* Floating blue orbs */}
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
             aria-hidden="true"
           >
-            {/* Left orb - matches the landing page hero glows */}
-            <div
-              className="absolute -left-24 top-[10%] h-80 w-80 rounded-full blur-[80px] animate-[orbFloat1_12s_ease-in-out_infinite_alternate]"
-              style={{ background: "rgba(14,165,233,0.5)" }}
-            />
-
-            {/* Right orb - matches the landing page hero glows */}
-            <div
-              className="absolute -right-24 top-[20%] h-96 w-96 rounded-full blur-[90px] animate-[orbFloat2_16s_ease-in-out_infinite_alternate]"
-              style={{ background: "rgba(99,102,241,0.45)" }}
-            />
-
-            {/* Bottom orb - matches the landing page hero glows */}
-            <div
-              className="absolute bottom-[-100px] left-[35%] h-80 w-80 rounded-full blur-[85px] animate-[orbFloat3_14s_ease-in-out_infinite_alternate]"
-              style={{ background: "rgba(56,189,248,0.35)" }}
-            />
+            <div className="lf-orb lf-orb-a" />
+            <div className="lf-orb lf-orb-b" />
+            <div className="lf-orb lf-orb-c" />
           </div>
           <style>{`
-            @keyframes orbFloat1 {
-              from { transform: translate(0, 0); }
-              to { transform: translate(120px, 80px); }
+            .lf-orb {
+              position: absolute;
+              border-radius: 9999px;
+              filter: blur(70px);
+              mix-blend-mode: screen;
+              opacity: .55;
+              pointer-events: none;
             }
 
-            @keyframes orbFloat2 {
-              from { transform: translate(0, 0); }
-              to { transform: translate(-120px, 100px); }
+            .lf-orb-a {
+              width: 26rem;
+              height: 26rem;
+              left: -6rem;
+              top: -4rem;
+              background: rgba(14,165,233,.5);
+              animation: lfOrbA 16s ease-in-out infinite alternate;
             }
 
-            @keyframes orbFloat3 {
-              from { transform: translate(0, 0); }
-              to { transform: translate(80px, -100px); }
+            .lf-orb-b {
+              width: 30rem;
+              height: 30rem;
+              right: -8rem;
+              top: 10%;
+              background: rgba(99,102,241,.45);
+              animation: lfOrbB 20s ease-in-out infinite alternate;
+            }
+
+            .lf-orb-c {
+              width: 20rem;
+              height: 20rem;
+              left: 35%;
+              bottom: -6rem;
+              background: rgba(56,189,248,.35);
+              animation: lfOrbC 18s ease-in-out infinite alternate;
+            }
+
+            @keyframes lfOrbA {
+              from {
+                transform: translate3d(0,0,0) scale(1);
+              }
+              to {
+                transform: translate3d(22vw,12vh,0) scale(1.4);
+              }
+            }
+
+            @keyframes lfOrbB {
+              from {
+                transform: translate3d(0,0,0) scale(1.2);
+              }
+              to {
+                transform: translate3d(-24vw,16vh,0) scale(.85);
+              }
+            }
+
+            @keyframes lfOrbC {
+              from {
+                transform: translate3d(0,0,0) scale(.9);
+              }
+              to {
+                transform: translate3d(-20vw,-14vh,0) scale(1.35);
+              }
             }
 
             @media (prefers-reduced-motion: reduce) {
-              [class*="animate-\\[orbFloat"] {
-                animation: none !important;
+              .lf-orb {
+                display: none;
               }
             }
           `}</style>

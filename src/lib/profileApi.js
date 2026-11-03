@@ -165,6 +165,14 @@ export async function setAvatar(userId, file, oldPath) {
   return { path, url: urls[path] || "" };
 }
 
+export async function deleteAvatar(userId, oldPath) {
+  // Clear the database reference first.
+  await saveProfileFields(userId, { avatar_path: null });
+
+  // Remove the old image from Supabase Storage.
+  if (oldPath) await removePaths([oldPath]);
+}
+
 // One-time import of what the old localStorage version saved
 // (name, bio, details and profile picture). Photos can't be recovered:
 // the old version only stored temporary browser links for them.

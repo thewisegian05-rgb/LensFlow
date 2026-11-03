@@ -122,8 +122,7 @@ html:not(.dark) .workflow-card-action[title="Delete Client"]:hover {
 }
 
 html:not(.dark) .profile-page {
-  background-color: #f8fafc !important;
-  color: #0f172a !important;
+  background-color: transparent !important;
 }
 
 html:not(.dark) .profile-page [class~="bg-slate-950"],
@@ -159,12 +158,7 @@ html:not(.dark) .profile-page [class~="text-slate-500"] {
   color: #64748b !important;
 }
 
-html:not(.dark) .category-select {
-  border-left-width: 4px !important;
-  border-left-style: solid !important;
-  border-left-color: var(--category-color) !important;
-}
-
+html:not(.dark) .category-select,
 .dark .category-select {
   border-left-width: 4px !important;
   border-left-style: solid !important;
@@ -695,3 +689,30 @@ html[data-theme-transition="to-dark"]::view-transition-new(theme-pill-thumb) {
   }
 }
 
+/* ========================================
+   PROFILE PAGE — FLOATING ORB BACKGROUND
+   ======================================== */
+
+/* Make the outer profile page transparent */
+.profile-page {
+  background: transparent !important;
+  position: relative;
+}
+
+/* Keep individual profile sections readable */
+.profile-page > .mx-auto > section {
+  position: relative;
+  z-index: 1;
+}
+
+/* Make the main profile cards translucent */
+.profile-page > .mx-auto > section.rounded-2xl {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Dark mode */
+.dark .profile-page > .mx-auto > section.rounded-2xl {
+  background-color: rgba(15, 23, 42, 0.65) !important;
+}

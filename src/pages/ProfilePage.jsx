@@ -20,6 +20,7 @@ import {
   FaCopy,
   FaCheck,
   FaShareAlt,
+  FaTrash,
 } from "react-icons/fa";
 
 import { FiX } from "react-icons/fi"
@@ -30,6 +31,7 @@ import {
   migrateLocalProfile,
   saveProfileFields,
   setAvatar,
+  deleteAvatar,
   createAlbum,
   renameAlbum,
   addAlbumPhotos,
@@ -655,6 +657,30 @@ export default function Profile() {
     }
   };
 
+  // DELETE PROFILE PICTURE
+  const removeProfilePicture = () => {
+    if (!userId || !avatarPathRef.current) return;
+
+    setProfileMenu(false);
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Profile Picture?",
+      message: "Are you sure you want to remove your profile picture? Your username initial will be displayed instead.",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+
+        try {
+          await deleteAvatar(userId, avatarPathRef.current);
+          avatarPathRef.current = null;
+          setProfilePicture("");
+          setProfilePreview(false);
+        } catch (err) {
+          reportError("Could not delete your profile picture.", err);
+        }
+      },
+    });
+  };
+
   // ADD NEW CAROUSEL ALBUM (opens the setup modal; nothing is saved yet)
   const addNewAlbumCard = (e) => {
     const files = Array.from(e.target.files || []);
@@ -1069,11 +1095,17 @@ export default function Profile() {
               onClick={() => setProfileMenu(!profileMenu)}
               className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-slate-300 bg-slate-100 shadow-lg transition-all duration-300 ease-out hover:scale-105 hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-700 dark:bg-slate-800"
             >
-              <img
-                src={profilePicture}
-                alt="Profile"
-                className="h-full w-full object-cover"
-              />
+              {profilePicture ? (
+                <img
+                  src={profilePicture}
+                  alt="Profile"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center rounded-full bg-sky-100 text-4xl font-bold uppercase text-sky-600 dark:bg-sky-900/50 dark:text-sky-300">
+                  {(username?.trim()?.[0] || "U").toUpperCase()}
+                </span>
+              )}
             </button>
 
 
@@ -1083,25 +1115,38 @@ export default function Profile() {
             {profileMenu && (
               <div className="absolute left-1/2 top-full z-[70] mt-3 w-56 -translate-x-1/2">
                 <div className="menu-pop overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProfileMenu(false);
-                      setProfilePreview(true);
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:hover:bg-slate-800 dark:hover:text-sky-400"
-                  >
-                    <FaEye className="text-slate-500 dark:text-slate-400" />
-                    <span>View Profile Picture</span>
-                  </button>
+                  {profilePicture && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileMenu(false);
+                        setProfilePreview(true);
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:hover:bg-slate-800 dark:hover:text-sky-400"
+                    >
+                      <FaEye className="text-slate-500 dark:text-slate-400" />
+                      <span>View Profile Picture</span>
+                    </button>
+                  )}
 
                   <label
                     htmlFor="profile-picture-upload-menu"
-                    className="flex cursor-pointer items-center gap-3 border-t border-slate-200 px-4 py-3 text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:border-slate-800 dark:hover:bg-slate-800 dark:hover:text-sky-400"
+                    className={`flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-100 hover:text-sky-500 dark:hover:bg-slate-800 dark:hover:text-sky-400 ${profilePicture ? "border-t border-slate-200 dark:border-slate-800" : ""}`}
                   >
                     <FaCamera className="text-slate-500 dark:text-slate-400" />
                     <span>Change Profile Picture</span>
                   </label>
+
+                  {profilePicture && (
+                    <button
+                      type="button"
+                      onClick={removeProfilePicture}
+                      className="flex w-full items-center gap-3 border-t border-slate-200 px-4 py-3 text-left text-sm text-red-600 transition hover:bg-red-50 dark:border-slate-800 dark:text-red-400 dark:hover:bg-red-950/40"
+                    >
+                      <FaTrash />
+                      <span>Delete Profile Picture</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}

@@ -361,7 +361,7 @@ function AddEventModal({
       onTransitionEnd={handleOverlayTransitionEnd}
     >
       <div
-        className={`w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl transition-all duration-300 ease-out dark:border-slate-700 dark:bg-slate-900 ${
+        className={`w-full max-w-xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 bg-white p-6 shadow-2xl transition-all duration-300 ease-out dark:border-slate-700 dark:bg-slate-900 ${
           isVisible
             ? "translate-y-0 scale-100 opacity-100"
             : "translate-y-2 scale-95 opacity-0"

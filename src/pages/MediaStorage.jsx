@@ -942,16 +942,18 @@ function MediaStorage() {
         {/* Sliding active background */}
         <span
           aria-hidden="true"
-          className={`absolute bottom-1 top-1 rounded-lg transition-all duration-300 ease-in-out ${
+          className={`pointer-events-none absolute bottom-1 top-1 z-0 rounded-lg transition-all duration-300 ease-in-out ${
             isDark ? "bg-slate-700" : "bg-white shadow-sm"
           }`}
           style={{
-            left: sliderStyle.left,
-            width: sliderStyle.width,
+            left: `${sliderStyle.left}px`,
+            width: `${sliderStyle.width}px`,
           }}
         />
 
+        {/* My Files */}
         <button
+          type="button"
           ref={filesTabRef}
           onClick={() => {
             setActiveView("files");
@@ -967,6 +969,15 @@ function MediaStorage() {
                 ? "text-slate-400 hover:text-white"
                 : "text-slate-600 hover:text-slate-900"
           }`}
+          style={{
+            background: "transparent",
+            backgroundColor: "transparent",
+            border: "none",
+            outline: "none",
+            boxShadow: "none",
+            appearance: "none",
+            WebkitAppearance: "none",
+          }}
         >
           <FaFolder
             className={
@@ -980,7 +991,9 @@ function MediaStorage() {
           My Files
         </button>
 
+        {/* Trash Bin */}
         <button
+          type="button"
           ref={trashTabRef}
           onClick={() => {
             setActiveView("trash");
@@ -997,6 +1010,15 @@ function MediaStorage() {
                 ? "text-slate-400 hover:text-white"
                 : "text-slate-600 hover:text-slate-900"
           }`}
+          style={{
+            background: "transparent",
+            backgroundColor: "transparent",
+            border: "none",
+            outline: "none",
+            boxShadow: "none",
+            appearance: "none",
+            WebkitAppearance: "none",
+          }}
         >
           <FaRegTrashAlt
             className={

@@ -206,7 +206,7 @@ function Sidebar({ isOpen, onToggle, onClose }) {
           <AnimatedNavLinks
             links={mainLinks}
             onNavigate={handleNavClick}
-            className="flex-1 overflow-y-auto py-4"
+            className="custom-scrollbar flex-1 overflow-y-auto py-4"
           />
 
           {/* Bottom navigation */}

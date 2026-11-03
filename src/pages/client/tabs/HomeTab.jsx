@@ -53,7 +53,12 @@ export default function HomeTab() {
       <section className="lf-reveal min-w-0 rounded-2xl border border-slate-700/80 bg-gradient-to-r from-[#102338] to-[#0B1628] p-4 shadow-sm shadow-black/10 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="lf-ring h-[88px] w-[88px]">
-            <Avatar path={profile.avatar_path} name={name} className="h-full w-full rounded-full" />
+            {/* The avatar is in the private photos bucket, so use the signed link when we have one */}
+            <Avatar
+              path={portal.avatar_signed_url || profile.avatar_path}
+              name={name}
+              className="h-full w-full rounded-full"
+            />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">

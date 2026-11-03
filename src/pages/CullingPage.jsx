@@ -7,6 +7,8 @@ import {
   memo,
   useSyncExternalStore,
 } from "react";
+import { createPortal } from "react-dom";
+import { useOutletContext } from "react-router-dom";
 import {
   FaTimes,
   FaStar,
@@ -305,16 +307,26 @@ const PhotoTile = memo(function PhotoTile({
         )}
       </div>
 
-      {/* Existing star / reject status indicators */}
+      {/* Star / Reject status indicators */}
       {state === "star" && (
-        <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-sky-400">
+        <span
+          className={`absolute right-2 z-10 rounded-full bg-black/70 p-1 text-sky-400 ${
+            isBestPick ? "top-10" : "top-2"
+          }`}
+          title={isBestPick ? "Starred — Best Pick" : "Starred"}
+        >
           <FaStar className="text-[10px]" />
         </span>
       )}
 
       {(state === "reject" || aiResult?.ai_decision === "REJECT") &&
         state !== "star" && (
-          <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-rose-400">
+          <span
+            className={`absolute right-2 z-10 rounded-full bg-black/70 p-1 text-rose-400 ${
+              isBestPick ? "top-10" : "top-2"
+            }`}
+            title="Rejected"
+          >
             <FaBan className="text-[10px]" />
           </span>
         )}
@@ -681,7 +693,59 @@ function AuthGate() {
   );
 }
 
+function getPhotoDefects(aiResult) {
+  const defects = aiResult?.metrics?.defects;
+  return Array.isArray(defects) ? defects : [];
+}
+
+function matchesDefectFilter(aiResult, defectFilter) {
+  const defects = getPhotoDefects(aiResult);
+
+  if (defectFilter === "all") return true;
+
+  if (defectFilter === "has_defects") {
+    return defects.length > 0;
+  }
+
+  if (defectFilter === "no_defects") {
+    return Boolean(aiResult) && defects.length === 0;
+  }
+
+  return defects.some((defect) => {
+    const type = String(defect?.type || "").toLowerCase();
+    const message = String(defect?.message || "").toLowerCase();
+
+    switch (defectFilter) {
+      case "underexposed":
+        return message.includes("underexposure") ||
+          message.includes("underexposed");
+
+      case "overexposed":
+        return message.includes("overexposure") ||
+          message.includes("overexposed");
+
+      case "blur":
+        return type === "face_blur" ||
+          type === "sharpness" ||
+          message.includes("blur") ||
+          message.includes("sharpness");
+
+      case "closed_eyes":
+        return type === "closed_eyes" ||
+          message.includes("closed eyes");
+
+      case "blink":
+        return type === "blink" ||
+          message.includes("partial blink");
+
+      default:
+        return true;
+    }
+  });
+}
+
 function CullingPage() {
+  const { reportPageReady, routeKey } = useOutletContext();
   /* ============ AUTH ============ */
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -731,6 +795,7 @@ function CullingPage() {
     }
   });
   const [filter, setFilter] = useState("all");
+  const [defectFilter, setDefectFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
   const [showDetailInfo, setShowDetailInfo] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -738,6 +803,7 @@ function CullingPage() {
 
   const [isDragging, setIsDragging] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
+  const initialDataReady = useRef(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState("");
@@ -1312,12 +1378,14 @@ function CullingPage() {
 
     if (folderErr) {
       console.error(folderErr);
+      initialDataReady.current = true;
       setDataLoading(false);
       return;
     }
 
     if (photoErr) {
       console.error(photoErr);
+      initialDataReady.current = true;
       setDataLoading(false);
       return;
     }
@@ -1404,6 +1472,7 @@ function CullingPage() {
 
     setCulls(ratingsMap);
     setAiResults(aiResultMap);
+    initialDataReady.current = true;
     setDataLoading(false);
   }, []);
 
@@ -1457,18 +1526,30 @@ function CullingPage() {
     };
   }, [user, dataLoading, folders, pollCullingJob]);
 
-  // CHANGE 2: don't clear state (and the saved path) while auth is still loading.
+  // Keep the saved path while auth is loading, and report readiness to the
+  // parent layout once authentication and the initial data load have finished.
   useEffect(() => {
     if (user) {
-      loadData(user.id);
+      loadData(user.id).catch((error) => {
+        console.error("Failed to load initial culling data:", error);
+        initialDataReady.current = true;
+        setDataLoading(false);
+      });
     } else if (!authLoading) {
       setFolders([]);
       setPhotos([]);
       setCulls({});
       setAiResults({});
       setPath([]);
+      initialDataReady.current = true;
     }
   }, [user, authLoading, loadData]);
+
+  useEffect(() => {
+    if (!authLoading && initialDataReady.current && !dataLoading) {
+      reportPageReady(routeKey);
+    }
+  }, [authLoading, dataLoading, reportPageReady, routeKey]);
 
   // CHANGE 1 (continued): remember which folder is open when you leave the page.
   useEffect(() => {
@@ -2080,25 +2161,40 @@ function CullingPage() {
   const visibleImages = useMemo(
     () =>
       folderImages.filter((img) => {
-        const aiDecision = aiResults[img.id]?.ai_decision;
+        const aiResult = aiResults[img.id];
+        const aiDecision = aiResult?.ai_decision;
+
+        let matchesCurrentFilter = true;
+
         switch (filter) {
           case "star":
-            return culls[img.id] === "star";
+            matchesCurrentFilter = culls[img.id] === "star";
+            break;
           case "reject":
-            return culls[img.id] === "reject";
+            matchesCurrentFilter = culls[img.id] === "reject";
+            break;
           case "unrated":
-            return !culls[img.id];
+            matchesCurrentFilter = !culls[img.id];
+            break;
           case "ai_keep":
-            return aiDecision === "KEEP";
+            matchesCurrentFilter = aiDecision === "KEEP";
+            break;
           case "ai_review":
-            return aiDecision === "REVIEW";
+            matchesCurrentFilter = aiDecision === "REVIEW";
+            break;
           case "ai_reject":
-            return aiDecision === "REJECT";
+            matchesCurrentFilter = aiDecision === "REJECT";
+            break;
           default:
-            return true;
+            matchesCurrentFilter = true;
         }
+
+        return (
+          matchesCurrentFilter &&
+          matchesDefectFilter(aiResult, defectFilter)
+        );
       }),
-    [folderImages, filter, culls, aiResults]
+    [folderImages, filter, culls, aiResults, defectFilter]
   );
 
   // All folder counters in a single pass.
@@ -2832,6 +2928,40 @@ function CullingPage() {
                         </div>
                       </div>
 
+                      <div className="mb-4 flex flex-wrap items-center gap-3">
+                        <label
+                          htmlFor="defect-filter"
+                          className="text-xs font-medium text-slate-600 dark:text-slate-300"
+                        >
+                          Filter by defect
+                        </label>
+                        <select
+                          id="defect-filter"
+                          value={defectFilter}
+                          onChange={(event) => setDefectFilter(event.target.value)}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        >
+                          <option value="all">All photos</option>
+                          <option value="has_defects">Any detected defect</option>
+                          <option value="no_defects">No detected defects</option>
+                          <option value="underexposed">Underexposed</option>
+                          <option value="overexposed">Overexposed</option>
+                          <option value="blur">Blurry / Low sharpness</option>
+                          <option value="closed_eyes">Closed eyes</option>
+                          <option value="blink">Partial blink</option>
+                        </select>
+                        {defectFilter !== "all" && (
+                          <button
+                            type="button"
+                            onClick={() => setDefectFilter("all")}
+                            className="text-xs font-medium text-sky-500 hover:text-sky-400"
+                          >
+                            Clear filter
+                          </button>
+                        )}
+                        <div className="hidden h-px min-w-8 flex-1 bg-slate-300 dark:bg-slate-700 sm:block" />
+                      </div>
+
                       {/* Filter groups */}
                       <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/70">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -2979,9 +3109,10 @@ function CullingPage() {
                           </div>
                         </div>
 
-                        {showDetailInfo && (
-                          <div
-                            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+                        {showDetailInfo &&
+                          createPortal(
+                            <div
+                              className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
                             role="presentation"
                             onClick={() => setShowDetailInfo(false)}
                           >
@@ -3057,8 +3188,9 @@ function CullingPage() {
                                 </p>
                               </div>
                             </section>
-                          </div>
-                        )}
+                          </div>,
+                            document.body
+                          )}
 
                         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:rgb(71_85_105)_transparent]">
                           <div className="relative overflow-hidden rounded-xl bg-slate-950">

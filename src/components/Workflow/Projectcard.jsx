@@ -7,6 +7,12 @@ import {
   getTaskProgress,
 } from "./workflowStages";
 
+import {
+  getEventCategory,
+  CATEGORY_LABELS,
+  CATEGORY_SOFT_BADGE_CLASSES,
+} from "../components/Schedule/eventCategory";
+
 function ProjectCard({
   project,
   onMoveStage,
@@ -17,11 +23,26 @@ function ProjectCard({
   onDelete,
 }) {
   const [taskInput, setTaskInput] = useState("");
+
   const progress = getTaskProgress(project);
+
+  // Get the category using the shared event category helper.
+  const categoryKey = getEventCategory({
+    category: project.category,
+    title: project.title || project.client,
+  });
+
+  const categoryLabel =
+    CATEGORY_LABELS[categoryKey] || CATEGORY_LABELS.default;
+
+  const categoryBadgeClass =
+    CATEGORY_SOFT_BADGE_CLASSES[categoryKey] ||
+    CATEGORY_SOFT_BADGE_CLASSES.default;
 
   const handleAddTask = () => {
     const nextTask = taskInput.trim();
     if (!nextTask) return;
+
     onAddTask(project.id, nextTask);
     setTaskInput("");
   };
@@ -33,6 +54,7 @@ function ProjectCard({
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             {project.project_code || project.id}
           </p>
+
           <h4 className="mt-1 text-base font-semibold text-white truncate">
             {project.client}
           </h4>
@@ -47,6 +69,7 @@ function ProjectCard({
           >
             <FaEdit className="text-xs" />
           </button>
+
           <button
             type="button"
             onClick={() => onDelete(project.id)}
@@ -60,13 +83,24 @@ function ProjectCard({
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <span
-          className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold ${STAGE_BADGE_CLASSES[project.stage] || "bg-slate-500"}`}
+          className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold ${
+            STAGE_BADGE_CLASSES[project.stage] || "bg-slate-500"
+          }`}
         >
           {STAGE_LABELS[project.stage] || project.stage}
         </span>
 
+        {/* Project category */}
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold ${categoryBadgeClass}`}
+        >
+          {categoryLabel}
+        </span>
+
         {project.date && (
-          <span className="text-[10px] text-slate-400">{project.date}</span>
+          <span className="text-[10px] text-slate-400">
+            {project.date}
+          </span>
         )}
       </div>
 
@@ -75,6 +109,7 @@ function ProjectCard({
           <span>Checklist</span>
           <span>{progress}%</span>
         </div>
+
         <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
           <div
             className="h-full bg-sky-500 rounded-full transition-all"
@@ -98,13 +133,21 @@ function ProjectCard({
                     ? "border-emerald-500 bg-emerald-500 text-slate-950"
                     : "border-slate-600 bg-slate-800 text-transparent"
                 }`}
-                aria-label={task.done ? "Mark task incomplete" : "Mark task complete"}
+                aria-label={
+                  task.done
+                    ? "Mark task incomplete"
+                    : "Mark task complete"
+                }
               >
                 {task.done && <FaCheck className="text-[8px]" />}
               </button>
 
               <span
-                className={`text-xs flex-1 ${task.done ? "text-slate-400 line-through dark:text-slate-500" : "text-slate-700 dark:text-slate-200"}`}
+                className={`text-xs flex-1 ${
+                  task.done
+                    ? "text-slate-400 line-through dark:text-slate-500"
+                    : "text-slate-700 dark:text-slate-200"
+                }`}
               >
                 {task.text}
               </span>

@@ -6,6 +6,10 @@ import Sidebar from "./Sidebar";
 import Header from "./Header";
 import PageLoader from "./PageLoader";
 import useSessionGuard from "../../hooks/useSessionGuard";
+import {
+  CATEGORY_LABELS,
+  getEventCategory,
+} from "../Schedule/eventCategory";
 
 const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
 function hasAuthTransition() {
@@ -491,7 +495,13 @@ function Layout() {
                                 <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                                   {project.category && (
                                     <span className="inline-flex items-center gap-1 rounded-md bg-violet-500/10 px-2 py-1 text-xs font-medium text-violet-600 dark:text-violet-300">
-                                      <FaTag className="text-[10px]" /> {project.category}
+                                      <FaTag className="text-[10px]" />
+                                      {CATEGORY_LABELS[
+                                        getEventCategory({
+                                          category: project.category,
+                                          title: project.title,
+                                        })
+                                      ] || CATEGORY_LABELS.default}
                                     </span>
                                   )}
                                   {project.location && (
@@ -555,7 +565,13 @@ function Layout() {
                                 <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                                   {event.category && (
                                     <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
-                                      <FaTag className="text-[10px]" /> {event.category}
+                                      <FaTag className="text-[10px]" />
+                                      {CATEGORY_LABELS[
+                                        getEventCategory({
+                                          category: event.category,
+                                          title: event.title,
+                                        })
+                                      ] || CATEGORY_LABELS.default}
                                     </span>
                                   )}
                                   {event.location && (

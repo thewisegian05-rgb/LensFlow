@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useOutletContext, useLocation } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup, MotionConfig } from "framer-motion";
+
 import {
   FaChevronLeft,
   FaChevronRight,
@@ -8,6 +9,12 @@ import {
   FaUser,
 } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
+
+import {
+  getEventCategory,
+  CATEGORY_LABELS,
+  CATEGORY_SOFT_BADGE_CLASSES,
+} from "../components/Schedule/eventCategory";
 
 const SMOOTH_EASE = [0.22, 1, 0.36, 1];
 
@@ -140,6 +147,18 @@ function SkeletonCard({ delay = 0 }) {
 /* ============ Card ============ */
 
 function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0, highlighted = false }) {
+  const categoryKey = getEventCategory({
+    category: project.category,
+    title: project.name,
+  });
+
+  const categoryLabel =
+    CATEGORY_LABELS[categoryKey] || CATEGORY_LABELS.default;
+
+  const categoryBadgeClass =
+    CATEGORY_SOFT_BADGE_CLASSES[categoryKey] ||
+    CATEGORY_SOFT_BADGE_CLASSES.default;
+
   const index = STAGE_INDEX[project.stage];
   const locked = isFutureEvent(project);
   const isToday = project.event_date === todayString();
@@ -183,9 +202,11 @@ function ProjectCard({ project, onMove, onDragStart, dragging, delay = 0, highli
             >
               {project.name}
             </h4>
-            {project.category && (
-              <span className="flex-shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-semibold text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
-                {project.category}
+            {(project.category || project.name) && (
+              <span
+                className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold ${categoryBadgeClass}`}
+              >
+                {categoryLabel}
               </span>
             )}
           </div>

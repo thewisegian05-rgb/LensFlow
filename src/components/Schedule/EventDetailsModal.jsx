@@ -3,6 +3,11 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
+  CATEGORY_LABELS,
+  getEventCategory,
+} from "./eventCategory";
+
+import {
   FaTimes,
   FaUser,
   FaCalendarAlt,
@@ -187,12 +192,15 @@ function EventDetailsModal({
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <FaTag className="shrink-0 text-sky-500" />
-            <span className="text-slate-700 dark:text-slate-200">
-              {event.category || event.type || "General"}
-            </span>
-          </div>
+         <div className="flex items-center gap-3">
+          <FaTag className="shrink-0 text-sky-500" />
+          <span className="text-slate-700 dark:text-slate-200">
+            {CATEGORY_LABELS[getEventCategory({
+              category: event.category || event.type,
+              title: event.title,
+            })] || CATEGORY_LABELS.default}
+          </span>
+        </div>
 
           <div className="flex items-center gap-3">
             <FaCamera className="shrink-0 text-sky-500" />

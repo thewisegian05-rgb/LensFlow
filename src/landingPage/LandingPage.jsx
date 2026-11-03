@@ -16,12 +16,39 @@ const CSS = `
 .lf-card{background:var(--card);border:1px solid var(--line);border-radius:14px;transition:border-color .3s ease}
 .lf-dashed{border:1px dashed #243049;border-radius:12px}
 .lf-muted{color:var(--muted)}
-.lf-btn{background:var(--accent);color:#fff;font-weight:600;border-radius:8px;
-  transition:background-color .2s ease,transform .2s var(--ease),box-shadow .2s ease}
-.lf-btn:hover{background:#38bdf8;transform:translateY(-1px);box-shadow:0 8px 20px -8px rgba(14,165,233,.6)}
+.lf-btn {
+  background-color: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition:
+    background-color .2s ease,
+    transform .2s var(--ease),
+    box-shadow .2s ease;
+}
+
+.lf-btn:hover {
+  background-color: #38bdf8 !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -8px rgba(14,165,233,.6);
+}
 .lf-btn:active{transform:scale(.97)}
-.lf-ghost{border:1px solid var(--line);border-radius:8px;font-weight:500;transition:background-color .2s ease,transform .2s var(--ease)}
-.lf-ghost:hover{background:var(--card)}
+.lf-ghost {
+  background-color: transparent !important;
+  color: #cbd5e1 !important;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 500;
+  transition:
+    background-color .2s ease,
+    transform .2s var(--ease);
+}
+.lf-ghost:hover {
+  background-color: var(--card) !important;
+  color: #fff !important;
+}
 .lf-ghost:active{transform:scale(.97)}
 .lf a:focus-visible,.lf button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
@@ -77,6 +104,53 @@ html{scroll-padding-top:5rem}
   .lf-btn:hover,.lf-lift:hover,.lf-chip:hover{transform:none}
   .lf-hero-img{animation:none}
   .lf-orb{display:none}
+}
+/* FORCE LANDING PAGE BUTTON COLORS — OVERRIDE GLOBAL THEME */
+#root .lf .lf-btn,
+#root .lf button.lf-btn,
+#root .lf a.lf-btn {
+  background: #0ea5e9 !important;
+  background-color: #0ea5e9 !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  opacity: 1 !important;
+}
+
+#root .lf .lf-btn:hover,
+#root .lf button.lf-btn:hover,
+#root .lf a.lf-btn:hover {
+  background: #38bdf8 !important;
+  background-color: #38bdf8 !important;
+  color: #ffffff !important;
+}
+
+#root .lf .lf-btn:disabled {
+  opacity: 0.5 !important;
+}
+
+#root .lf .lf-ghost {
+  background: transparent !important;
+  color: #cbd5e1 !important;
+}
+
+#root .lf .lf-ghost:hover {
+  background: #0a1020 !important;
+  color: #ffffff !important;
+}
+/* Remove visible borders from workflow demo arrows */
+.lf .lf-ghost,
+.lf .lf-ghost:hover,
+.lf .lf-ghost:disabled {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Keep inactive arrow dark and subtle */
+.lf .lf-ghost:disabled {
+  background: transparent !important;
+  color: #64748b !important;
+  opacity: 0.65 !important;
 }
 `;
 
@@ -239,12 +313,35 @@ function WorkflowDemo() {
           <p className="lf-muted text-xs">Try it: move the sample shoot through its stages.</p>
         </div>
         <div className="flex gap-2">
-          <button type="button" aria-label="Previous stage" disabled={at === 0}
+          {/* Previous */}
+          <button
+            type="button"
+            aria-label="Previous stage"
+            disabled={at === 0}
             onClick={() => go(at - 1)}
-            className="lf-ghost px-3 py-1.5 text-sm disabled:opacity-40">←</button>
-          <button type="button" aria-label="Next stage" disabled={at === last}
+            className={`rounded-lg px-3 py-1.5 text-sm transition-all duration-300 ${
+              at > 0
+                ? "lf-btn"
+                : "lf-ghost opacity-50 cursor-not-allowed"
+            }`}
+          >
+            ←
+          </button>
+
+          {/* Next */}
+          <button
+            type="button"
+            aria-label="Next stage"
+            disabled={at === last}
             onClick={() => go(at + 1)}
-            className="lf-btn px-3 py-1.5 text-sm disabled:opacity-40">→</button>
+            className={`rounded-lg px-3 py-1.5 text-sm transition-all duration-300 ${
+              at < last
+                ? "lf-btn"
+                : "lf-ghost opacity-50 cursor-not-allowed"
+            }`}
+          >
+            →
+          </button>
         </div>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-2">
@@ -263,18 +360,51 @@ function WorkflowDemo() {
                 <span className="h-2 w-2 rounded-full" style={{ background: s.dot }} />
                 {s.name}
               </span>
-              <span className="rounded-full bg-slate-800 px-1.5 text-[10px]">{i === at ? 1 : 0}</span>
+              <span
+                className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                style={{
+                  backgroundColor: "#1e293b",
+                  color: "#cbd5e1",
+                  border: "none",
+                  boxShadow: "none",
+                }}
+              >
+                {i === at ? 1 : 0}
+              </span>
             </div>
             {i === at ? (
-              <button
+              <div
                 key={at}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => go(Math.min(at + 1, last))}
-                className={`lf-slide-${dir} w-full rounded-lg border border-sky-500/60 bg-sky-500/10 p-3 text-left`}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    go(Math.min(at + 1, last));
+                  }
+                }}
+                className={`lf-slide-${dir} w-full cursor-pointer rounded-lg border border-sky-500/60 bg-sky-500/10 p-3 text-left`}
+                style={{
+                  backgroundColor: "rgba(14, 165, 233, 0.10)",
+                  color: "#ffffff",
+                  borderColor: "rgba(14, 165, 233, 0.6)",
+                }}
               >
-                <span className="block text-sm font-semibold">Angela’s wedding</span>
-                <span className="lf-muted block text-xs">Weddings · ₱45,000</span>
-              </button>
+                <span
+                  className="block text-sm font-semibold"
+                  style={{ color: "#ffffff" }}
+                >
+                  Angela’s wedding
+                </span>
+
+                <span
+                  className="block text-xs"
+                  style={{ color: "#8a94ab" }}
+                >
+                  Weddings · ₱45,000
+                </span>
+              </div>
             ) : (
               <div className="lf-dashed lf-muted py-5 text-center text-[11px]">Nothing here</div>
             )}

@@ -55,6 +55,44 @@ export default function ReviewsTab() {
     };
   }, [activeId, refreshKey]);
 
+  // Reviews unlock once an event with this photographer reaches "Completed"
+  // in the photographer's Workflow tab. null = still checking.
+  const [canReview, setCanReview] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const check = async () => {
+      const { data, error: rpcErr } = await supabase.rpc("my_event_progress");
+
+      if (cancelled) return;
+
+      if (rpcErr) {
+        console.error("Could not check event progress:", rpcErr.message);
+        setCanReview(false);
+        return;
+      }
+
+      setCanReview(
+        (Array.isArray(data) ? data : []).some(
+          (e) => e.photographer_id === activeId && e.stage === "completed"
+        )
+      );
+    };
+
+    check();
+
+    const timer = setInterval(check, 15000);
+    const onFocus = () => check();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [activeId]);
+
   const myReview = reviews.find((r) => r.mine) || null;
 
   const average = reviews.length
@@ -106,13 +144,23 @@ export default function ReviewsTab() {
         }
       >
         <div className="space-y-3">
-          <ReviewForm
-            key={`${activeId}-${myReview?.id || "new"}`}
-            existing={myReview}
-            onSubmit={handleReview}
-            saving={saving}
-            error={error}
-          />
+          {canReview === null && !myReview ? (
+            <div className="h-20 animate-pulse rounded-lg bg-slate-800" aria-label="Checking your events" />
+          ) : canReview || myReview ? (
+            <ReviewForm
+              key={`${activeId}-${myReview?.id || "new"}`}
+              existing={myReview}
+              onSubmit={handleReview}
+              saving={saving}
+              error={error}
+            />
+          ) : (
+            <p className="rounded-lg border border-slate-700 bg-slate-950/50 p-3 text-xs leading-relaxed text-slate-400">
+              You can leave a review once your event reaches{" "}
+              <span className="font-semibold text-slate-200">Completed</span>. You can follow its
+              progress on the Home page.
+            </p>
+          )}
 
           {loading ? (
             <div className="h-16 animate-pulse rounded-lg bg-slate-800" aria-label="Loading reviews" />

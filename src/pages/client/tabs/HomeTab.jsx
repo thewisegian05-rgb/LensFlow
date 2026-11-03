@@ -3,13 +3,14 @@ import { useOutletContext } from "react-router-dom";
 import Stars from "../components/ui/Stars";
 import Avatar from "../components/ui/Avatar";
 import Section from "../components/ui/Section";
+import EventProgress from "./EventProgress";
 import { getProfile } from "../utils/portalUrls";
 
 const HERO_IMG =
   "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1800&q=85";
 
 export default function HomeTab() {
-  const { portal, goTo } = /** @type {any} */ (useOutletContext());
+  const { portal, goTo, activeId } = /** @type {any} */ (useOutletContext());
   const profile = getProfile(portal);
   const name = profile.display_name || profile.username || profile.name || "Photographer";
 
@@ -103,6 +104,9 @@ export default function HomeTab() {
           </div>
         </div>
       </section>
+
+      {/* Progress of the client's confirmed events (follows the photographer's Workflow tab) */}
+      <EventProgress activeId={activeId} goTo={goTo} />
 
       {/* Shortcuts to other tabs */}
       <div className="grid min-w-0 gap-4 md:grid-cols-2">

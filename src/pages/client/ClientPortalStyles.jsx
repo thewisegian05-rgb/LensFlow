@@ -1,20 +1,24 @@
-/* All the client portal animations, kept as a JSX component so every file is .jsx */
 const CSS = `
-/* ==========================================
-   LENSFLOW CLIENT PORTAL, animations
-   Every class is prefixed lf- so nothing collides
-   with the Admin / Clients CSS.
-   Import once in ClientPortalPage.jsx
-========================================== */
 :root {
   --lf-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --lf-ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --lf-text-heading:   #f1f5f9;
+  --lf-text-body:      #94a3b8;
+  --lf-text-label:     #64748b;
+  --lf-text-accent:    #22d3ee;
+  --lf-text-muted:     #475569;
+  --lf-text-white:     #ffffff;
 }
 html { scroll-behavior: smooth; }
 
-/* ==========================================
-   KEYFRAMES
-========================================== */
+.lf-text-heading  { color: var(--lf-text-heading);  }
+.lf-text-body     { color: var(--lf-text-body);     }
+.lf-text-label    { color: var(--lf-text-label);    }
+.lf-text-accent   { color: var(--lf-text-accent);   }
+.lf-text-muted    { color: var(--lf-text-muted);    }
+.lf-text-white    { color: var(--lf-text-white);    }
+.lf-shimmer-text  { color: var(--lf-text-accent);   }
+
 @keyframes lf-fade-up   { from { opacity: 0; transform: translateY(28px) scale(.97); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
 @keyframes lf-fade-down { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: none; } }
 @keyframes lf-fade-in   { from { opacity: 0; } to { opacity: 1; } }
@@ -23,25 +27,15 @@ html { scroll-behavior: smooth; }
 @keyframes lf-pulse-dot { 0% { transform: scale(1); opacity: .6; } 70%, 100% { transform: scale(3.2); opacity: 0; } }
 @keyframes lf-shimmer   { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 
-/* ==========================================
-   PAGE LOAD
-========================================== */
 .lf-header-in { animation: lf-fade-down .7s var(--lf-ease-out-expo) backwards; }
 .lf-rise      { animation: lf-fade-up .9s var(--lf-ease-out-expo) backwards; animation-delay: var(--d, 0ms); }
 
-/* ==========================================
-   TAB PAGE SWAP (same feel as the admin tabs)
-   <div key={tab} className="lf-page"> remounts on every tab click
-========================================== */
 .lf-page { animation: lf-page-in .55s var(--lf-ease-out-expo) backwards; }
 @keyframes lf-page-in {
   from { opacity: 0; transform: translateX(48px); filter: blur(4px); }
   to   { opacity: 1; transform: none; filter: none; }
 }
 
-/* ==========================================
-   AURORA BACKGROUND
-========================================== */
 .lf-orb { position: absolute; border-radius: 9999px; filter: blur(90px); opacity: .35; will-change: transform; }
 .lf-orb-1 { width: 520px; height: 520px; top: -140px; left: -120px; background: #0ea5e9; animation: lf-drift-a 22s ease-in-out infinite alternate; }
 .lf-orb-2 { width: 460px; height: 460px; top: 35%; right: -140px; background: #8b5cf6; opacity: .22; animation: lf-drift-b 28s ease-in-out infinite alternate; }
@@ -50,9 +44,6 @@ html { scroll-behavior: smooth; }
 @keyframes lf-drift-b { to { transform: translate(-220px, -80px) scale(1.2); } }
 @keyframes lf-drift-c { to { transform: translate(140px, -160px) scale(1.1); } }
 
-/* ==========================================
-   HERO
-========================================== */
 .lf-kenburns { animation: lf-kenburns 18s ease-in-out infinite alternate; transform-origin: 60% 40%; }
 @keyframes lf-kenburns { from { transform: scale(1); } to { transform: scale(1.12) translate(-1.5%, -1%); } }
 
@@ -82,10 +73,6 @@ html { scroll-behavior: smooth; }
 .lf-rec { width: 8px; height: 8px; border-radius: 9999px; background: #f43f5e; animation: lf-blink 1.4s steps(2, jump-none) infinite; }
 @keyframes lf-blink { 50% { opacity: .15; } }
 
-/* ==========================================
-   SCROLL REVEAL (cards fade up with blur)
-   Staggered with style={{ "--d": "120ms" }}
-========================================== */
 .lf-reveal {
   opacity: 0;
   transform: translateY(28px) scale(.97);
@@ -110,15 +97,9 @@ html { scroll-behavior: smooth; }
   transform: translateX(-120%); transition: transform .9s ease; }
 .lf-sheen:hover::after { transform: translateX(120%); }
 
-/* ==========================================
-   STATUS DOT PULSE (section headings)
-========================================== */
 .lf-dot { position: relative; }
 .lf-dot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; animation: lf-pulse-dot 1.8s infinite; }
 
-/* ==========================================
-   BUTTONS
-========================================== */
 .lf-btn { transition: transform .25s var(--lf-ease-soft), box-shadow .25s var(--lf-ease-soft), background-color .2s ease, border-color .2s ease, color .2s ease; }
 .lf-btn:hover:not(:disabled) { transform: translateY(-2px); }
 .lf-btn:active:not(:disabled) { transform: scale(.95); }
@@ -141,9 +122,6 @@ html { scroll-behavior: smooth; }
   50%      { filter: drop-shadow(0 0 8px rgba(56,189,248,.9)); transform: scale(1.12) rotate(-6deg); }
 }
 
-/* ==========================================
-   AVATAR RING
-========================================== */
 .lf-ring { position: relative; padding: 3px; border-radius: 9999px; flex-shrink: 0; }
 .lf-ring::before { content: ""; position: absolute; inset: 0; border-radius: inherit;
   background: conic-gradient(from 0deg, #38bdf8, #a78bfa, #34d399, #38bdf8); animation: lf-spin 6s linear infinite; }
@@ -153,9 +131,6 @@ html { scroll-behavior: smooth; }
 @keyframes lf-spin { to { transform: rotate(360deg); } }
 @keyframes lf-glow { 50% { opacity: .2; transform: scale(1.06); } }
 
-/* ==========================================
-   SIDEBAR: sliding indicator + tab click
-========================================== */
 .lf-tab { position: relative; overflow: hidden; transition: transform .15s ease, background-color .25s ease, color .25s ease; }
 .lf-tab:active { transform: scale(.96); }
 .lf-tab svg { transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
@@ -173,9 +148,6 @@ html { scroll-behavior: smooth; }
 }
 .lf-nav-indicator.no-anim { transition: none; }
 
-/* ==========================================
-   SKELETON LOADER
-========================================== */
 .lf-skeleton { padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;
   background: #10192c; border: 1px solid #30425f; border-radius: 12px;
   animation: lf-fade-in .5s var(--lf-ease-soft) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
@@ -187,15 +159,9 @@ html { scroll-behavior: smooth; }
 .w40 { width: 40%; } .w60 { width: 60%; } .w70 { width: 70%; } .w90 { width: 90%; }
 .lf-shimmer-bar { background: linear-gradient(90deg, #17243a 0%, #22324d 50%, #17243a 100%); background-size: 800px 100%; animation: lf-shimmer 1.4s linear infinite; }
 
-/* ==========================================
-   LIGHTBOX / MODAL
-========================================== */
 .lf-lightbox { animation: lf-fade-in .3s var(--lf-ease-soft); }
 .lf-lightbox-img { animation: lf-modal-pop .45s var(--lf-ease-out-expo) both; }
 
-/* ==========================================
-   ACCESSIBILITY: reduced motion
-========================================== */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .lf-orb, .lf-kenburns, .lf-shimmer-text, .lf-vf, .lf-rec, .lf-ring::before, .lf-ring::after,
@@ -204,7 +170,6 @@ html { scroll-behavior: smooth; }
   .lf-reveal, .lf-vf { opacity: 1 !important; transform: none !important; filter: none !important; transition: none !important; }
   .lf-nav-indicator { transition: none; }
 }
-
 `;
 
 export default function ClientPortalStyles() {

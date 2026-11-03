@@ -12,17 +12,14 @@ import {
 } from "react-icons/fa";
 
 export const NAV_ITEMS = [
-  { id: "home", label: "Home", icon: FaHome },
-  { id: "portfolio", label: "Portfolio", icon: FaRegImage },
-  { id: "schedule", label: "Schedule", icon: FaCalendarAlt },
-  { id: "bookings", label: "My Bookings", icon: FaFileAlt },
-  { id: "reviews", label: "Reviews", icon: FaHeart },
+  { id: "home",      label: "Home",        icon: FaHome },
+  { id: "portfolio", label: "Portfolio",   icon: FaRegImage },
+  { id: "schedule",  label: "Schedule",    icon: FaCalendarAlt },
+  { id: "bookings",  label: "My Bookings", icon: FaFileAlt },
+  { id: "reviews",   label: "Reviews",     icon: FaHeart },
 ];
 
-/* Each tab is a real route (NavLink). Clicking one goes to that URL,
-   the page swaps and the highlight slides to it, same as the admin sidebar. */
 export default function ClientSidebar({ onSignOut }) {
-  // the active tab comes from the URL: /customer/schedule -> "schedule"
   const { tabUrl, current } = useClientNav();
   const activeTab = NAV_ITEMS.some((i) => i.id === current) ? current : "home";
   const navRef = useRef(null);
@@ -39,9 +36,8 @@ export default function ClientSidebar({ onSignOut }) {
         w: el.offsetWidth,
         h: el.offsetHeight,
         ready: true,
-        animate: p.ready, // first placement has no animation
+        animate: p.ready,
       }));
-      // phones: keep the active tab visible in the horizontal strip
       if (nav.scrollWidth > nav.clientWidth + 4) {
         nav.scrollTo({ left: Math.max(0, el.offsetLeft - 16), behavior: "smooth" });
       }
@@ -57,7 +53,7 @@ export default function ClientSidebar({ onSignOut }) {
         <FaCameraRetro className="lf-lens text-2xl text-sky-500" />
         <div>
           <h1 className="text-xl font-bold tracking-tight text-white">LensFlow</h1>
-          <p className="text-xs text-slate-400">Client Portal</p>
+          <p className="text-xs text-slate-300">Client Portal</p>
         </div>
       </div>
 
@@ -86,11 +82,11 @@ export default function ClientSidebar({ onSignOut }) {
               aria-current={on ? "page" : undefined}
               className={`lf-tab relative z-10 flex shrink-0 items-center gap-3 border-l-4 border-transparent px-4 py-3 text-left text-sm font-medium ${
                 on
-                  ? "lf-tab-on text-sky-400"
-                  : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                  ? "lf-tab-on text-white"
+                  : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
               }`}
             >
-              <Icon className="text-base" />
+              <Icon className={`text-base ${on ? "text-sky-400" : "text-slate-400"}`} />
               {label}
             </Link>
           );

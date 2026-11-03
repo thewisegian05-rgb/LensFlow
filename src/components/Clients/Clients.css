@@ -6,14 +6,14 @@
   min-height: calc(100vh - 75px);
   padding: 30px 32px;
 
-  background: #f8fafc;
+  background: transparent;
   color: #0f172a;
 
   box-sizing: border-box;
 }
 
 .dark .clients-page {
-  background: #020817;
+  background: transparent;
   color: #f5f7fb;
 }
 
@@ -629,11 +629,26 @@
   color: #94a3b8;
 }
 
-/* Active icon stays visible on the blue indicator */
+/* Keep the buttons transparent so the sliding indicator stays visible */
+.view-switcher .view-toggle-btn,
+.dark .view-switcher .view-toggle-btn {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+/* Active icon stays visible on the moving blue indicator */
 .view-switcher .view-toggle-btn.is-active,
 .dark .view-switcher .view-toggle-btn.is-active {
-  color: #082f49;
-  background: transparent;
+  color: #082f49 !important;
+  background: transparent !important;
+}
+
+/* Prevent hover styles from covering the indicator */
+.view-switcher .view-toggle-btn.is-active:hover,
+.dark .view-switcher .view-toggle-btn.is-active:hover {
+  color: #082f49 !important;
+  background: transparent !important;
+  transform: scale(1.04);
 }
 
 /* Hovering over the active button must not change its color */

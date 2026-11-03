@@ -822,6 +822,8 @@ function MediaStorage() {
       name: photo.name,
       url,
       isVideo: looksLikeVideo(photo.name),
+      sizeBytes: photo.sizeBytes || 0,
+      dimensions: null,
     });
   };
 
@@ -1133,8 +1135,8 @@ function MediaStorage() {
                 onClick={() => setShowAddMenu((open) => !open)}
                 aria-expanded={showAddMenu}
                 aria-haspopup="menu"
-                className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
-              >
+                className="add-client-btn text-sm font-semibold text-slate-950 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
                 <FaPlus className="text-xs" />
                 Add
               </button>
@@ -1156,11 +1158,19 @@ function MediaStorage() {
                     setNewName("");
                     setIsAddingFolder(true);
                   }}
-                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
-                    isDark
-                      ? "text-slate-200 hover:bg-slate-800"
-                      : "text-slate-700 hover:bg-slate-100"
-                  }`}
+                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all duration-200 ${
+                      isDark
+                        ? "text-slate-200 hover:!bg-sky-500/15 hover:!text-sky-300 hover:translate-x-1"
+                        : "text-slate-700 hover:!bg-sky-50 hover:!text-sky-700 hover:translate-x-1"
+                    }`}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    boxShadow: "none",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                  }}
                 >
                   <FaFolder className="text-sky-400" />
                   New folder
@@ -1178,13 +1188,19 @@ function MediaStorage() {
                     }
                     fileInputRef.current?.click();
                   }}
-                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
-                    storageFull ? "opacity-50" : ""
-                  } ${
+                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all duration-200 ${
                     isDark
-                      ? "text-slate-200 hover:bg-slate-800"
-                      : "text-slate-700 hover:bg-slate-100"
+                      ? "text-slate-200 hover:!bg-sky-500/15 hover:!text-sky-300 hover:translate-x-1"
+                      : "text-slate-700 hover:!bg-sky-50 hover:!text-sky-700 hover:translate-x-1"
                   }`}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    boxShadow: "none",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                  }}
                 >
                   <FaFile className="text-sky-400" />
                   Upload file
@@ -1407,12 +1423,82 @@ function MediaStorage() {
                 <FaTimes />
               </button>
             </div>
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
-              {viewingFile.isVideo ? (
-                <video controls src={viewingFile.url} className="max-h-[70vh] max-w-full rounded object-contain" />
-              ) : (
-                <img src={viewingFile.url} alt={viewingFile.name} className="max-h-[70vh] max-w-full rounded object-contain" />
-              )}
+            <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+
+              {/* Photo / Video Preview */}
+              <div className="flex min-h-[250px] flex-1 items-center justify-center overflow-hidden rounded-lg bg-black/5 p-3 dark:bg-black/30">
+                {viewingFile.isVideo ? (
+                  <video
+                    controls
+                    src={viewingFile.url}
+                    className="max-h-[65vh] max-w-full rounded object-contain"
+                  />
+                ) : (
+                  <img
+                    src={viewingFile.url}
+                    alt={viewingFile.name}
+                    onLoad={(e) => {
+                      const { naturalWidth, naturalHeight } = e.currentTarget;
+
+                      setViewingFile((prev) =>
+                        prev?.id === viewingFile.id
+                          ? {
+                              ...prev,
+                              dimensions: {
+                                width: naturalWidth,
+                                height: naturalHeight,
+                              },
+                            }
+                          : prev
+                      );
+                    }}
+                    className="max-h-[65vh] max-w-full rounded object-contain"
+                  />
+                )}
+              </div>
+
+              {/* File Information */}
+              <div className={`mt-4 grid grid-cols-2 gap-3 rounded-lg border p-4 sm:grid-cols-3 ${
+                isDark
+                  ? "border-slate-700 bg-slate-800/60"
+                  : "border-slate-200 bg-slate-50"
+              }`}>
+
+                {/* File Type */}
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    File Format
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">
+                    {viewingFile.name.split(".").pop()?.toUpperCase() || "Unknown"}
+                  </p>
+                </div>
+
+                {/* File Size */}
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    File Size
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">
+                    {formatBytes(viewingFile.sizeBytes)}
+                  </p>
+                </div>
+
+                {/* Dimensions */}
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {viewingFile.isVideo ? "Media Type" : "Dimensions"}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">
+                    {viewingFile.isVideo
+                      ? "Video"
+                      : viewingFile.dimensions
+                        ? `${viewingFile.dimensions.width} × ${viewingFile.dimensions.height} px`
+                        : "Reading dimensions..."}
+                  </p>
+                </div>
+
+              </div>
             </div>
           </div>
         </div>,

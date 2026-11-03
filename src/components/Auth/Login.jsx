@@ -7,6 +7,7 @@ import "./Login.css";
 import ForgotPasswordModal from "./ForgotPasswordModal";
 
 import {
+  FaArrowLeft,
   FaCameraRetro,
   FaEnvelope,
   FaLock,
@@ -200,6 +201,24 @@ function Login() {
 
   return (
     <div className="login-page">
+      {/* Back to Landing Page */}
+      <Link
+        to="/"
+        className="
+          fixed left-5 top-5 z-[100]
+          inline-flex items-center gap-2
+          text-sm font-medium
+          text-slate-500 dark:text-slate-400
+          transition-all duration-200
+          hover:-translate-x-1
+          hover:!text-sky-500
+          focus-visible:outline-none
+          focus-visible:!text-sky-500
+        "
+      >
+        <FaArrowLeft />
+        Back to Home
+      </Link>
       <div className="login-container">
 
         {/* Login heading */}

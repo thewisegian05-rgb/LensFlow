@@ -228,7 +228,73 @@ function Layout() {
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen((open) => !open)} onClose={() => setSidebarOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header sidebarOpen={sidebarOpen} onMenuClick={() => setSidebarOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-        <main className="relative flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-slate-950">
+        <main className="relative flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-[#020617]">
+          {/* Floating blue orbs */}
+          <div
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+            aria-hidden="true"
+          >
+            {/* Left orb - matches the landing page hero glows */}
+            <div
+              className="absolute -left-24 top-[10%] h-80 w-80 rounded-full blur-[80px] animate-[orbFloat1_12s_ease-in-out_infinite_alternate]"
+              style={{ background: "rgba(14,165,233,0.5)" }}
+            />
+
+            {/* Right orb - matches the landing page hero glows */}
+            <div
+              className="absolute -right-24 top-[20%] h-96 w-96 rounded-full blur-[90px] animate-[orbFloat2_16s_ease-in-out_infinite_alternate]"
+              style={{ background: "rgba(99,102,241,0.45)" }}
+            />
+
+            {/* Bottom orb - matches the landing page hero glows */}
+            <div
+              className="absolute bottom-[-100px] left-[35%] h-80 w-80 rounded-full blur-[85px] animate-[orbFloat3_14s_ease-in-out_infinite_alternate]"
+              style={{ background: "rgba(56,189,248,0.35)" }}
+            />
+          </div>
+          <style>{`
+            @keyframes orbFloat1 {
+              from { transform: translate(0, 0); }
+              to { transform: translate(120px, 80px); }
+            }
+
+            @keyframes orbFloat2 {
+              from { transform: translate(0, 0); }
+              to { transform: translate(-120px, 100px); }
+            }
+
+            @keyframes orbFloat3 {
+              from { transform: translate(0, 0); }
+              to { transform: translate(80px, -100px); }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+              [class*="animate-\\[orbFloat"] {
+                animation: none !important;
+              }
+            }
+          `}</style>
+
+          {/* Dashboard content */}
+          <div className="relative z-10 h-full overflow-y-auto custom-scrollbar">
+            <div
+              key={location.pathname}
+              className={`min-h-full p-4 sm:p-6 ${
+                navigation.loading
+                  ? "page-content-waiting"
+                  : "page-content-reveal"
+              }`}
+            >
+              {showingSearch ? (
+                // Keep your existing search results section here
+                <section className="mx-auto max-w-5xl">
+                  {/* Existing search results JSX */}
+                </section>
+              ) : (
+                <Outlet context={{ reportPageReady, routeKey: location.key }} />
+              )}
+            </div>
+          </div>
           <div className="h-full overflow-y-auto custom-scrollbar">
             <div key={location.pathname} className={`min-h-full p-4 sm:p-6 ${navigation.loading ? "page-content-waiting" : "page-content-reveal"}`}>
               {showingSearch ? (

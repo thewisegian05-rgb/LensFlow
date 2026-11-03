@@ -228,7 +228,7 @@ function Layout() {
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen((open) => !open)} onClose={() => setSidebarOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header sidebarOpen={sidebarOpen} onMenuClick={() => setSidebarOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-        <main className="relative flex-1 min-h-0 overflow-hidden bg-[#020617]">
+        <main className="relative flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-[#020617]">
           {/* Floating blue orbs */}
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -242,18 +242,19 @@ function Layout() {
             .lf-orb {
               position: absolute;
               border-radius: 9999px;
-              filter: blur(70px);
-              mix-blend-mode: screen;
-              opacity: .55;
+              filter: blur(85px);
+              opacity: .22;
               pointer-events: none;
+              mix-blend-mode: normal;
             }
 
+            /* Light mode - soft, pastel blue orbs */
             .lf-orb-a {
               width: 26rem;
               height: 26rem;
               left: -6rem;
               top: -4rem;
-              background: rgba(14,165,233,.5);
+              background: rgba(56, 189, 248, .35);
               animation: lfOrbA 16s ease-in-out infinite alternate;
             }
 
@@ -262,7 +263,7 @@ function Layout() {
               height: 30rem;
               right: -8rem;
               top: 10%;
-              background: rgba(99,102,241,.45);
+              background: rgba(129, 140, 248, .25);
               animation: lfOrbB 20s ease-in-out infinite alternate;
             }
 
@@ -271,34 +272,53 @@ function Layout() {
               height: 20rem;
               left: 35%;
               bottom: -6rem;
-              background: rgba(56,189,248,.35);
+              background: rgba(125, 211, 252, .3);
               animation: lfOrbC 18s ease-in-out infinite alternate;
+            }
+
+            /* Dark mode - restore the original glowing effect */
+            .dark .lf-orb {
+              filter: blur(70px);
+              opacity: .55;
+              mix-blend-mode: screen;
+            }
+
+            .dark .lf-orb-a {
+              background: rgba(14, 165, 233, .5);
+            }
+
+            .dark .lf-orb-b {
+              background: rgba(99, 102, 241, .45);
+            }
+
+            .dark .lf-orb-c {
+              background: rgba(56, 189, 248, .35);
             }
 
             @keyframes lfOrbA {
               from {
-                transform: translate3d(0,0,0) scale(1);
+                transform: translate3d(0, 0, 0) scale(1);
               }
               to {
-                transform: translate3d(22vw,12vh,0) scale(1.4);
+                transform: translate3d(22vw, 12vh, 0) scale(1.4);
               }
             }
 
             @keyframes lfOrbB {
               from {
-                transform: translate3d(0,0,0) scale(1.2);
+                transform: translate3d(0, 0, 0) scale(1.2);
               }
               to {
-                transform: translate3d(-24vw,16vh,0) scale(.85);
+                transform: translate3d(-24vw, 16vh, 0) scale(.85);
               }
             }
 
             @keyframes lfOrbC {
               from {
-                transform: translate3d(0,0,0) scale(.9);
+                transform: translate3d(0, 0, 0) scale(.9);
               }
               to {
-                transform: translate3d(-20vw,-14vh,0) scale(1.35);
+                transform: translate3d(-20vw, -14vh, 0) scale(1.35);
               }
             }
 

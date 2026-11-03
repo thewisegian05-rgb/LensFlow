@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useClientNav } from "../utils/clientRoutes";
 import {
   FaCameraRetro,
@@ -20,11 +20,20 @@ export const NAV_ITEMS = [
 ];
 
 export default function ClientSidebar({ onSignOut }) {
-  const { tabUrl, current } = useClientNav();
+  const { tabUrl, queryMode } = useClientNav();
+  const location = useLocation();
+  const { pathname, search } = location;
+
+  const current = queryMode
+    ? new URLSearchParams(search).get("tab") || "home"
+    : pathname.split("/").filter(Boolean).pop() || "home";
+
   const activeTab = NAV_ITEMS.some((i) => i.id === current) ? current : "home";
+
   const navRef = useRef(null);
   const [ind, setInd] = useState({ x: 0, y: 0, w: 0, h: 0, ready: false, animate: false });
 
+  // Re-run whenever location changes (covers both path and query-string changes)
   useLayoutEffect(() => {
     const measure = () => {
       const nav = navRef.current;
@@ -45,7 +54,8 @@ export default function ClientSidebar({ onSignOut }) {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [activeTab]);
+  // KEY FIX: depend on the full location object, not just activeTab
+  }, [activeTab, location]);
 
   return (
     <aside className="border-b border-slate-800 bg-[#0B1120] lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:h-screen lg:w-64 lg:flex-col lg:border-b-0 lg:border-r lg:border-slate-800 lg:bg-slate-900/90 lg:backdrop-blur-lg">

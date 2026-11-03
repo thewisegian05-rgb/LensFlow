@@ -18,7 +18,6 @@ import ResetPasswordPage from "../pages/ResetPasswordPage";
 import SignUpPage from "../pages/SignUpPage";
 import ClientPortalPage from "../pages/ClientPortalPage";
 
-// Landing page buttons go to the login page
 function Landing() {
   const navigate = useNavigate();
   return <LandingPage onLogin={() => navigate("/login")} />;
@@ -50,7 +49,8 @@ function AppRoutes() {
           </Route>
         </Route>
 
-        <Route path="/customer" element={<ClientPortalPage />} />
+        {/* Client portal — /* enables real path tabs like /customer/portfolio */}
+        <Route path="/customer/*" element={<ClientPortalPage />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

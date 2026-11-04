@@ -161,7 +161,8 @@ function Dashboard() {
     monthFees: null,
     upcomingFees: null,
     heldDownpayments: 0,
-    requests: null,
+    requests: null, // new requests (waiting for a quote or a downpayment)
+    cancelRequests: 0, // booked events the client asked to cancel
   });
   const [loadingStats, setLoadingStats] = useState(true);
   // Bumped on every refresh so the sections below reload too.
@@ -200,7 +201,8 @@ function Dashboard() {
         .from("schedule_events")
         .select("client")
         .gte("start_time", startOfToday.toISOString())
-        .lt("start_time", startOfTomorrow.toISOString());
+        .lt("start_time", startOfTomorrow.toISOString())
+        .or("status.is.null,status.neq.cancelled"); // cancelled events don't count
 
       if (todayError) {
         console.error("Failed to load today's clients:", todayError.message);
@@ -216,7 +218,8 @@ function Dashboard() {
         .from("schedule_events")
         .select("client")
         .gte("start_time", startOfTomorrow.toISOString())
-        .is("project_id", null);
+        .is("project_id", null)
+        .or("status.is.null,status.neq.cancelled"); // cancelled events don't count
 
       if (pendingError) {
         console.error("Failed to load pending clients:", pendingError.message);
@@ -296,7 +299,8 @@ function Dashboard() {
         });
       }
 
-      // Client booking requests still waiting for your quote.
+      // Client booking requests that need your attention.
+      // 1) New requests still waiting for your quote or a downpayment.
       let requests = null;
 
       const { count: requestCount, error: requestError } = await supabase
@@ -310,6 +314,22 @@ function Dashboard() {
         requests = requestCount || 0;
       }
 
+      // 2) Booked events where the client asked to cancel. These count as
+      //    requests too, since they are waiting on your answer.
+      let cancelRequests = 0;
+
+      const { count: cancelCount, error: cancelError } = await supabase
+        .from("booking_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "approved")
+        .not("cancel_requested_at", "is", null);
+
+      if (cancelError) {
+        console.error("Failed to load cancellation requests:", cancelError.message);
+      } else {
+        cancelRequests = cancelCount || 0;
+      }
+
       setStats({
         clientsToday,
         pendingClients,
@@ -319,6 +339,7 @@ function Dashboard() {
         upcomingFees,
         heldDownpayments,
         requests,
+        cancelRequests,
       });
       setLoadingStats(false);
   }, []);
@@ -349,6 +370,24 @@ function Dashboard() {
 
   // Total Clients = Clients Today + Pending Clients
   const totalClients = stats.clientsToday + stats.pendingClients;
+
+  // Booking Requests card = new requests + cancellation requests
+  const totalRequests =
+    stats.requests === null ? null : stats.requests + stats.cancelRequests;
+
+  let requestsSubtitle = "All caught up";
+  if (totalRequests > 0) {
+    if (stats.cancelRequests === 0) {
+      requestsSubtitle = "Awaiting your quote";
+    } else if (stats.requests === 0) {
+      requestsSubtitle = `${plural(stats.cancelRequests, "cancellation request")} to review`;
+    } else {
+      requestsSubtitle = `${stats.requests} new · ${plural(
+        stats.cancelRequests,
+        "cancellation"
+      )}`;
+    }
+  }
 
   const currentHour = new Date().getHours();
   const greeting =
@@ -445,11 +484,9 @@ function Dashboard() {
             index={3}
             loading={loadingStats}
             title="Booking Requests"
-            value={stats.requests}
-            subtitle={
-              stats.requests === 0 ? "All caught up" : "Awaiting your quote"
-            }
-            dot={stats.requests > 0 ? "bg-rose-400" : "bg-emerald-400"}
+            value={totalRequests}
+            subtitle={requestsSubtitle}
+            dot={totalRequests > 0 ? "bg-rose-400" : "bg-emerald-400"}
             icon={<FaInbox />}
             iconClass="bg-rose-500/10 text-rose-400"
           />

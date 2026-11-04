@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from "react";
 import { FaMapMarkerAlt, FaRegCalendarCheck } from "react-icons/fa";
 
@@ -59,6 +58,7 @@ function UpcomingSchedule({ refreshTick = 0 }) {
         "id, title, client, category, location, start_time, end_time, talent_fee, status"
       )
       .gte("start_time", startOfDay(new Date()).toISOString())
+      .or("status.is.null,status.neq.cancelled") // cancelled bookings leave the schedule
       .order("start_time", { ascending: true })
       .limit(40);
 

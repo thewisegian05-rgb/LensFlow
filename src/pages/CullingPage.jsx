@@ -148,8 +148,12 @@ const FolderCard = memo(function FolderCard({
         px-5
         py-4
         text-left
+        transform-gpu
         transition-all
-        duration-200
+        duration-300
+        ease-out
+        hover:-translate-y-1
+        hover:scale-[1.01]
         hover:border-slate-300
         hover:bg-slate-50
         hover:shadow-lg
@@ -239,7 +243,17 @@ const PhotoTile = memo(function PhotoTile({
   onSelect,
   onRate,
   isBestPick = false,
+  animationIndex = 0,
 }) {
+  const [isEntered, setIsEntered] = useState(false);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setIsEntered(true);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const stateClasses = selected
     ? "ring-2 ring-sky-500 border-sky-500"
     : state === "star"
@@ -265,8 +279,15 @@ const PhotoTile = memo(function PhotoTile({
           onSelect(img.id);
         }
       }}
-      className={`group relative overflow-hidden rounded-2xl border bg-white transition-all duration-200 hover:-translate-y-1 hover:border-sky-400 hover:shadow-lg dark:bg-slate-900 ${stateClasses}`}
-    >
+      className={`group relative overflow-hidden rounded-2xl border bg-white transition-all duration-500 ease-out hover:-translate-y-1 hover:border-sky-400 hover:shadow-lg dark:bg-slate-900 ${stateClasses} ${
+        isEntered
+          ? "translate-y-0 scale-100 opacity-100"
+          : "translate-y-4 scale-[0.97] opacity-0"
+      }`}
+      style={{
+        transitionDelay: `${Math.min(animationIndex, 8) * 45}ms`,
+      }}
+      >
       {/* Photo preview */}
       {img.previewable && img.thumbUrl ? (
         <img
@@ -274,7 +295,7 @@ const PhotoTile = memo(function PhotoTile({
           loading="lazy"
           decoding="async"
           fetchPriority="low"
-          className={`h-full w-full object-cover transition duration-200 ${
+          className={`h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 motion-reduce:transform-none motion-reduce:transition-none ${
             state === "reject" ? "brightness-50" : ""
           }`}
           alt={img.fileName}
@@ -307,26 +328,16 @@ const PhotoTile = memo(function PhotoTile({
         )}
       </div>
 
-      {/* Star / Reject status indicators */}
+      {/* Existing star / reject status indicators */}
       {state === "star" && (
-        <span
-          className={`absolute right-2 z-10 rounded-full bg-black/70 p-1 text-sky-400 ${
-            isBestPick ? "top-10" : "top-2"
-          }`}
-          title={isBestPick ? "Starred — Best Pick" : "Starred"}
-        >
+        <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-sky-400">
           <FaStar className="text-[10px]" />
         </span>
       )}
 
       {(state === "reject" || aiResult?.ai_decision === "REJECT") &&
         state !== "star" && (
-          <span
-            className={`absolute right-2 z-10 rounded-full bg-black/70 p-1 text-rose-400 ${
-              isBestPick ? "top-10" : "top-2"
-            }`}
-            title="Rejected"
-          >
+          <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-rose-400">
             <FaBan className="text-[10px]" />
           </span>
         )}
@@ -498,11 +509,11 @@ function VirtualizedPhotoGrid({
   return (
     <div
       ref={gridRef}
-      className="grid gap-3"
+      className="grid gap-3 [contain:layout_paint]"
       style={{ gridTemplateColumns: `repeat(${range.columns}, minmax(0, 1fr))` }}
     >
       {topSpace > 0 && <div aria-hidden="true" style={{ height: topSpace, gridColumn: "1 / -1" }} />}
-      {images.slice(firstIndex, lastIndex).map((img) => {
+      {images.slice(firstIndex, lastIndex).map((img, index) => {
         const aiResult = aiResults[img.id];
 
         return (
@@ -514,6 +525,7 @@ function VirtualizedPhotoGrid({
             selected={lightboxId === img.id}
             onSelect={onSelect}
             onRate={onRate}
+            animationIndex={firstIndex + index}
             isBestPick={
               Boolean(
                 aiResult?.similarity_group &&
@@ -764,6 +776,28 @@ function CullingPage() {
   }, []);
 
   const [mode, setMode] = useState("cull"); // 'cull' | 'duplicates'
+  // Tab transition animation
+  const [tabContentVisible, setTabContentVisible] = useState(true);
+  const tabTransitionTimerRef = useRef(null);
+
+  const switchModeWithAnimation = (nextMode) => {
+    if (nextMode === mode) return;
+
+    clearTimeout(tabTransitionTimerRef.current);
+    setTabContentVisible(false);
+
+    tabTransitionTimerRef.current = setTimeout(() => {
+      setMode(nextMode);
+
+      requestAnimationFrame(() => {
+        setTabContentVisible(true);
+      });
+    }, 180);
+  };
+
+  useEffect(() => {
+    return () => clearTimeout(tabTransitionTimerRef.current);
+  }, []);
 
   /* ============ CULLING GRID STATE (Supabase-backed, nested folders) ============ */
   const [folders, setFolders] = useState([]); // [{ id, name, parentId }]
@@ -794,6 +828,43 @@ function CullingPage() {
       return [];
     }
   });
+
+  // Folder navigation animations
+  const [folderViewVisible, setFolderViewVisible] = useState(true);
+  const folderTransitionTimerRef = useRef(null);
+
+  const openFolderWithAnimation = (folderId) => {
+    clearTimeout(folderTransitionTimerRef.current);
+
+    setFolderViewVisible(false);
+
+    setPath((prev) => [...prev, folderId]);
+    setFilter("all");
+    setPreviewOpen(false);
+    setLightboxId(null);
+
+    requestAnimationFrame(() => {
+      setFolderViewVisible(true);
+    });
+  };
+
+  const closeFolderWithAnimation = (nextPath) => {
+    clearTimeout(folderTransitionTimerRef.current);
+
+    // Play the exit animation first.
+    setFolderViewVisible(false);
+    setPreviewOpen(false);
+    setLightboxId(null);
+
+    folderTransitionTimerRef.current = setTimeout(() => {
+      setPath(nextPath);
+
+      // Restore visibility for the next folder view.
+      requestAnimationFrame(() => {
+        setFolderViewVisible(true);
+      });
+    }, 250);
+  };
   const [filter, setFilter] = useState("all");
   const [defectFilter, setDefectFilter] = useState("all");
   const [lightboxId, setLightboxId] = useState(null);
@@ -829,6 +900,17 @@ function CullingPage() {
     ? Math.min(storageUsed / STORAGE_LIMIT_BYTES, 1)
     : 0;
 
+    const [storageBarAnimated, setStorageBarAnimated] = useState(false);
+
+  useEffect(() => {
+    if (storageUsed === null) return;
+
+    const frame = requestAnimationFrame(() => {
+      setStorageBarAnimated(true);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [storageUsed]);
   const [storageError, setStorageError] = useState("");
 
   const refreshStorageUsed = useCallback(async () => {
@@ -2436,13 +2518,13 @@ function CullingPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-4">
+      <div className="mb-5 flex flex-col items-start justify-between gap-4 transition-opacity duration-300 sm:flex-row sm:items-center">
         <h2 className="text-xl sm:text-2xl font-semibold text-white">Culling Station</h2>
         <div className="flex items-center gap-2 w-full sm:w-auto" />
       </div>
 
       {/* Storage usage (same 10 GB total as Media Storage) */}
-      <div className="mb-5 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-5 rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-shadow duration-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
           <span className="font-semibold text-slate-800 dark:text-slate-100">Storage</span>
           <span className="text-slate-600 dark:text-slate-400">
@@ -2466,14 +2548,18 @@ function CullingPage() {
           aria-label="Storage used"
         >
           <div
-            className={`h-full rounded-full transition-all duration-500 ${
+            className={`h-full rounded-full transition-all duration-[1500ms] ease-out ${
               storageRatio >= 0.95
                 ? "bg-rose-500"
                 : storageRatio >= 0.8
                 ? "bg-amber-500"
                 : "bg-sky-500"
             }`}
-            style={{ width: `${storageUsed > 0 ? Math.max(storageRatio * 100, 1) : 0}%` }}
+            style={{
+              width: storageBarAnimated
+                ? `${storageUsed > 0 ? Math.max(storageRatio * 100, 1) : 0}%`
+                : "0%",
+            }}
           />
         </div>
 
@@ -2500,7 +2586,7 @@ function CullingPage() {
       <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-800">
         <button
           type="button"
-          onClick={() => setMode("cull")}
+          onClick={() => switchModeWithAnimation("cull")}
           className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors
             ${
               mode === "cull"
@@ -2516,7 +2602,7 @@ function CullingPage() {
 
         <button
           type="button"
-          onClick={() => setMode("duplicates")}
+          onClick={() => switchModeWithAnimation("duplicates")}
           className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors
             ${
               mode === "duplicates"
@@ -2533,7 +2619,13 @@ function CullingPage() {
 
       {/* ============ CULL MODE ============ */}
       {mode === "cull" && (
-        <div>
+        <div
+          className={`transform-gpu transition-all duration-300 ease-out ${
+            tabContentVisible
+              ? "translate-y-0 opacity-100"
+              : "translate-y-2 opacity-0"
+          }`}
+        >
           {dataLoading ? (
             <p className="text-sm text-slate-500 text-center py-16">Loading your photos...</p>
           ) : (
@@ -2543,10 +2635,7 @@ function CullingPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2 flex-wrap text-sm">
                     <button
-                      onClick={() => {
-                        setPath(path.slice(0, -1));
-                        setLightboxId(null);
-                      }}
+                      onClick={() => closeFolderWithAnimation(path.slice(0, -1))}
                       className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors mr-2"
                     >
                       <FaArrowLeft className="text-xs" /> Back
@@ -2558,11 +2647,7 @@ function CullingPage() {
                         <span key={`${crumb.id}-${index}`} className="flex items-center gap-2">
                           {index > 0 && <span className="text-slate-600">/</span>}
                           <button
-                            onClick={() => {
-                              setPath(path.slice(0, index));
-                              setPreviewOpen(false);
-                              setLightboxId(null);
-                            }}
+                            onClick={() => closeFolderWithAnimation(path.slice(0, index))}
                             disabled={isLast}
                             className={
                               isLast
@@ -2677,12 +2762,7 @@ function CullingPage() {
                         starred={starred}
                         onExport={() => handleExportFolder(folder.id)}
                         exportLoading={exportLoading}
-                        onOpen={() => {
-                          setPath([...path, folder.id]);
-                          setFilter("all");
-                          setPreviewOpen(false);
-                          setLightboxId(null);
-                        }}
+                        onOpen={() => openFolderWithAnimation(folder.id)}
                         onContextMenu={(e) => handleFolderContextMenu(e, folder.id)}
                       />
                     );
@@ -2712,14 +2792,13 @@ function CullingPage() {
 
               {/* Photos in the currently open folder */}
               {path.length > 0 && (
-                <div className="space-y-5">
-                  <div
-                    className={`grid gap-5 items-start ${
-                      lightboxImage
-                        ? "xl:grid-cols-[minmax(0,1fr)_360px]"
-                        : "grid-cols-1"
-                    }`}
-                  >
+                <div
+                  className={`space-y-5 transform-gpu transition-all duration-250 ease-out ${
+                    folderViewVisible
+                      ? "translate-y-0 opacity-100 scale-100"
+                      : "translate-y-3 opacity-0 scale-[0.99] pointer-events-none"
+                  }`}
+                >
                     <div className="min-w-0 space-y-5">
                       {/* Top controls: upload, automated culling, culling summary */}
                       <div
@@ -3073,7 +3152,7 @@ function CullingPage() {
 
                     {/* Detail panel */}
                     {lightboxImage && (
-                      <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 xl:sticky xl:top-4 xl:h-[calc(100vh-7rem)] xl:max-h-[calc(100vh-7rem)] xl:flex xl:flex-col xl:overflow-hidden">
+                      <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 ease-out dark:border-slate-800 dark:bg-slate-900/90 xl:sticky xl:top-4 xl:h-[calc(100vh-7rem)] xl:max-h-[calc(100vh-7rem)] xl:flex xl:flex-col xl:overflow-hidden">
                         <div className="mb-2 flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate font-mono text-xs font-semibold text-slate-900 dark:text-white">
@@ -3112,7 +3191,7 @@ function CullingPage() {
                         {showDetailInfo &&
                           createPortal(
                             <div
-                              className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+                              className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none"
                             role="presentation"
                             onClick={() => setShowDetailInfo(false)}
                           >
@@ -3120,7 +3199,7 @@ function CullingPage() {
                               role="dialog"
                               aria-modal="true"
                               aria-labelledby="detail-info-title"
-                              className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                              className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl transition-all duration-200 ease-out dark:border-slate-700 dark:bg-slate-900"
                               onClick={(event) => event.stopPropagation()}
                             >
                               <div className="flex items-start justify-between gap-3">
@@ -3434,7 +3513,6 @@ function CullingPage() {
                       </aside>
                     )}
                   </div>
-                </div>
               )}
             </div>
           )}
@@ -3443,7 +3521,13 @@ function CullingPage() {
 
       {/* ============ DUPLICATE REVIEW TAB ============ */}
       {mode === "duplicates" && (
-        <div className="space-y-5">
+        <div
+          className={`space-y-5 transform-gpu transition-all duration-300 ease-out ${
+            tabContentVisible
+              ? "translate-y-0 opacity-100"
+              : "translate-y-2 opacity-0"
+          }`}
+        >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-white">Similar Photo Review</h3>

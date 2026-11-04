@@ -70,6 +70,50 @@ function AddEventModal({
   const [savingPayment, setSavingPayment] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
+  // The modal is rendered through a portal, so it may sit outside the
+  // element that receives the application's `.dark` class. Detect the
+  // active theme at document level and keep it in sync with theme changes.
+  const getIsDarkMode = () => {
+    const root = document.documentElement;
+    const body = document.body;
+    const appRoot = document.getElementById("root");
+
+    return (
+      root.classList.contains("dark") ||
+      body.classList.contains("dark") ||
+      appRoot?.classList.contains("dark") ||
+      Boolean(appRoot?.querySelector(".dark"))
+    );
+  };
+
+  const [isDarkMode, setIsDarkMode] = useState(() =>
+    typeof document !== "undefined" ? getIsDarkMode() : false
+  );
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const syncTheme = () => setIsDarkMode(getIsDarkMode());
+    syncTheme();
+
+    const observer = new MutationObserver(syncTheme);
+    const targets = [
+      document.documentElement,
+      document.body,
+      document.getElementById("root"),
+    ].filter(Boolean);
+
+    targets.forEach((target) =>
+      observer.observe(target, {
+        attributes: true,
+        attributeFilter: ["class"],
+        subtree: true,
+      })
+    );
+
+    return () => observer.disconnect();
+  }, []);
+
   // Animate the modal in after it mounts. Keep it mounted while closing.
   useEffect(() => {
     if (!open) {
@@ -384,7 +428,7 @@ function AddEventModal({
             />
 
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-slate-300">
+              <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Client Name
               </label>
 
@@ -405,9 +449,6 @@ function AddEventModal({
                       ...prev,
                       client: value,
                       clientId: matchedClient?.id || null,
-                      // Pre-fill the fee from this client's last known
-                      // rate, but only if the user hasn't already
-                      // typed one in — don't clobber a manual edit.
                       talentFee:
                         matchedClient && prev.talentFee === ""
                           ? matchedClient.talentFee ?? ""
@@ -418,13 +459,13 @@ function AddEventModal({
                   }}
                   placeholder="Select or enter a client"
                   required
-                  className="
-                    w-full rounded-lg border border-slate-700
-                    bg-slate-800 px-4 py-3 pr-10
-                    text-white outline-none
-                    transition
-                    focus:border-sky-500
-                  "
+                  className="w-full rounded-lg border p-3 pr-10 outline-none transition focus:border-sky-500 placeholder:text-slate-500"
+                  style={{
+                    backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
+                    color: isDarkMode ? "#ffffff" : "#0f172a",
+                    borderColor: isDarkMode ? "#334155" : "#dfe7f1",
+                    colorScheme: isDarkMode ? "dark" : "light",
+                  }}
                 />
 
                 <button
@@ -436,7 +477,7 @@ function AddEventModal({
                     absolute right-0 top-0 flex h-full w-10
                     items-center justify-center
                     !border-none !bg-transparent
-                    text-slate-300
+                    text-slate-500 dark:text-slate-300
                     hover:!bg-transparent
                     focus:!bg-transparent
                   "
@@ -447,12 +488,11 @@ function AddEventModal({
 
               {clientDropdownOpen && (
                 <div
-                  className="
-                    absolute left-0 right-0 z-50 mt-1
-                    max-h-60 overflow-y-auto
-                    rounded-lg border border-slate-700
-                    bg-slate-800 shadow-xl
-                  "
+                  className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-xl"
+                  style={{
+                    backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
+                    borderColor: isDarkMode ? "#334155" : "#e2e8f0",
+                  }}
                 >
                   {filteredClients.length > 0 ? (
                     filteredClients.map((client) => (
@@ -472,20 +512,25 @@ function AddEventModal({
 
                           setClientDropdownOpen(false);
                         }}
-                        className="
-                          block w-full
-                          !border-none !bg-transparent
-                          px-4 py-3 text-left
-                          text-white
-                          hover:!bg-slate-700
-                          focus:!bg-slate-700
-                        "
+                        className="block w-full border-0 px-4 py-3 text-left"
+                        style={{
+                          backgroundColor: "transparent",
+                          color: isDarkMode ? "#ffffff" : "#1e293b",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = isDarkMode
+                            ? "#334155"
+                            : "#f1f5f9";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
                       >
                         {client.name}
                       </button>
                     ))
                   ) : (
-                    <div className="px-4 py-3 text-sm text-slate-400">
+                    <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
                       No existing client found
                     </div>
                   )}
@@ -493,7 +538,7 @@ function AddEventModal({
               )}
 
               {form.client && !form.clientId && (
-                <p className="mt-1 text-xs text-sky-400">
+                <p className="mt-1 text-xs text-sky-600 dark:text-sky-400">
                   New client — this client will be created when you save the event.
                 </p>
               )}

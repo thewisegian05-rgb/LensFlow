@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { supabase } from "../../../lib/supabaseClient";
-import Section from "../components/ui/Section";
-import Stars from "../components/ui/Stars";
 import TabHeader from "../components/ui/TabHeader";
 import ReviewForm from "../components/ReviewForm";
 
@@ -14,8 +13,10 @@ export default function ReviewsTab() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [canReview, setCanReview] = useState(null);
+  const [sortOrder, setSortOrder] = useState("newest");
 
-  // Load this photographer's reviews straight from the reviews table.
+  // Load photographer reviews.
   useEffect(() => {
     let cancelled = false;
 
@@ -26,13 +27,17 @@ export default function ReviewsTab() {
         return;
       }
 
+      setLoading(true);
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       const { data, error: selectError } = await supabase
         .from("photographer_reviews")
-        .select("id, client_id, reviewer_name, rating, comment, shoot_type, created_at")
+        .select(
+          "id, client_id, reviewer_name, rating, comment, shoot_type, created_at"
+        )
         .eq("photographer_id", activeId)
         .order("created_at", { ascending: false });
 
@@ -42,9 +47,13 @@ export default function ReviewsTab() {
         console.error("Could not load reviews:", selectError);
       } else {
         setReviews(
-          (data || []).map((r) => ({ ...r, mine: r.client_id === user?.id }))
+          (data || []).map((r) => ({
+            ...r,
+            mine: r.client_id === user?.id,
+          }))
         );
       }
+
       setLoading(false);
     };
 
@@ -55,15 +64,19 @@ export default function ReviewsTab() {
     };
   }, [activeId, refreshKey]);
 
-  // Reviews unlock once an event with this photographer reaches "Completed"
-  // in the photographer's Workflow tab. null = still checking.
-  const [canReview, setCanReview] = useState(null);
-
+  // Check review eligibility.
   useEffect(() => {
     let cancelled = false;
 
     const check = async () => {
-      const { data, error: rpcErr } = await supabase.rpc("my_event_progress");
+      if (!activeId) {
+        setCanReview(false);
+        return;
+      }
+
+      const { data, error: rpcErr } = await supabase.rpc(
+        "my_event_progress"
+      );
 
       if (cancelled) return;
 
@@ -75,7 +88,9 @@ export default function ReviewsTab() {
 
       setCanReview(
         (Array.isArray(data) ? data : []).some(
-          (e) => e.photographer_id === activeId && e.stage === "completed"
+          (e) =>
+            e.photographer_id === activeId &&
+            e.stage === "completed"
         )
       );
     };
@@ -84,6 +99,7 @@ export default function ReviewsTab() {
 
     const timer = setInterval(check, 15000);
     const onFocus = () => check();
+
     window.addEventListener("focus", onFocus);
 
     return () => {
@@ -95,10 +111,32 @@ export default function ReviewsTab() {
 
   const myReview = reviews.find((r) => r.mine) || null;
 
+  // Rating statistics.
   const average = reviews.length
-    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    ? reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
+      reviews.length
     : 0;
 
+  const ratingCounts = [5, 4, 3, 2, 1].map((rating) => ({
+    rating,
+    count: reviews.filter(
+      (r) => Math.round(Number(r.rating)) === rating
+    ).length,
+  }));
+
+  // Sort reviews.
+  const sortedReviews = useMemo(() => {
+    return [...reviews].sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+
+      return sortOrder === "newest"
+        ? dateB - dateA
+        : dateA - dateB;
+    });
+  }, [reviews, sortOrder]);
+
+  // Submit or update a review.
   const handleReview = async (rating, comment, shootType) => {
     setSaving(true);
     setError("");
@@ -117,8 +155,8 @@ export default function ReviewsTab() {
       return;
     }
 
-    // Show the new review right away, then refresh the rest of the portal.
     setRefreshKey((k) => k + 1);
+
     try {
       await reload?.();
     } catch (err) {
@@ -128,91 +166,228 @@ export default function ReviewsTab() {
 
   return (
     <div className="min-w-0 space-y-4">
+      {/* Page heading */}
       <TabHeader
         eyebrow="Feedback"
         title="Ratings & Reviews"
         text="Tell others what it was like to work with this photographer."
       />
 
-      <Section
-        title="Ratings & Reviews"
-        dot="bg-emerald-400"
-        right={
-          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-300">
-            {reviews.length ? `${average.toFixed(1)} ★ · ${reviews.length}` : reviews.length}
-          </span>
-        }
-      >
-        <div className="space-y-3">
-          {canReview === null && !myReview ? (
-            <div className="h-20 animate-pulse rounded-lg bg-slate-800" aria-label="Checking your events" />
-          ) : canReview || myReview ? (
-            <ReviewForm
-              key={`${activeId}-${myReview?.id || "new"}`}
-              existing={myReview}
-              onSubmit={handleReview}
-              saving={saving}
-              error={error}
-            />
-          ) : (
-            <p className="rounded-lg border border-slate-700 bg-slate-950/50 p-3 text-xs leading-relaxed text-slate-400">
-              You can leave a review once your event reaches{" "}
-              <span className="font-semibold text-slate-200">Completed</span>. You can follow its
-              progress on the Home page.
-            </p>
-          )}
+      {/* Rating overview */}
+      <section className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-4 sm:p-5">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-[125px_1fr] sm:items-center sm:gap-5">
 
-          {loading ? (
-            <div className="h-16 animate-pulse rounded-lg bg-slate-800" aria-label="Loading reviews" />
-          ) : reviews.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-slate-700 py-6 text-center text-sm text-slate-500">
-              No reviews yet.
+          {/* Average rating */}
+          <div className="flex flex-col items-center justify-center border-b border-slate-700/60 pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
+            <div className="flex items-center gap-1">
+              <span className="text-4xl font-bold tracking-tight text-white tabular-nums">
+                {reviews.length ? average.toFixed(1) : "—"}
+              </span>
+              <span className="text-2xl text-amber-400">★</span>
+            </div>
+
+            <p className="mt-1 text-xs text-slate-400">
+              {reviews.length}{" "}
+              {reviews.length === 1 ? "review" : "reviews"}
             </p>
-          ) : (
-            reviews.map((review, i) => (
+          </div>
+
+          {/* Rating distribution */}
+          <div className="space-y-2">
+            {ratingCounts.map(({ rating, count }) => {
+              const percentage = reviews.length
+                ? (count / reviews.length) * 100
+                : 0;
+
+              return (
+                <div
+                  key={rating}
+                  className="flex items-center gap-2"
+                >
+                  <div className="flex w-[65px] shrink-0 items-center gap-1">
+                    <div className="flex items-center gap-px text-[15px]">
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <span
+                          key={i}
+                          className={
+                            i < rating
+                              ? "text-amber-400"
+                              : "text-slate-600"
+                          }
+                        >
+                          {i < rating ? "★" : "☆"}
+                        </span>
+                      ))}
+                    </div>
+
+                    <span className="text-[10px] text-slate-400">
+                      ({count})
+                    </span>
+                  </div>
+
+                  <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-sky-400 transition-all duration-500"
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+
+                  <span className="w-7 shrink-0 text-right text-[10px] text-slate-400 tabular-nums">
+                    {Math.round(percentage)}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Review eligibility */}
+      {canReview === null && !myReview ? (
+        <div className="h-11 animate-pulse rounded-lg bg-slate-800/70" />
+      ) : canReview || myReview ? (
+        <section className="space-y-3">
+          <ReviewForm
+            key={`${activeId}-${myReview?.id || "new"}`}
+            existing={myReview}
+            onSubmit={handleReview}
+            saving={saving}
+            error={error}
+          />
+        </section>
+      ) : (
+        <div className="flex items-start gap-2 rounded-lg border border-sky-500/30 bg-sky-500/[0.06] px-3 py-2.5">
+          <span className="mt-px text-sm text-sky-400">ⓘ</span>
+
+          <p className="text-[13px] leading-relaxed text-slate-300">
+            You can leave a review once your event reaches{" "}
+            <span className="font-semibold text-white">
+              Completed
+            </span>
+            . You can follow its progress on the Home page.
+          </p>
+        </div>
+      )}
+
+      {/* Reviews heading and sorting */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-slate-200">
+            Reviews ({reviews.length})
+          </h3>
+
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className="cursor-pointer rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-slate-300 outline-none transition hover:border-slate-500 focus:border-sky-500"
+            aria-label="Sort reviews"
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+          </select>
+        </div>
+
+        {/* Review list */}
+        {loading ? (
+          <div className="space-y-2">
+            <div className="h-20 animate-pulse rounded-xl bg-slate-800/70" />
+            <div className="h-20 animate-pulse rounded-xl bg-slate-800/70" />
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-700/70 px-4 py-10 text-center">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-xl text-slate-400">
+              ☆
+            </div>
+
+            <p className="mt-3 text-sm font-medium text-slate-300">
+              No reviews yet
+            </p>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Client feedback will appear here once someone leaves a review.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sortedReviews.map((review) => (
               <article
                 key={review.id}
-                style={{ "--d": `${i * 70}ms` }}
-                className="lf-row rounded-lg border border-slate-700 bg-slate-950/40 p-3"
+                className="rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 transition-colors hover:border-slate-600/80 sm:p-4"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Stars value={review.rating} size="text-xs" />
+                <div className="flex items-start gap-3">
 
-                    <span className="text-xs font-semibold text-slate-300">
-                      {review.reviewer_name || "Client"}
-                    </span>
+                  {/* Avatar */}
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-400">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="h-5 w-5"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.42 0-8 2.24-8 5v2h16v-2c0-2.76-3.58-5-8-5Z" />
+                    </svg>
+                  </div>
+
+                  {/* Review content */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-slate-200">
+                          {review.reviewer_name || "Client"}
+                        </p>
+
+                        <div className="mt-1 flex items-center gap-0.5 text-sm leading-none text-amber-400">
+                          {Array.from({ length: 5 }, (_, i) => (
+                            <span
+                              key={i}
+                              className={
+                                i < Number(review.rating)
+                                  ? "opacity-100"
+                                  : "opacity-25"
+                              }
+                            >
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <span className="shrink-0 text-[10px] text-slate-500">
+                        {new Date(review.created_at).toLocaleDateString(
+                          undefined,
+                          {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          }
+                        )}
+                      </span>
+                    </div>
+
+                    {review.comment && (
+                      <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-300">
+                        {review.comment}
+                      </p>
+                    )}
 
                     {review.shoot_type && (
-                      <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                      <span className="mt-2 inline-flex rounded-full border border-slate-700/70 bg-slate-800/60 px-2 py-0.5 text-[10px] text-slate-400">
                         {review.shoot_type}
                       </span>
                     )}
 
                     {review.mine && (
-                      <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300">
+                      <span className="ml-2 inline-flex rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-300">
                         You
                       </span>
                     )}
                   </div>
-
-                  <span className="text-[11px] text-slate-500">
-                    {new Date(review.created_at).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </span>
                 </div>
-
-                {review.comment && (
-                  <p className="mt-2 text-sm leading-relaxed text-slate-300">{review.comment}</p>
-                )}
               </article>
-            ))
-          )}
-        </div>
-      </Section>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -272,6 +272,12 @@ function SignUpPage() {
             >
               <p>{checkEmailMessage}</p>
 
+              <p className="signup-confirmation-spam-note">
+                Didn't receive the email? Please check your spam or junk folder.
+                If you find it there, mark it as "Not Spam" so future LensFlow
+                emails arrive in your inbox.
+              </p>
+
               <Link to="/" className="signup-link">
                 Back to Sign In
               </Link>

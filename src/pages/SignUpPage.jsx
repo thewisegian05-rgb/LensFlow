@@ -15,6 +15,7 @@ import {
   FaUsers,
   FaEye,
   FaEyeSlash,
+  FaArrowLeft,
 } from "react-icons/fa";
 
 // Convert Supabase errors into user-friendly messages.
@@ -252,6 +253,23 @@ function SignUpPage() {
 
   return (
     <div className="login-page">
+      <Link
+        to="/"
+        className="
+          fixed left-5 top-5 z-[100]
+          inline-flex items-center gap-2
+          text-sm font-medium
+          text-slate-500 dark:text-slate-400
+          transition-all duration-200
+          hover:-translate-x-1
+          hover:!text-sky-500
+          focus-visible:outline-none
+          focus-visible:!text-sky-500
+        "
+      >
+        <FaArrowLeft aria-hidden="true" />
+        Back to Home
+      </Link>
       <div className="login-container">
         <div className="login-header">
           <div className="login-brand">

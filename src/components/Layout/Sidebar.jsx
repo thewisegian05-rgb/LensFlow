@@ -173,7 +173,7 @@ function Sidebar({ isOpen, onToggle, onClose }) {
 
       <aside
         aria-hidden={!isOpen}
-        className={`fixed inset-y-0 left-0 z-40 h-screen shrink-0 overflow-hidden border-r border-slate-200 bg-white/90 backdrop-blur-lg transition-all duration-300 dark:border-slate-800 dark:bg-slate-900/90 lg:static lg:z-auto ${
+        className={`fixed inset-y-0 left-0 z-40 h-dvh shrink-0 overflow-hidden border-r border-slate-200 bg-white/90 backdrop-blur-lg transition-all duration-300 dark:border-slate-800 dark:bg-slate-900/90 lg:static lg:z-auto ${
           isOpen
             ? "w-64 translate-x-0"
             : "w-64 -translate-x-full lg:w-0 lg:translate-x-0 lg:border-r-0"
@@ -206,11 +206,11 @@ function Sidebar({ isOpen, onToggle, onClose }) {
           <AnimatedNavLinks
             links={mainLinks}
             onNavigate={handleNavClick}
-            className="custom-scrollbar flex-1 overflow-y-auto py-4"
+            className="custom-scrollbar min-h-0 flex-1 overflow-y-auto py-4"
           />
 
           {/* Bottom navigation */}
-          <div className="border-t border-slate-200 dark:border-slate-800">
+          <div className="shrink-0 border-t border-slate-200 dark:border-slate-800">
             <AnimatedNavLinks
               links={bottomLinks}
               onNavigate={handleNavClick}

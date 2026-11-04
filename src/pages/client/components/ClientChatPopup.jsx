@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { FaTimes } from "react-icons/fa";
 import Avatar from "./ui/Avatar";
 import ChatThread from "../../../components/Chat/ChatThread";
 import { supabase } from "../../../lib/supabaseClient";
+import { getFeaturedPhotoSignedUrl } from "../utils/portalUrls";
 
 /*
   Chat with ONE photographer, opened from the right panel.
@@ -20,6 +21,35 @@ export default function ClientChatPopup({
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState(avatarSignedUrl || null);
+
+  // The avatar is in a private bucket, so a plain path must be signed first.
+  useEffect(() => {
+    let cancelled = false;
+    if (avatarSignedUrl) {
+      setAvatarUrl(avatarSignedUrl);
+      return;
+    }
+    if (!avatarPath) {
+      setAvatarUrl(null);
+      return;
+    }
+    if (/^https?:\/\//i.test(avatarPath)) {
+      setAvatarUrl(avatarPath);
+      return;
+    }
+    (async () => {
+      try {
+        const signed = await getFeaturedPhotoSignedUrl(avatarPath);
+        if (!cancelled) setAvatarUrl(signed || null);
+      } catch {
+        if (!cancelled) setAvatarUrl(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [avatarPath, avatarSignedUrl]);
 
   // Who is the signed-in client?
   useEffect(() => {
@@ -122,7 +152,11 @@ export default function ClientChatPopup({
     if (sendError) {
       console.error("Failed to send message:", sendError);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      setError("Message not sent. Your text is still in the box, so you can try again.");
+      setError(
+        `Message not sent: ${sendError.message || "unknown error"}${
+          sendError.code ? ` (code ${sendError.code})` : ""
+        }`
+      );
       return false;
     }
 
@@ -132,6 +166,9 @@ export default function ClientChatPopup({
     });
     return true;
   };
+
+  // the database refuses messages where both sides are the same account
+  const isSelf = Boolean(userId && photographerId && userId === photographerId);
 
   return (
     <div
@@ -153,7 +190,7 @@ export default function ClientChatPopup({
         avatar={
           <div className="h-10 w-10 shrink-0 rounded-full ring-2 ring-blue-500/40">
             <Avatar
-              path={avatarSignedUrl || avatarPath}
+              path={avatarUrl}
               name={name}
               className="h-full w-full rounded-full"
             />
@@ -164,10 +201,18 @@ export default function ClientChatPopup({
         onSend={send}
         loading={loading}
         error={error}
-        disabled={!photographerId || !userId}
-        emptyTitle={photographerId ? "No messages yet" : "Couldn't find your photographer"}
+        disabled={!photographerId || !userId || isSelf}
+        emptyTitle={
+          isSelf
+            ? "You can't message yourself"
+            : photographerId
+            ? "No messages yet"
+            : "Couldn't find your photographer"
+        }
         emptyText={
-          photographerId
+          isSelf
+            ? "You're signed in as this photographer. Sign in with a different client account to chat."
+            : photographerId
             ? `Say hello to ${name} to start the conversation.`
             : "Reconnect with their code and try again."
         }
@@ -175,3 +220,4 @@ export default function ClientChatPopup({
     </div>
   );
 }
+

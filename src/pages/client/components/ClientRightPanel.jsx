@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FaKey, FaCamera, FaCommentDots } from "react-icons/fa";
 import { supabase } from "../../../lib/supabaseClient";
 import { getFeaturedPhotoSignedUrl, getProfile } from "../utils/portalUrls";
+import { useClientNav } from "../utils/clientRoutes";
 import ClientChatPopup from "./ClientChatPopup";
 import NotificationBell from "./NotificationBell";
 
@@ -109,6 +111,8 @@ function Avatar({ path, signedUrl }) {
 }
 
 export default function ClientRightPanel({ connections = [], activeId, portal, onSelect, onOpenCode }) {
+  const navigate = useNavigate();
+  const { tabUrl } = useClientNav();
   const asideRef = useRef(null);
   const requested = useRef(new Set());
   const [profiles, setProfiles] = useState({}); // photographer_id -> { name, avatarPath }
@@ -164,9 +168,11 @@ export default function ClientRightPanel({ connections = [], activeId, portal, o
   const chatConn = chatId ? connections.find((c) => getId(c) === chatId) : null;
   const chat = chatConn ? describe(chatConn) : null;
 
+  /* clicking a photographer only switches to them and shows their portfolio (no chat popup) */
   const handleClick = (id) => {
-    onSelect(id); // switch the portal to this photographer
-    setChatId((cur) => (cur === id ? null : id)); // open (or close) their messages
+    onSelect(id);
+    setChatId(null);
+    navigate(tabUrl("portfolio"));
   };
 
   /* "Messages" button: opens the chat of the active photographer (or the first one) */
@@ -197,17 +203,7 @@ export default function ClientRightPanel({ connections = [], activeId, portal, o
           />
         </div>
 
-        <button
-          onClick={openMessages}
-          disabled={connections.length === 0}
-          className={`lf-btn mt-4 flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
-            chatId
-              ? "border-sky-500/50 bg-sky-500/10 text-sky-300"
-              : "border-white/5 bg-white/[0.02] text-slate-200 hover:bg-white/5"
-          }`}
-        >
-          <FaCommentDots className="shrink-0 text-slate-400" /> Messages
-        </button>
+        
 
         <h3 className="mb-3 mt-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
           Creatives
@@ -221,14 +217,13 @@ export default function ClientRightPanel({ connections = [], activeId, portal, o
           <ul className="space-y-2">
             {connections.map((c, index) => {
               const { id, active, name, avatarPath, signedUrl } = describe(c);
-              const chatting = id != null && id === chatId;
               return (
                 <li key={id ?? index}>
                   <button
                     onClick={() => handleClick(id)}
-                    title="Open messages"
+                    title="View portfolio"
                     className={`lf-row flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition ${
-                      active || chatting
+                      active
                         ? "border-sky-500/50 bg-sky-500/10"
                         : "border-white/5 bg-white/[0.02] hover:bg-white/5"
                     }`}
@@ -260,3 +255,4 @@ export default function ClientRightPanel({ connections = [], activeId, portal, o
     </>
   );
 }
+

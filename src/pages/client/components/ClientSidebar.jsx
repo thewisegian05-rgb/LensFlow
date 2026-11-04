@@ -12,6 +12,7 @@ import {
   FaSignOutAlt,
 } from "react-icons/fa";
 
+// Kept complete so other files that import NAV_ITEMS keep working.
 export const NAV_ITEMS = [
   { id: "home",      label: "Home",        icon: FaHome },
   { id: "portfolio", label: "Portfolio",   icon: FaRegImage },
@@ -20,6 +21,10 @@ export const NAV_ITEMS = [
   { id: "reviews",   label: "Reviews",     icon: FaHeart },
   { id: "messages",  label: "Messages",    icon: FaCommentDots },
 ];
+
+// Messages now lives in the right panel, so it is not shown in this sidebar.
+const HIDDEN_IN_SIDEBAR = ["messages"];
+const SIDEBAR_ITEMS = NAV_ITEMS.filter((i) => !HIDDEN_IN_SIDEBAR.includes(i.id));
 
 export default function ClientSidebar({ onSignOut }) {
   const { tabUrl, queryMode } = useClientNav();
@@ -40,7 +45,11 @@ export default function ClientSidebar({ onSignOut }) {
     const measure = () => {
       const nav = navRef.current;
       const el = nav?.querySelector(`[data-tab="${activeTab}"]`);
-      if (!el) return;
+      if (!el) {
+        // current page has no sidebar item (e.g. Messages): hide the highlight
+        setInd((p) => ({ ...p, ready: false }));
+        return;
+      }
       setInd((p) => ({
         x: el.offsetLeft,
         y: el.offsetTop,
@@ -84,7 +93,7 @@ export default function ClientSidebar({ onSignOut }) {
             transform: `translate(${ind.x}px, ${ind.y}px)`,
           }}
         />
-        {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+        {SIDEBAR_ITEMS.map(({ id, label, icon: Icon }) => {
           const on = activeTab === id;
           return (
             <Link

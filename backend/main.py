@@ -20,6 +20,20 @@ from culling_engine import (
     generate_culling_decisions,
     group_similar_photos,
 )
+
+print("LENSFLOW: Starting culling_engine imports...", flush=True)
+
+from culling_engine import (
+    analyze_subject_quality,
+    analyze_technical_quality,
+    calculate_aesthetic_score,
+    calculate_quality_scores,
+    detect_defects,
+    generate_culling_decisions,
+    group_similar_photos,
+)
+
+print("LENSFLOW: culling_engine imports completed!", flush=True)
 # ============================================================
 # Environment / Project Configuration
 # ============================================================

@@ -3,13 +3,14 @@ import { useOutletContext } from "react-router-dom";
 import Stars from "../components/ui/Stars";
 import Avatar from "../components/ui/Avatar";
 import Section from "../components/ui/Section";
+import EventProgress from "./EventProgress";
 import { getProfile } from "../utils/portalUrls";
 
 const HERO_IMG =
   "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1800&q=85";
 
 export default function HomeTab() {
-  const { portal, goTo } = /** @type {any} */ (useOutletContext());
+  const { portal, goTo, activeId } = /** @type {any} */ (useOutletContext());
   const profile = getProfile(portal);
   const name = profile.display_name || profile.username || profile.name || "Photographer";
 
@@ -53,7 +54,12 @@ export default function HomeTab() {
       <section className="lf-reveal min-w-0 rounded-2xl border border-slate-700/80 bg-gradient-to-r from-[#102338] to-[#0B1628] p-4 shadow-sm shadow-black/10 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="lf-ring h-[88px] w-[88px]">
-            <Avatar path={profile.avatar_path} name={name} className="h-full w-full rounded-full" />
+            {/* The avatar is in the private photos bucket, so use the signed link when we have one */}
+            <Avatar
+              path={portal.avatar_signed_url || profile.avatar_path}
+              name={name}
+              className="h-full w-full rounded-full"
+            />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -98,6 +104,9 @@ export default function HomeTab() {
           </div>
         </div>
       </section>
+
+      {/* Progress of the client's confirmed events (follows the photographer's Workflow tab) */}
+      <EventProgress activeId={activeId} goTo={goTo} />
 
       {/* Shortcuts to other tabs */}
       <div className="grid min-w-0 gap-4 md:grid-cols-2">

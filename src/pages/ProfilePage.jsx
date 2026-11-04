@@ -21,6 +21,7 @@ import {
   FaCheck,
   FaShareAlt,
   FaTrash,
+  FaStar,
 } from "react-icons/fa";
 
 import { FiX } from "react-icons/fi"
@@ -62,6 +63,23 @@ const DEFAULT_PROFILE_INFO = {
 function reportError(message, err) {
   console.error(message, err);
   window.alert(`${message}\n\n${err?.message || ""}`.trim());
+}
+
+// Read-only row of 5 stars for a rating value.
+function StarRating({ value = 0, size = "text-sm" }) {
+  const filled = Math.round(value);
+
+  return (
+    <div className={`flex items-center gap-0.5 ${size}`} aria-label={`${value} out of 5 stars`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <FaStar
+          key={n}
+          className={n <= filled ? "text-amber-400" : "text-slate-300 dark:text-slate-700"}
+          aria-hidden="true"
+        />
+      ))}
+    </div>
+  );
 }
 
 // Fixed loading time (ms) para sa skeleton, kahit ready na ang data
@@ -325,6 +343,13 @@ export default function Profile() {
   const [connectionCodeError, setConnectionCodeError] = useState("");
   const [connectionCodeCopied, setConnectionCodeCopied] = useState(false);
 
+  // PROFILE STATS
+  const [followerCount, setFollowerCount] = useState(0);
+
+  // CLIENT REVIEWS
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+
   // FIXED 2s LOADING (kahit ready na ang data)
   const [minLoadDone, setMinLoadDone] = useState(false);
 
@@ -510,6 +535,83 @@ export default function Profile() {
 
     loadOrCreateConnectionCode();
     return () => { cancelled = true; };
+  }, [userId]);
+
+
+  // ========================================
+  // LOAD FOLLOWER COUNT (clients who connected with this photographer's code)
+  // ========================================
+  useEffect(() => {
+    if (!userId) return;
+
+    let cancelled = false;
+
+    const loadFollowerCount = async () => {
+      const { data, error } = await supabase.rpc("my_follow_counts");
+
+      if (error) {
+        console.error("Failed to load follower count:", error);
+        return;
+      }
+
+      if (!cancelled) setFollowerCount(Number(data?.followers) || 0);
+    };
+
+    loadFollowerCount();
+
+    // Refresh when the photographer comes back to this tab.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadFollowerCount();
+    };
+    window.addEventListener("focus", loadFollowerCount);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", loadFollowerCount);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [userId]);
+
+  // ========================================
+  // LOAD CLIENT REVIEWS
+  // ========================================
+  useEffect(() => {
+    if (!userId) return;
+
+    let cancelled = false;
+
+    const loadReviews = async () => {
+      const { data, error } = await supabase
+        .from("photographer_reviews")
+        .select("id, rating, comment, reviewer_name, shoot_type, created_at")
+        .eq("photographer_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Failed to load reviews:", error);
+      } else {
+        setReviews(data || []);
+      }
+      setReviewsLoading(false);
+    };
+
+    loadReviews();
+
+    // Refresh when the photographer comes back to this tab.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadReviews();
+    };
+    window.addEventListener("focus", loadReviews);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", loadReviews);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [userId]);
 
   const copyConnectionCode = async () => {
@@ -1025,6 +1127,14 @@ export default function Profile() {
 
 
   // ========================================
+  // AVERAGE RATING
+  // ========================================
+  const averageRating = reviews.length
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : 0;
+
+
+  // ========================================
   // LOADING / SIGNED-OUT / ERROR STATES
   // ========================================
   if (!minLoadDone || !profileLoaded) {
@@ -1167,9 +1277,9 @@ export default function Profile() {
           <div className="flex-1">
             <div className="mb-5 flex gap-8">
               {[
-                ["12", "Posts"],
-                ["102", "Followers"],
-                ["0", "Following"],
+                [featuredPhotos.length, "Posts"],
+                [followerCount, "Followers"],
+                [reviews.length ? `${averageRating.toFixed(1)} ★` : "–", "Rating"],
               ].map(([number, label]) => (
                 <div key={label}>
                   <p className="text-xl font-bold">{number}</p>
@@ -1490,6 +1600,83 @@ export default function Profile() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* ========================================
+            CLIENT REVIEWS SECTION
+            ======================================== */}
+        <section
+          className="profile-reveal mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900/70"
+          style={{ animationDelay: "380ms" }}
+          aria-labelledby="reviews-heading"
+        >
+          <div className="mb-5">
+            <h2 id="reviews-heading" className="text-lg font-bold">
+              Client Reviews
+            </h2>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Feedback from clients who connected with you.
+            </p>
+          </div>
+
+          {reviewsLoading ? (
+            <div className="h-20 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" aria-label="Loading reviews" />
+          ) : reviews.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-500 dark:border-slate-700">
+              No reviews yet. Clients who connect with your code can leave feedback.
+            </p>
+          ) : (
+            <>
+              <div className="mb-5 flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/70">
+                <p className="text-4xl font-extrabold">
+                  {averageRating.toFixed(1)}
+                </p>
+
+                <div>
+                  <StarRating value={averageRating} size="text-lg" />
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Based on {reviews.length} {reviews.length === 1 ? "review" : "reviews"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {reviews.map((review) => (
+                  <article
+                    key={review.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="truncate text-sm font-semibold">
+                        {review.reviewer_name || "Client"}
+                      </p>
+
+                      <p className="shrink-0 text-xs text-slate-500">
+                        {new Date(review.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <StarRating value={review.rating} />
+
+                      {review.shoot_type && (
+                        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                          {review.shoot_type}
+                        </span>
+                      )}
+                    </div>
+
+                    {review.comment && (
+                      <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-slate-600 dark:text-slate-300">
+                        {review.comment}
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
         </section>
       </div>
 

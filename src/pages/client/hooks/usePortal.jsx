@@ -27,8 +27,19 @@ export function usePortal(photographerId) {
           photo_url: await getFeaturedPhotoSignedUrl(photo.storage_path),
         }))
       );
+
+      // The avatar lives in the same private bucket, so it needs a signed link too.
+      // get_portal returns the photographer fields at the top level; also check nested shapes.
+      const avatarPath =
+        data?.avatar_path || data?.profile?.avatar_path || data?.photographer?.avatar_path || null;
+      const avatarSignedUrl = await getFeaturedPhotoSignedUrl(avatarPath);
+
       if (request !== requestRef.current) return;
-      setPortal({ ...data, featured_photos: featuredPhotos });
+      setPortal({
+        ...data,
+        featured_photos: featuredPhotos,
+        avatar_signed_url: avatarSignedUrl,
+      });
     } catch (err) {
       if (request !== requestRef.current) return;
       console.error("Failed to load portal:", err.message || err);

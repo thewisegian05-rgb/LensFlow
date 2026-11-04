@@ -4,7 +4,6 @@ python-multipart
 supabase
 python-dotenv
 opencv-contrib-python-headless
-numpy
 mediapipe
 torch
 torchvision

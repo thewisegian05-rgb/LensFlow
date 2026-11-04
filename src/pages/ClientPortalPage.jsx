@@ -71,7 +71,9 @@ function ClientLayout() {
 
   const handleSignOut = async () => {
     const ok = await signOut();
-    if (ok) navigate("/", { replace: true });
+    if (ok) {
+      navigate("/login", { replace: true });
+    }
   };
 
   if (authLoading) {

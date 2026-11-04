@@ -17,6 +17,7 @@ import SettingsPage from "../pages/SettingsPage";
 import ResetPasswordPage from "../pages/ResetPasswordPage";
 import SignUpPage from "../pages/SignUpPage";
 import ClientPortalPage from "../pages/ClientPortalPage";
+import EmailVerifiedPage from "../pages/EmailVerifiedPage";
 
 function Landing() {
   const navigate = useNavigate();
@@ -32,8 +33,9 @@ function AppRoutes() {
 
         {/* Auth */}
         <Route path="/login" element={<Login />} />
-        <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/email-verified" element={<EmailVerifiedPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
 
         {/* Protected dashboard */}
         <Route element={<ProtectedRoute />}>

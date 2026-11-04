@@ -200,10 +200,10 @@ function SignUpPage() {
           email: form.email.trim(),
           password: form.password,
           options: {
+            emailRedirectTo: `${window.location.origin}/email-verified`,
             data: {
               account_type: form.accountType,
               full_name: form.fullName.trim(),
-              // Studio name is optional for photographers.
               studio_name:
                 form.accountType !== "customer"
                   ? form.studioName.trim()

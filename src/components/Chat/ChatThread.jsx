@@ -243,7 +243,11 @@ export default function ChatThread({
                       : "rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   } ${m.pending ? "opacity-70" : ""}`}
                 >
-                  <p className="whitespace-pre-wrap break-words">
+                  <p
+                    className={`whitespace-pre-wrap break-words ${
+                      mine ? "!text-white" : "text-slate-800 dark:text-slate-100"
+                    }`}
+                  >
                     {m.body}
                   </p>
 

@@ -47,8 +47,11 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   const [error, setError] = useState("");
   const [errorId, setErrorId] = useState(null); // which card the error belongs to
   const [loadError, setLoadError] = useState("");
-  const [confirmRow, setConfirmRow] = useState(null); // the booking the client is about to cancel
+  const [confirmId, setConfirmId] = useState(null); // id of the booking the client is about to cancel
   const [reason, setReason] = useState(""); // optional note sent with a cancellation request
+
+  // Always the freshest copy of the row, so the poll can't leave the popup with stale data
+  const confirmRow = rows.find((r) => r.id === confirmId) || null;
 
   const load = useCallback(async () => {
     if (!photographerId) return;
@@ -84,13 +87,13 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
 
   // Escape closes the cancel confirmation
   useEffect(() => {
-    if (!confirmRow) return;
+    if (!confirmId) return;
     const onKey = (e) => {
-      if (e.key === "Escape" && !busyId) setConfirmRow(null);
+      if (e.key === "Escape" && !busyId) setConfirmId(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [confirmRow, busyId]);
+  }, [confirmId, busyId]);
 
   async function run(id, call) {
     setBusyId(id);
@@ -126,7 +129,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
       // Nothing is booked yet, so these cancel straight away.
       await (row.status === "awaiting_dp" ? cancelAwaiting(row.id) : cancel(row.id));
     }
-    setConfirmRow(null);
+    setConfirmId(null);
     setReason("");
   }
 
@@ -293,7 +296,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
                   disabled={busy}
                   onClick={() => {
                     setReason("");
-                    setConfirmRow(r);
+                    setConfirmId(r.id);
                   }}
                   className={
                     r.status === "approved"
@@ -313,9 +316,10 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
       {confirmRow &&
         createPortal(
           <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+            className="fixed inset-0 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+            style={{ zIndex: 2147483647 }}
             onMouseDown={(e) => {
-              if (e.target === e.currentTarget && !busyId) setConfirmRow(null);
+              if (e.target === e.currentTarget && !busyId) setConfirmId(null);
             }}
           >
             <div
@@ -361,7 +365,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
                 <button
                   type="button"
                   disabled={busyId === confirmRow.id}
-                  onClick={() => setConfirmRow(null)}
+                  onClick={() => setConfirmId(null)}
                   className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white disabled:opacity-50"
                 >
                   Keep booking

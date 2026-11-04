@@ -358,6 +358,7 @@ function SchedulePage() {
     const { data, error } = await supabase
       .from("schedule_events")
       .select("*")
+      .or("status.is.null,status.neq.cancelled") // cancelled bookings leave the schedule
       .order("start_time", { ascending: true });
 
     if (error) {

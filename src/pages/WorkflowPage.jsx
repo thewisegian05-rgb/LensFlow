@@ -348,6 +348,7 @@ function WorkflowPage() {
       .from("schedule_events")
       .select("*")
       .eq("user_id", userId)
+      .or("status.is.null,status.neq.cancelled") // cancelled bookings leave the workflow
       .order("start_time", { ascending: true });
 
     if (eventErr) {

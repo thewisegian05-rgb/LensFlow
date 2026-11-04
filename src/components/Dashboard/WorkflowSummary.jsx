@@ -81,6 +81,7 @@ function WorkflowSummary({ refreshTick = 0 }) {
       const { data: events, error: eventsError } = await supabase
         .from("schedule_events")
         .select("*")
+        .or("status.is.null,status.neq.cancelled") // cancelled bookings leave the workflow
         .order("start_time", { ascending: true });
 
       if (eventsError) {

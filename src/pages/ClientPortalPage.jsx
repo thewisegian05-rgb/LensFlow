@@ -1,10 +1,11 @@
-import { Component, useEffect } from "react";
+import { Component, useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import ClientPortalStyles from "./client/ClientPortalStyles";
 
 import ClientAuth from "./client/components/ClientAuth";
 import ClientSidebar from "./client/components/ClientSidebar";
 import ClientHeader from "./client/components/ClientHeader";
+import ClientRightPanel from "./client/components/ClientRightPanel";
 import PortalSkeleton from "./client/components/PortalSkeleton";
 import CodeForm from "./client/components/CodeForm";
 
@@ -52,11 +53,25 @@ function TabBridge(props) {
   return <Tab {...ctx} />;
 }
 
+/* true when the screen is xl (>= 1280px) wide, so the right panel is visible */
+function useIsXl() {
+  const q = "(min-width: 1280px)";
+  const [v, setV] = useState(() => typeof window !== "undefined" && window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q);
+    const h = (e) => setV(e.matches);
+    m.addEventListener("change", h);
+    return () => m.removeEventListener("change", h);
+  }, []);
+  return v;
+}
+
 function ClientLayout() {
   const navigate = useNavigate();
   const { user, authLoading, signOut } = useClientAuth();
   const conn = useConnections(user, authLoading);
   const { portal, loading: portalLoading, error: portalError, reload } = usePortal(conn.activeId);
+  const isXl = useIsXl();
 
   /* each tab is a real URL (/customer/home, /customer/schedule ...) like the admin */
   const { tabUrl, current } = useClientNav();
@@ -152,7 +167,7 @@ function ClientLayout() {
             connections={conn.connections}
             activeId={conn.activeId}
             onSelect={conn.setActiveId}
-            showCodeButton={!conn.noConnections}
+            showCodeButton={!conn.noConnections && !isXl}
             onOpenCode={conn.openCodeForm}
             onSignOut={handleSignOut}
           />
@@ -160,6 +175,16 @@ function ClientLayout() {
             <div className="mx-auto w-full max-w-[1500px]">{content}</div>
           </main>
         </div>
+
+        {/* Right panel: Enter Connection Code + My Photographers (xl screens only) */}
+        {!conn.noConnections && (
+          <ClientRightPanel
+            connections={conn.connections}
+            activeId={conn.activeId}
+            onSelect={conn.setActiveId}
+            onOpenCode={conn.openCodeForm}
+          />
+        )}
       </div>
     </div>
   );

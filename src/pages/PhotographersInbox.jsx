@@ -161,24 +161,32 @@ export default function PhotographersInbox() {
   };
 
   const activeName = names[activeId] || "Client";
-  const panel = "min-h-0 overflow-hidden rounded-2xl border border-slate-700/80 bg-[#0B1628] shadow-sm shadow-black/10";
+  const panel =
+    "min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50 dark:border-slate-700/80 dark:bg-[#0B1628] dark:shadow-black/10";
 
   return (
     <div className="grid h-[calc(100dvh-8rem)] min-h-[480px] gap-4 md:grid-cols-[320px_1fr]">
       {/* Conversation list */}
       <aside className={`${activeId ? "hidden md:flex" : "flex"} ${panel} flex-col`}>
-        <div className="space-y-3 border-b border-slate-800 px-4 py-4">
-          <h2 className="text-base font-bold text-white">Messages</h2>
-          <div className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 focus-within:border-sky-500">
+        <div className="space-y-3 border-b border-slate-200 px-4 py-4 dark:border-slate-800">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            Messages
+          </h2>
+
+          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 focus-within:border-sky-500 dark:border-slate-700 dark:bg-slate-900">
             <FaSearch className="text-xs text-slate-500" aria-hidden="true" />
-            <label htmlFor="inbox-search" className="sr-only">Search conversations</label>
+
+            <label htmlFor="inbox-search" className="sr-only">
+              Search conversations
+            </label>
+
             <input
               id="inbox-search"
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search conversations"
-              className="h-9 w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+              className="h-9 w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-white dark:placeholder:text-slate-500"
             />
           </div>
         </div>
@@ -194,9 +202,15 @@ export default function PhotographersInbox() {
             <p role="alert" className="px-4 py-6 text-sm text-rose-300">{error}</p>
           ) : conversations.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-6 py-12 text-center text-sm text-slate-500">
-              <FaRegCommentDots className="text-2xl text-slate-600" />
-              <p className="font-medium text-slate-300">No messages yet</p>
-              <p>When a client writes to you, the conversation will show up here.</p>
+              <FaRegCommentDots className="text-2xl text-slate-400 dark:text-slate-600" />
+
+              <p className="font-medium text-slate-700 dark:text-slate-300">
+                No messages yet
+              </p>
+
+              <p>
+                When a client writes to you, the conversation will show up here.
+              </p>
             </div>
           ) : visible.length === 0 ? (
             <p className="px-4 py-6 text-sm text-slate-500">No conversations match “{query}”.</p>
@@ -211,22 +225,28 @@ export default function PhotographersInbox() {
                       type="button"
                       onClick={() => setActiveId(c.clientId)}
                       aria-current={active}
-                      className={`flex w-full items-center gap-3 border-l-[3px] px-4 py-3 text-left transition hover:bg-slate-800/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400 ${
-                        active ? "border-blue-500 bg-slate-800/70" : "border-transparent"
+                      className={`flex w-full items-center gap-3 border-l-[3px] px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400 dark:hover:bg-slate-800/60 ${
+                        active
+                          ? "border-blue-500 bg-blue-50 dark:bg-slate-800/70"
+                          : "border-transparent"
                       }`}
                     >
                       <ChatAvatar name={names[c.clientId]} className="h-11 w-11" />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-semibold text-white">
+                          <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">
                             {names[c.clientId] || "Client"}
                           </span>
                           <span className="shrink-0 text-[11px] text-slate-500">
-                            {listTime(c.last.created_at)}
-                          </span>
+                          {listTime(c.last.created_at)}
+                        </span>
                         </span>
                         <span className="mt-0.5 flex items-center justify-between gap-2">
-                          <span className={`truncate text-xs ${c.unread ? "font-semibold text-slate-200" : "text-slate-400"}`}>
+                          <span className={`truncate text-xs ${
+                            c.unread
+                              ? "font-semibold text-slate-700 dark:text-slate-200"
+                              : "text-slate-500 dark:text-slate-400"
+                          }`}>
                             {mine ? "You: " : ""}
                             {c.last.body}
                           </span>
@@ -252,7 +272,7 @@ export default function PhotographersInbox() {
       <section className={`${activeId ? "block" : "hidden md:block"} ${panel}`}>
         {!activeId ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-slate-500">
-            <FaRegCommentDots className="text-3xl text-slate-600" />
+            <FaRegCommentDots className="text-3xl text-slate-400 dark:text-slate-600" />
             Select a conversation to start chatting.
           </div>
         ) : (

@@ -349,6 +349,19 @@ export default function Profile() {
   // CLIENT REVIEWS
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
+  const ratingDistribution = [5, 4, 3, 2, 1].map((rating) => {
+    const count = reviews.filter(
+      (review) => Math.round(Number(review.rating)) === rating
+    ).length;
+
+    return {
+      rating,
+      count,
+      percentage: reviews.length
+        ? (count / reviews.length) * 100
+        : 0,
+    };
+  });
 
   // FIXED 2s LOADING (kahit ready na ang data)
   const [minLoadDone, setMinLoadDone] = useState(false);
@@ -1602,6 +1615,7 @@ export default function Profile() {
           </div>
         </section>
 
+        
         {/* ========================================
             CLIENT REVIEWS SECTION
             ======================================== */}
@@ -1610,68 +1624,194 @@ export default function Profile() {
           style={{ animationDelay: "380ms" }}
           aria-labelledby="reviews-heading"
         >
+          {/* Section heading */}
           <div className="mb-5">
-            <h2 id="reviews-heading" className="text-lg font-bold">
+            <h2
+              id="reviews-heading"
+              className="text-lg font-bold text-slate-900 dark:text-white"
+            >
               Client Reviews
             </h2>
 
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Feedback from clients who connected with you.
             </p>
           </div>
 
           {reviewsLoading ? (
-            <div className="h-20 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" aria-label="Loading reviews" />
+            <div
+              className="space-y-3"
+              aria-label="Loading reviews"
+            >
+              <div className="h-24 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+              <div className="h-20 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+            </div>
           ) : reviews.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-500 dark:border-slate-700">
-              No reviews yet. Clients who connect with your code can leave feedback.
-            </p>
+            /* Empty state */
+            <div className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center dark:border-slate-700">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  className="h-6 w-6"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.8l-5.25 2.8 1-5.8L3.5 9.7l5.9-.9L12 3.5z"
+                  />
+                </svg>
+              </div>
+
+              <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                No reviews yet
+              </p>
+
+              <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                Client feedback will appear here once someone leaves a review
+                through your photographer profile.
+              </p>
+            </div>
           ) : (
             <>
-              <div className="mb-5 flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/70">
-                <p className="text-4xl font-extrabold">
-                  {averageRating.toFixed(1)}
-                </p>
+              {/* Rating overview */}
+              <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/60 sm:p-5">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-[130px_1fr] sm:items-center sm:gap-6">
 
-                <div>
-                  <StarRating value={averageRating} size="text-lg" />
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Based on {reviews.length} {reviews.length === 1 ? "review" : "reviews"}
-                  </p>
+                  {/* Average rating */}
+                  <div className="flex flex-col items-center justify-center border-b border-slate-200 pb-4 dark:border-slate-800 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
+                    <div className="flex items-center gap-1">
+                      <span className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white tabular-nums">
+                        {averageRating.toFixed(1)}
+                      </span>
+                      <span className="text-2xl text-amber-400">★</span>
+                    </div>
+
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {reviews.length}{" "}
+                      {reviews.length === 1 ? "review" : "reviews"}
+                    </p>
+                  </div>
+
+                  {/* Rating distribution */}
+                  <div className="space-y-2">
+                    {ratingDistribution.map(({ rating, count, percentage }) => (
+                      <div
+                        key={rating}
+                        className="flex items-center gap-2"
+                      >
+                        <div className="flex w-[72px] shrink-0 items-center gap-1">
+                          <div className="flex items-center text-[12px] leading-none">
+                            {Array.from({ length: 5 }, (_, i) => (
+                              <span
+                                key={i}
+                                className={
+                                  i < rating
+                                    ? "text-amber-400"
+                                    : "text-slate-300 dark:text-slate-600"
+                                }
+                              >
+                                {i < rating ? "★" : "☆"}
+                              </span>
+                            ))}
+                          </div>
+
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            ({count})
+                          </span>
+                        </div>
+
+                        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                          <div
+                            className="h-full rounded-full bg-sky-500 transition-all duration-500"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+
+                        <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
+                          {Math.round(percentage)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
+              {/* Reviews heading */}
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  All Reviews ({reviews.length})
+                </h3>
+
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Latest first
+                </span>
+              </div>
+
+              {/* Individual review cards */}
               <div className="space-y-3">
                 {reviews.map((review) => (
                   <article
                     key={review.id}
-                    className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950"
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950/70 dark:hover:border-slate-700"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate text-sm font-semibold">
-                        {review.reviewer_name || "Client"}
-                      </p>
+                    <div className="flex items-start gap-3">
 
-                      <p className="shrink-0 text-xs text-slate-500">
-                        {new Date(review.created_at).toLocaleDateString()}
-                      </p>
+                      {/* Reviewer avatar */}
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600 dark:bg-slate-800 dark:text-sky-300">
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="h-5 w-5"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.42 0-8 2.24-8 5v2h16v-2c0-2.76-3.58-5-8-5Z" />
+                        </svg>
+                      </div>
+
+                      {/* Review details */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
+                            {review.reviewer_name || "Client"}
+                          </p>
+
+                          <p className="shrink-0 text-[10px] text-slate-500 dark:text-slate-500">
+                            {new Date(review.created_at).toLocaleDateString(
+                              undefined,
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              }
+                            )}
+                          </p>
+                        </div>
+
+                        {/* Rating and shoot type */}
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <StarRating
+                            value={review.rating}
+                            size="text-sm"
+                          />
+
+                          {review.shoot_type && (
+                            <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[10px] font-semibold text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                              {review.shoot_type}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Client comment */}
+                        {review.comment && (
+                          <p className="mt-2 whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                            {review.comment}
+                          </p>
+                        )}
+                      </div>
                     </div>
-
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <StarRating value={review.rating} />
-
-                      {review.shoot_type && (
-                        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
-                          {review.shoot_type}
-                        </span>
-                      )}
-                    </div>
-
-                    {review.comment && (
-                      <p className="mt-2 whitespace-pre-line break-words text-sm leading-6 text-slate-600 dark:text-slate-300">
-                        {review.comment}
-                      </p>
-                    )}
                   </article>
                 ))}
               </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { supabase } from "../../lib/supabaseClient";
 
@@ -18,6 +19,22 @@ const peso = (n) =>
 const shortDate = (iso) =>
   new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
+// What the client is told before cancelling, depending on whether a downpayment is involved.
+function refundNote(r) {
+  const hasDown = r.downpayment_amount != null && Number(r.downpayment_amount) > 0;
+  if (r.status === "approved") {
+    if (hasDown && r.downpayment_received_at) {
+      return `Your downpayment of ${peso(r.downpayment_amount)} has already been received and is non-refundable, even if your cancellation is approved.`;
+    }
+    if (hasDown) {
+      return `If you already sent your downpayment of ${peso(r.downpayment_amount)}, it is non-refundable, even if your cancellation is approved.`;
+    }
+    return "Any downpayment you have paid is non-refundable, even if your cancellation is approved.";
+  }
+  if (!hasDown) return null;
+  return `If you already sent your downpayment of ${peso(r.downpayment_amount)}, it is non-refundable. Please do not send it if you are cancelling.`;
+}
+
 /**
  * The client's list of booking requests, with Accept / Decline on quotes.
  *  photographerId - active photographer's id
@@ -30,6 +47,8 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   const [error, setError] = useState("");
   const [errorId, setErrorId] = useState(null); // which card the error belongs to
   const [loadError, setLoadError] = useState("");
+  const [confirmRow, setConfirmRow] = useState(null); // the booking the client is about to cancel
+  const [reason, setReason] = useState(""); // optional note sent with a cancellation request
 
   const load = useCallback(async () => {
     if (!photographerId) return;
@@ -63,6 +82,16 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
     };
   }, [load]);
 
+  // Escape closes the cancel confirmation
+  useEffect(() => {
+    if (!confirmRow) return;
+    const onKey = (e) => {
+      if (e.key === "Escape" && !busyId) setConfirmRow(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmRow, busyId]);
+
   async function run(id, call) {
     setBusyId(id);
     setError("");
@@ -83,6 +112,23 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   const cancel = (id) => run(id, () => supabase.rpc("cancel_booking", { p_id: id }));
   const cancelAwaiting = (id) =>
     run(id, () => supabase.rpc("cancel_awaiting_request", { p_id: id }));
+
+  // Runs after the client confirms in the popup
+  async function confirmCancel() {
+    if (!confirmRow) return;
+    const row = confirmRow;
+    if (row.status === "approved") {
+      // A booked event needs the photographer to confirm, so this sends a request.
+      await run(row.id, () =>
+        supabase.rpc("request_booking_cancellation", { p_id: row.id, p_reason: reason })
+      );
+    } else {
+      // Nothing is booked yet, so these cancel straight away.
+      await (row.status === "awaiting_dp" ? cancelAwaiting(row.id) : cancel(row.id));
+    }
+    setConfirmRow(null);
+    setReason("");
+  }
 
   if (loadError) {
     return (
@@ -105,10 +151,15 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
       {error && !errorId && <p className="text-xs text-red-400">{error}</p>}
 
       {rows.map((r) => {
-        const s = STATUS[r.status] || STATUS.cancelled;
+        const cancelPending = r.status === "approved" && Boolean(r.cancel_requested_at);
+        const s = cancelPending
+          ? { label: "Cancellation requested", cls: "bg-amber-500/10 text-amber-300" }
+          : STATUS[r.status] || STATUS.cancelled;
         const busy = busyId === r.id;
         const hasDown = r.downpayment_amount != null && Number(r.downpayment_amount) > 0;
         const balance = Math.max(Number(r.offered_fee || 0) - Number(r.downpayment_amount || 0), 0);
+        const canCancel =
+          ["pending", "offered", "awaiting_dp", "approved"].includes(r.status) && !cancelPending;
 
         return (
           <article
@@ -207,6 +258,24 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
               </div>
             )}
 
+            {cancelPending && (
+              <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                <p className="text-sm text-slate-300">
+                  You asked to cancel this event on{" "}
+                  <span className="font-semibold text-white">{shortDate(r.cancel_requested_at)}</span>.
+                  Your date stays booked until your photographer confirms.
+                </p>
+                {r.cancel_reason && (
+                  <p className="mt-1 whitespace-pre-line text-xs text-slate-400">
+                    Your note: {r.cancel_reason}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-slate-500">
+                  The downpayment is non-refundable.
+                </p>
+              </div>
+            )}
+
             {error && errorId === r.id && (
               <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
                 {error}
@@ -217,23 +286,103 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
               <p className="mt-2 text-xs text-slate-400">{r.admin_message}</p>
             )}
 
-            {["pending", "offered", "awaiting_dp", "approved"].includes(r.status) && (
+            {canCancel && (
               <div className="mt-2 flex justify-end">
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() =>
-                    r.status === "awaiting_dp" ? cancelAwaiting(r.id) : cancel(r.id)
+                  onClick={() => {
+                    setReason("");
+                    setConfirmRow(r);
+                  }}
+                  className={
+                    r.status === "approved"
+                      ? "rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+                      : "text-xs text-slate-500 hover:text-white disabled:opacity-50"
                   }
-                  className="text-xs text-slate-500 hover:text-white disabled:opacity-50"
                 >
-                  Cancel request
+                  {r.status === "approved" ? "Request cancellation" : "Cancel request"}
                 </button>
               </div>
             )}
           </article>
         );
       })}
+
+      {/* Cancel confirmation: makes the no-refund rule clear before anything happens */}
+      {confirmRow &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !busyId) setConfirmRow(null);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cancel-booking-title"
+              className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center shadow-2xl"
+            >
+              <h3 id="cancel-booking-title" className="mb-2 text-lg font-bold text-white">
+                {confirmRow.status === "approved" ? "Request to cancel this event?" : "Cancel this request?"}
+              </h3>
+
+              <p className="text-sm font-medium text-slate-200">{confirmRow.title}</p>
+              <p className="mb-3 text-xs text-slate-500">
+                {confirmRow.event_date} · {confirmRow.start_time.slice(0, 5)}–
+                {confirmRow.end_time.slice(0, 5)}
+              </p>
+
+              <p className="mb-3 text-sm leading-relaxed text-slate-300">
+                {confirmRow.status === "approved"
+                  ? "You're about to send a cancellation request to your photographer. Your event stays booked until they confirm."
+                  : "You're about to cancel this request."}
+              </p>
+
+              {refundNote(confirmRow) && (
+                <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-200">
+                  {refundNote(confirmRow)}
+                </p>
+              )}
+
+              {confirmRow.status === "approved" && (
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={2}
+                  maxLength={300}
+                  placeholder="Reason for cancelling (optional)"
+                  className="mb-4 w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-left text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+                />
+              )}
+
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  disabled={busyId === confirmRow.id}
+                  onClick={() => setConfirmRow(null)}
+                  className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white disabled:opacity-50"
+                >
+                  Keep booking
+                </button>
+                <button
+                  type="button"
+                  disabled={busyId === confirmRow.id}
+                  onClick={confirmCancel}
+                  className="flex-1 rounded-xl bg-red-600 py-2.5 text-xs font-semibold text-white shadow-lg transition hover:bg-red-500 disabled:opacity-50"
+                >
+                  {busyId === confirmRow.id
+                    ? "Sending..."
+                    : confirmRow.status === "approved"
+                    ? "Send request"
+                    : "Yes, cancel"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

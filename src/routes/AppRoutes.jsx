@@ -18,7 +18,7 @@ import ResetPasswordPage from "../pages/ResetPasswordPage";
 import SignUpPage from "../pages/SignUpPage";
 import ClientPortalPage from "../pages/ClientPortalPage";
 import EmailVerifiedPage from "../pages/EmailVerifiedPage";
-import PhotographersInbox from "../pages/PhotographersInbox";
+import PhotographersInbox from "../pages/PhotographersInbox.jsx";
 
 function Landing() {
   const navigate = useNavigate();

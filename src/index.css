@@ -26,7 +26,14 @@ body {
   color: #e2e8f0;
 }
 
-html:not(.dark) {
+
+
+/* ==========================================
+   ADMIN LIGHT MODE OVERRIDES
+   Scoped exclusively to .admin-layout
+========================================== */
+
+html:not(.dark) .admin-layout {
   --card-bg: #ffffff;
   --card-soft: #f8fafc;
   --surface-border: #dfe7f1;
@@ -36,127 +43,126 @@ html:not(.dark) {
   --input-bg: #ffffff;
 }
 
-html:not(.dark) body,
-html:not(.dark) #root {
-  background: #f8fafc;
-  color: var(--text-main);
-}
-
-html:not(.dark) .bg-slate-950,
-html:not(.dark) .bg-slate-950\/80,
-html:not(.dark) .bg-slate-950\/40,
-html:not(.dark) .bg-slate-900,
-html:not(.dark) .bg-slate-900\/80,
-html:not(.dark) .bg-slate-900\/70,
-html:not(.dark) .bg-slate-900\/60,
-html:not(.dark) .bg-slate-800,
-html:not(.dark) .bg-slate-800\/50,
-html:not(.dark) .bg-slate-100 {
+/* Backgrounds */
+html:not(.dark) .admin-layout .bg-slate-950,
+html:not(.dark) .admin-layout .bg-slate-950\/80,
+html:not(.dark) .admin-layout .bg-slate-950\/40,
+html:not(.dark) .admin-layout .bg-slate-900,
+html:not(.dark) .admin-layout .bg-slate-900\/80,
+html:not(.dark) .admin-layout .bg-slate-900\/70,
+html:not(.dark) .admin-layout .bg-slate-900\/60,
+html:not(.dark) .admin-layout .bg-slate-800,
+html:not(.dark) .admin-layout .bg-slate-800\/50,
+html:not(.dark) .admin-layout .bg-slate-100 {
   background-color: #f1f5f9 !important;
 }
 
-html:not(.dark) .border-slate-700,
-html:not(.dark) .border-slate-800,
-html:not(.dark) .border-slate-300,
-html:not(.dark) .border-slate-200 {
-  border-color: var(--surface-border) !important;
+/* Borders — change color only, not thickness */
+html:not(.dark) .admin-layout .border-slate-700,
+html:not(.dark) .admin-layout .border-slate-800,
+html:not(.dark) .admin-layout .border-slate-300,
+html:not(.dark) .admin-layout .border-slate-200 {
+  border-color: #dfe7f1 !important;
 }
 
-html:not(.dark) .text-white,
-html:not(.dark) .text-slate-900,
-html:not(.dark) .text-slate-800 {
-  color: var(--text-main) !important;
+/* Text */
+html:not(.dark) .admin-layout .text-white,
+html:not(.dark) .admin-layout .text-slate-900,
+html:not(.dark) .admin-layout .text-slate-800 {
+  color: #0f172a !important;
 }
 
-html:not(.dark) .text-slate-700,
-html:not(.dark) .text-slate-600 {
-  color: var(--text-muted) !important;
+html:not(.dark) .admin-layout .text-slate-700,
+html:not(.dark) .admin-layout .text-slate-600 {
+  color: #475569 !important;
 }
 
-html:not(.dark) .text-slate-500,
-html:not(.dark) .text-slate-400,
-html:not(.dark) .text-slate-300 {
-  color: var(--text-soft) !important;
+html:not(.dark) .admin-layout .text-slate-500,
+html:not(.dark) .admin-layout .text-slate-400,
+html:not(.dark) .admin-layout .text-slate-300 {
+  color: #64748b !important;
 }
 
-html:not(.dark) .placeholder-slate-500::placeholder,
-html:not(.dark) input::placeholder,
-html:not(.dark) textarea::placeholder {
-  color: var(--text-soft) !important;
+/* Placeholders */
+html:not(.dark) .admin-layout input::placeholder,
+html:not(.dark) .admin-layout textarea::placeholder {
+  color: #64748b !important;
 }
 
-html:not(.dark) input,
-html:not(.dark) textarea,
-html:not(.dark) select {
-  background: var(--input-bg) !important;
-  color: var(--text-main) !important;
-  border-color: var(--surface-border) !important;
+/* Inputs */
+html:not(.dark) .admin-layout input,
+html:not(.dark) .admin-layout textarea,
+html:not(.dark) .admin-layout select {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #dfe7f1 !important;
   box-shadow: none !important;
 }
 
-html:not(.dark) button:not(.bg-sky-500):not(.bg-sky-600):not(.bg-red-500):not(.bg-red-600):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-slate-900):not(.bg-slate-800):not(.bg-transparent) {
+/* Buttons */
+html:not(.dark) .admin-layout button:not(.bg-sky-500):not(.bg-sky-600):not(.bg-red-500):not(.bg-red-600):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-slate-900):not(.bg-slate-800):not(.bg-transparent) {
   background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
   border: 1px solid #dbeafe;
-  color: var(--text-main);
+  color: #0f172a;
 }
 
-html:not(.dark) button:not(.bg-sky-500):not(.bg-sky-600):not(.bg-red-500):not(.bg-red-600):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-slate-900):not(.bg-slate-800):not(.bg-transparent):hover {
+html:not(.dark) .admin-layout button:not(.bg-sky-500):not(.bg-sky-600):not(.bg-red-500):not(.bg-red-600):not(.bg-emerald-500):not(.bg-emerald-600):not(.bg-slate-900):not(.bg-slate-800):not(.bg-transparent):hover {
   background: linear-gradient(180deg, #e0f2fe 0%, #dbeafe 100%);
   border-color: #bae6fd;
   color: #075985;
 }
 
-html:not(.dark) .workflow-card-action:hover,
-html:not(.dark) .workflow-stage-action:hover {
+/* Workflow */
+html:not(.dark) .admin-layout .workflow-card-action:hover,
+html:not(.dark) .admin-layout .workflow-stage-action:hover {
   background-color: #f1f5f9 !important;
   color: #0f172a !important;
 }
 
-html:not(.dark) .workflow-card-action:hover {
+html:not(.dark) .admin-layout .workflow-card-action:hover {
   color: #0284c7 !important;
 }
 
-html:not(.dark) .workflow-card-action[title="Delete project"]:hover,
-html:not(.dark) .workflow-card-action[title="Delete Client"]:hover {
+html:not(.dark) .admin-layout .workflow-card-action[title="Delete project"]:hover,
+html:not(.dark) .admin-layout .workflow-card-action[title="Delete Client"]:hover {
   color: #dc2626 !important;
 }
 
-html:not(.dark) .profile-page {
+/* Admin Profile Page */
+html:not(.dark) .admin-layout .profile-page {
   background-color: transparent !important;
 }
 
-html:not(.dark) .profile-page [class~="bg-slate-950"],
-html:not(.dark) .profile-page [class~="bg-slate-950/40"],
-html:not(.dark) .profile-page [class~="bg-slate-900"],
-html:not(.dark) .profile-page [class~="bg-slate-900/70"],
-html:not(.dark) .profile-page [class~="bg-slate-800"] {
+html:not(.dark) .admin-layout .profile-page [class~="bg-slate-950"],
+html:not(.dark) .admin-layout .profile-page [class~="bg-slate-950/40"],
+html:not(.dark) .admin-layout .profile-page [class~="bg-slate-900"],
+html:not(.dark) .admin-layout .profile-page [class~="bg-slate-900/70"] {
   background-color: #ffffff !important;
 }
 
-html:not(.dark) .profile-page [class~="bg-slate-800"] {
+html:not(.dark) .admin-layout .profile-page [class~="bg-slate-800"] {
   background-color: #f1f5f9 !important;
 }
 
-html:not(.dark) .profile-page [class~="border-slate-700"],
-html:not(.dark) .profile-page [class~="border-slate-800"] {
-  border-color: #dbe4ee !important;
+html:not(.dark) .admin-layout .profile-page [class~="border-slate-700"],
+html:not(.dark) .admin-layout .profile-page [class~="border-slate-800"] {
+  border-color: #dfe7f1 !important;
 }
 
-html:not(.dark) .profile-page [class~="text-slate-200"] {
+html:not(.dark) .admin-layout .profile-page [class~="text-slate-200"] {
   color: #334155 !important;
 }
 
-html:not(.dark) .profile-page [class~="text-slate-300"] {
+html:not(.dark) .admin-layout .profile-page [class~="text-slate-300"] {
   color: #475569 !important;
 }
 
-html:not(.dark) .profile-page [class~="text-slate-400"] {
+html:not(.dark) .admin-layout .profile-page [class~="text-slate-400"],
+html:not(.dark) .admin-layout .profile-page [class~="text-slate-500"] {
   color: #64748b !important;
 }
 
-html:not(.dark) .profile-page [class~="text-slate-500"] {
-  color: #64748b !important;
-}
+
 
 html:not(.dark) .category-select,
 .dark .category-select {

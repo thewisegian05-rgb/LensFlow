@@ -132,8 +132,8 @@ function ClientLayout() {
   }
 
   return (
-    <div className="custom-scrollbar relative isolate min-h-screen w-full overflow-x-hidden bg-[#070D1D] text-slate-100">
-      <ClientPortalStyles />
+    <div className="client-portal dark custom-scrollbar relative isolate min-h-screen w-full overflow-x-hidden bg-[#070D1D] text-slate-100">
+    <ClientPortalStyles />
       {/* Aurora background */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
         <span className="lf-orb lf-orb-1" />

@@ -18,6 +18,7 @@ import ResetPasswordPage from "../pages/ResetPasswordPage";
 import SignUpPage from "../pages/SignUpPage";
 import ClientPortalPage from "../pages/ClientPortalPage";
 import EmailVerifiedPage from "../pages/EmailVerifiedPage";
+import PhotographersInbox from "../pages/PhotographersInbox";
 
 function Landing() {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ function AppRoutes() {
             <Route path="workflow" element={<WorkflowPage />} />
             <Route path="culling" element={<CullingPage />} />
             <Route path="clients" element={<ClientPage />} />
+            <Route path="messages" element={<PhotographersInbox />} />
             <Route path="storage" element={<MediaStorage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="settings" element={<SettingsPage />} />

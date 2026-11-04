@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useOutletContext, useLocation } from "react-router-dom";
+import { useOutletContext, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 
 import ClientCard from "../components/Clients/ClientCard.jsx";
@@ -17,7 +17,7 @@ import "../components/Clients/ViewClientModal.css";
 import "../components/Clients/ClientPageAnimations.css";
 
 import { FiGrid, FiList, FiSearch, FiX } from "react-icons/fi";
-import { FaFilter, FaPlus } from "react-icons/fa";
+import { FaFilter, FaPlus, FaCommentDots } from "react-icons/fa";
 
 // Key used to remember the client list's view type (grid/list) across
 // page navigations and reloads.
@@ -35,6 +35,7 @@ const isCancelled = (event) => statusOf(event) === "cancelled";
 function ClientPage() {
   const { reportPageReady, routeKey } = useOutletContext();
   const location = useLocation();
+  const navigate = useNavigate();
   const [highlightedClientId, setHighlightedClientId] = useState(null);
 
   // Briefly emphasize the client selected from global header search.
@@ -455,13 +456,25 @@ function ClientPage() {
           <p>Manage your clients and their project information.</p>
         </div>
 
-        <button
-          className="add-client-btn text-sm font-semibold text-slate-950 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-          onClick={() => setShowAddClient(true)}
-        >
-          <FaPlus />
-          Add New Client
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* MESSAGES BUTTON — opens the photographer inbox */}
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard/messages")}
+            className="inline-flex items-center gap-2 rounded-xl border border-sky-500 bg-transparent px-5 py-3 text-sm font-semibold text-sky-400 transition hover:bg-sky-500/10 focus:outline-none focus:ring-2 focus:ring-sky-400"
+          >
+            <FaCommentDots />
+            Messages
+          </button>
+
+          <button
+            className="add-client-btn text-sm font-semibold text-slate-950 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            onClick={() => setShowAddClient(true)}
+          >
+            <FaPlus />
+            Add New Client
+          </button>
+        </div>
       </div>
 
       {/* ==========================================

@@ -19,6 +19,7 @@ import PortfolioTab from "./client/tabs/PortfolioTab";
 import ScheduleTab from "./client/tabs/ScheduleTab";
 import MyBookingsTab from "./client/tabs/MyBookingsTab";
 import ReviewsTab from "./client/tabs/ReviewsTab";
+import MessageTab from "./client/tabs/MessageTab";
 
 /* If one tab crashes, show the message here instead of taking the whole site down
    (which is what sent you back to the landing page). */
@@ -185,6 +186,7 @@ function ClientPortalPage() {
           <Route path="schedule" element={<TabBridge component={ScheduleTab} />} />
           <Route path="bookings" element={<TabBridge component={MyBookingsTab} />} />
           <Route path="reviews" element={<TabBridge component={ReviewsTab} />} />
+          <Route path="messages" element={<TabBridge component={MessageTab} />} />
           <Route path="*" element={home} />
         </Route>
       </Routes>

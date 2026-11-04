@@ -8,6 +8,7 @@ import {
   FaCalendarAlt,
   FaFileAlt,
   FaHeart,
+  FaCommentDots,
   FaSignOutAlt,
 } from "react-icons/fa";
 
@@ -17,6 +18,7 @@ export const NAV_ITEMS = [
   { id: "schedule",  label: "Schedule",    icon: FaCalendarAlt },
   { id: "bookings",  label: "My Bookings", icon: FaFileAlt },
   { id: "reviews",   label: "Reviews",     icon: FaHeart },
+  { id: "messages",  label: "Messages",    icon: FaCommentDots },
 ];
 
 export default function ClientSidebar({ onSignOut }) {

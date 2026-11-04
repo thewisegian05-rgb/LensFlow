@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
   FiEye,
@@ -17,14 +18,23 @@ import "./ClientCard.css";
 
 // `isLeaving` = this client is being deleted right now (comes from
 // usePendingDeletes() in the parent). It plays the exit animation.
+// `onMessage` is optional. If the parent doesn't pass one, the Message
+// button opens the photographer inbox.
 function ClientCard({
   client,
   onView,
   onDelete,
   onComplete,
   onEdit,
+  onMessage,
   isLeaving = false,
 }) {
+  const navigate = useNavigate();
+
+  const handleMessage = () => {
+    if (onMessage) onMessage(client);
+    else navigate("/dashboard/messages");
+  };
 
   return (
     <div
@@ -167,8 +177,10 @@ function ClientCard({
 
       <div className="message-action">
         <button
+          type="button"
           className="message-btn rounded-lg border !border-sky-500 !bg-sky-500 !text-slate-950 transition hover:!border-sky-400 hover:!bg-sky-400 dark:!border-sky-500 dark:!bg-sky-500 dark:!text-slate-950 dark:hover:!bg-sky-400"
           title="Message"
+          onClick={handleMessage}
         >
           <FiMessageSquare />
           <span>Message</span>

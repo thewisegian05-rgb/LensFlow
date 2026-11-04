@@ -228,7 +228,7 @@ function Layout() {
     searchResults.folders.length;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
+    <div className="admin-layout flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen((open) => !open)} onClose={() => setSidebarOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header sidebarOpen={sidebarOpen} onMenuClick={() => setSidebarOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} />

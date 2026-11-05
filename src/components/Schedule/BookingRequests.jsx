@@ -9,6 +9,11 @@ import { CATEGORY_LABELS } from "./eventCategory";
 // change it here.
 const APPROVE_CANCELLATION_RPC = "approve_booking_cancellation";
 
+// Confirms the downpayment of an event the photographer added by hand
+// (those requests carry extra details in `manual_details`). It receives
+// { p_id, p_paid_at } and returns the new schedule event's id.
+const MANUAL_CONFIRM_RPC = "confirm_manual_downpayment";
+
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
@@ -26,18 +31,26 @@ const field =
  * Booking Requests
  * 1. Quote a talent fee + downpayment (or decline).
  * 2. After the client accepts, the request waits here as "Awaiting downpayment".
+ *    Events the photographer adds by hand also wait here.
  * 3. "Downpayment received" puts the event on the schedule; "Cancel" drops it.
  *
  * Cancellation Requests
  * 4. If a client asks to cancel a booked event, it shows up here to approve or keep.
  *
- *  onBooked  - called after the schedule changes (downpayment confirmed or
- *              booking cancelled) so the schedule can refresh
- *  onMessage - optional. Called with the request when you click "Message", so
- *              you can open your own chat. Without it, "Message" opens an email
- *              (client_email) or text (client_phone) if the request has one.
+ *  onBooked   - called after the schedule changes (downpayment confirmed or
+ *               booking cancelled) so the schedule can refresh
+ *  onMessage  - optional. Called with the request when you click "Message", so
+ *               you can open your own chat. Without it, "Message" opens an email
+ *               (client_email) or text (client_phone) if the request has one.
+ *  refreshKey - optional. Change this number to make the list reload right away
+ *               (e.g. after a manual event was added).
  */
-export default function BookingRequests({ hideWhenEmpty = false, onBooked, onMessage }) {
+export default function BookingRequests({
+  hideWhenEmpty = false,
+  onBooked,
+  onMessage,
+  refreshKey = 0,
+}) {
   const [rows, setRows] = useState([]);
   const [drafts, setDrafts] = useState({}); // { [id]: { fee, downpayment, message } }
   const [busyId, setBusyId] = useState(null);
@@ -82,6 +95,11 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked, onMes
       clearInterval(timer);
     };
   }, [load]);
+
+  // Reload right away when the parent says something changed.
+  useEffect(() => {
+    if (refreshKey) load();
+  }, [refreshKey, load]);
 
   const draft = (id) => drafts[id] || { fee: "", downpayment: "", message: "" };
   const setDraft = (id, patch) =>
@@ -228,16 +246,51 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked, onMes
     }
   }
 
+  // Emails the client that their event is booked, through the same
+  // `send-event-email` Edge Function the schedule page uses. Only used for
+  // events added by hand: they're emailed once the downpayment is confirmed,
+  // because that is when the event actually lands on the schedule. A failure
+  // never undoes the booking; it just tells the photographer.
+  async function emailClientAboutManualEvent(eventId) {
+    const { error: mailError } = await supabase.functions.invoke("send-event-email", {
+      body: { event_id: eventId, kind: "created" },
+    });
+
+    if (!mailError) return;
+
+    let detail = mailError.message;
+
+    try {
+      const body = await mailError.context.json();
+      if (body?.error) detail = body.error;
+    } catch {
+      // keep the default message
+    }
+
+    console.error("Failed to email the client:", detail);
+    window.alert(
+      `The event was added to your schedule, but the confirmation email to the client could not be sent (${detail}).`
+    );
+  }
+
   async function confirmDownpayment() {
     if (!modal) return;
+
+    // Events the photographer added by hand use their own confirm function,
+    // because they carry extra details (team, gear, project, client).
+    const isManual = Boolean(modal.manual_details);
+    const manualClientEmail = modal.manual_details?.client_email;
 
     setModalBusy("confirm");
     setModalError("");
 
-    const { error: err } = await supabase.rpc("confirm_downpayment", {
-      p_id: modal.id,
-      p_paid_at: new Date(`${paidDate || todayString()}T12:00:00`).toISOString(),
-    });
+    const { data: newEventId, error: err } = await supabase.rpc(
+      isManual ? MANUAL_CONFIRM_RPC : "confirm_downpayment",
+      {
+        p_id: modal.id,
+        p_paid_at: new Date(`${paidDate || todayString()}T12:00:00`).toISOString(),
+      }
+    );
 
     setModalBusy(null);
 
@@ -250,6 +303,10 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked, onMes
     setModalVisible(false);
     await load();
     onBooked?.();
+
+    if (isManual && manualClientEmail && newEventId) {
+      emailClientAboutManualEvent(newEventId);
+    }
   }
 
   async function cancelAwaiting() {
@@ -608,8 +665,9 @@ export default function BookingRequests({ hideWhenEmpty = false, onBooked, onMes
                 Downpayment
               </h3>
               <p className="mt-1 text-sm text-slate-400">
-                The client accepted the quote. The date is added to your schedule once you confirm
-                the downpayment.
+                {modal.manual_details
+                  ? "You added this event manually. The date is added to your schedule once you confirm the downpayment."
+                  : "The client accepted the quote. The date is added to your schedule once you confirm the downpayment."}
               </p>
 
               <div className="mt-4 space-y-1 rounded-lg bg-slate-500/10 p-3 text-sm">

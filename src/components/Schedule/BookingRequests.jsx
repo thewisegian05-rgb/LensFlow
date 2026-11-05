@@ -23,6 +23,73 @@ const shortDate = (iso) =>
 
 const todayString = () => new Date().toLocaleDateString("en-CA");
 
+// Talent fee and downpayment: whole pesos, up to 6 digits (max ₱999,999).
+const MAX_MONEY_DIGITS = 6;
+const moneyDigits = (value) => String(value).replace(/\D/g, "").slice(0, MAX_MONEY_DIGITS);
+
+// No text box accepts more than this many characters.
+const MAX_TEXT_LENGTH = 500;
+
+// Message to the client: at most 500 characters, and "www" is cut down to "ww"
+// (so "wwww" becomes "ww" too).
+const cleanMessage = (value) =>
+  String(value)
+    .replace(/w{3,}/gi, (run) => run.slice(0, 2))
+    .slice(0, MAX_TEXT_LENGTH);
+
+// Quick reasons for declining. Picking one fills the message box, and it can
+// still be edited before sending. To add or change a reason, edit this list.
+const QUICK_REASONS = [
+  {
+    label: "Already booked on that date",
+    text: "Thank you for your request. Unfortunately I'm already booked on that date. You're welcome to send a new request for another day and I'll gladly check my schedule.",
+  },
+  {
+    label: "Schedule conflict at that time",
+    text: "Thank you for your request. I have another commitment that overlaps with your event time, so I can't take this booking. If the time can be moved, please send a new request.",
+  },
+  {
+    label: "Fully booked that week or season",
+    text: "Thank you for thinking of me. My schedule is fully booked for that period, so I can't take on more events. I hope you find the right photographer for your day.",
+  },
+  {
+    label: "Venue is too far / outside my service area",
+    text: "Thank you for your request. The venue is outside the area I currently cover, so I can't commit to this booking. I wish you a great event.",
+  },
+  {
+    label: "Team or crew not available",
+    text: "Thank you for your request. I'm unable to put together the full team you asked for on that date, so I have to decline. Please feel free to request again with a different date or a smaller crew.",
+  },
+  {
+    label: "Equipment not available",
+    text: "Thank you for your request. The equipment needed for this event (for example drone or special gear) isn't available on that date, so I can't take this booking.",
+  },
+  {
+    label: "Budget doesn't fit",
+    text: "Thank you for your request. After reviewing the scope of the event, I'm not able to fit it within this booking. You're welcome to send a new request with an adjusted scope or crew.",
+  },
+  {
+    label: "Not enough lead time",
+    text: "Thank you for your request. There isn't enough time before the event for me to prepare properly, so I have to decline. For future events, please book a little earlier.",
+  },
+  {
+    label: "I don't cover this type of event",
+    text: "Thank you for your request. This type of event isn't something I currently offer, so I'm not the right fit. I hope you find a photographer who specializes in it.",
+  },
+  {
+    label: "Personal or health reasons",
+    text: "Thank you for your request. Due to personal reasons I'm unable to accept bookings on that date. I apologize for the inconvenience.",
+  },
+  {
+    label: "Venue or event details are unclear",
+    text: "Thank you for your request. I need clearer details about the venue and the event before I can accept. Please send a new request with the complete information.",
+  },
+  {
+    label: "Other (write my own)",
+    text: "",
+  },
+];
+
 const field =
   "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
 
@@ -41,6 +108,37 @@ const NAME_RULE = /[^\p{L}\p{M}\s.'’-]/gu;
 
 const cleanText = (value, rule, max) =>
   String(value).replace(rule, "").replace(/^\s+/, "").replace(/\s{2,}/g, " ").slice(0, max);
+
+const MAX_NAME_LENGTH = 40; // whole name
+const MAX_TEAM_SIZE = 20; // rows in one team
+
+// What can be typed in a name box. On top of the letters-only rule:
+//  - it must start with a letter
+//  - the same letter can't repeat 3+ times in a row ("Aaaaron" -> "Aaron")
+//  - one word can't be longer than 20 characters
+const cleanName = (value) =>
+  cleanText(value, NAME_RULE, MAX_NAME_LENGTH)
+    .replace(/^[^\p{L}]+/u, "")
+    .replace(/(\p{L})\1{2,}/giu, "$1$1")
+    .replace(/([\p{L}\p{M}.'’-]{20})[\p{L}\p{M}.'’-]+/gu, "$1");
+
+// "juan dela cruz" -> "Juan Dela Cruz" (only the first letters are touched,
+// so names like "McDonald" stay as typed).
+const toTitleCase = (name) =>
+  name.replace(/(^|[\s-])(\p{L})/gu, (_, sep, ch) => `${sep}${ch.toUpperCase()}`);
+
+// Returns a message if the name doesn't look like a real name, otherwise null.
+const nameProblem = (name) => {
+  const letters = name.replace(/[^\p{L}]/gu, "");
+
+  if (letters.length < 2) return "a name needs at least 2 letters.";
+
+  if (/^[a-z]+$/i.test(letters) && !/[aeiouy]/i.test(letters)) {
+    return "this doesn't look like a real name.";
+  }
+
+  return null;
+};
 
 const emptyMember = (position = "") => ({ name: "", position });
 
@@ -114,6 +212,13 @@ export default function BookingRequests({
   const [modalBusy, setModalBusy] = useState(null); // "confirm" | "cancel" | null
   const [modalError, setModalError] = useState("");
 
+  // "Why are you declining?" popup
+  const [declineTarget, setDeclineTarget] = useState(null); // the request being declined
+  const [declineText, setDeclineText] = useState("");
+  const [declineBusy, setDeclineBusy] = useState(false);
+  const [declineError, setDeclineError] = useState("");
+  const [declineQuick, setDeclineQuick] = useState(""); // index of the chosen quick reason
+
   const load = useCallback(async () => {
     // New requests, plus booked events the client has asked to cancel.
     const { data, error: err } = await supabase
@@ -159,15 +264,26 @@ export default function BookingRequests({
     setDrafts((d) => ({ ...d, [r.id]: { ...getDraft(r), ...patch } }));
 
   const updateMember = (r, index, value) => {
-    const clean = cleanText(value, NAME_RULE, 50);
+    const clean = cleanName(value);
 
     setDraft(r, {
       team: getDraft(r).team.map((m, i) => (i === index ? { ...m, name: clean } : m)),
     });
   };
 
-  const addMember = (r) =>
+  // When the box loses focus: trim the ends and capitalize each word.
+  const tidyMember = (r, index) => {
+    setDraft(r, {
+      team: getDraft(r).team.map((m, i) =>
+        i === index ? { ...m, name: toTitleCase(m.name.trim().replace(/[\s.'’-]+$/u, "")) } : m
+      ),
+    });
+  };
+
+  const addMember = (r) => {
+    if (getDraft(r).team.length >= MAX_TEAM_SIZE) return;
     setDraft(r, { team: [...getDraft(r).team, emptyMember(DEFAULT_POSITION)] });
+  };
 
   const removeMember = (r, index) => {
     const next = getDraft(r).team.filter((_, i) => i !== index);
@@ -200,7 +316,15 @@ export default function BookingRequests({
     }
 
     // Rows without a name (like the prefilled position rows) are simply left out.
-    const members = cleanTeam(team);
+    const members = cleanTeam(team).map((m) => ({ ...m, name: toTitleCase(m.name) }));
+
+    for (const m of members) {
+      const problem = nameProblem(m.name);
+      if (problem) {
+        fail(r.id, `Check the team name "${m.name}": ${problem}`);
+        return;
+      }
+    }
 
     setBusyId(r.id);
     setError("");
@@ -224,23 +348,53 @@ export default function BookingRequests({
     load();
   }
 
-  async function decline(r) {
-    setBusyId(r.id);
-    setError("");
-    setErrorId(null);
+  // Declining (or withdrawing an offer) asks why first. The reason is saved as
+  // the message the client sees with the decision.
+  function openDecline(r) {
+    setDeclineTarget(r);
+    setDeclineText(cleanMessage(getDraft(r).message || ""));
+    setDeclineQuick("");
+    setDeclineError("");
+  }
+
+  function closeDecline() {
+    if (declineBusy) return;
+    setDeclineTarget(null);
+    setDeclineError("");
+  }
+
+  async function submitDecline() {
+    if (!declineTarget) return;
+
+    const reason = declineText.trim();
+
+    if (reason.length < 5) {
+      setDeclineError("Please tell the client why (at least 5 characters).");
+      return;
+    }
+
+    setDeclineBusy(true);
+    setDeclineError("");
 
     const { error: err } = await supabase
       .from("booking_requests")
       .update({
         status: "declined",
-        admin_message: getDraft(r).message.trim() || null,
+        admin_message: reason,
         responded_at: new Date().toISOString(),
       })
-      .eq("id", r.id)
+      .eq("id", declineTarget.id)
       .in("status", ["pending", "offered"]);
 
-    setBusyId(null);
-    if (err) fail(r.id, err.message);
+    setDeclineBusy(false);
+
+    if (err) {
+      console.error("Failed to decline request:", err);
+      setDeclineError(err.message);
+      return;
+    }
+
+    setDeclineTarget(null);
     load();
   }
 
@@ -537,6 +691,18 @@ export default function BookingRequests({
               const assignedCount = cleanTeam(d.team).length;
               const savedTeam = teamTextOf(r);
 
+              // What is still missing. "Send offer" stays disabled until this is empty.
+              const offerMissing = [];
+              if (d.team.some((m) => !m.name.trim()) || assignedCount < requestedTotal) {
+                offerMissing.push("a name for every team member");
+              }
+              if (d.fee === "") offerMissing.push("the talent fee");
+              if (d.downpayment === "") {
+                offerMissing.push("the downpayment");
+              } else if (d.fee !== "" && downNum > feeNum) {
+                offerMissing.push("a downpayment that isn't more than the fee");
+              }
+
               return (
                 <div
                   key={r.id}
@@ -597,11 +763,13 @@ export default function BookingRequests({
                             >
                               <input
                                 className={field}
-                                placeholder="Name"
+                                placeholder="Full name"
                                 aria-label={`Team member ${index + 1} name`}
-                                maxLength={50}
+                                maxLength={MAX_NAME_LENGTH}
+                                autoComplete="off"
                                 value={member.name}
                                 onChange={(e) => updateMember(r, index, e.target.value)}
+                                onBlur={() => tidyMember(r, index)}
                               />
                               <input
                                 className={`${field} cursor-default select-none text-slate-300 focus:border-slate-700`}
@@ -625,7 +793,8 @@ export default function BookingRequests({
                         <button
                           type="button"
                           onClick={() => addMember(r)}
-                          className="mt-2 text-xs font-semibold text-sky-400 hover:underline"
+                          disabled={d.team.length >= MAX_TEAM_SIZE}
+                          className="mt-2 text-xs font-semibold text-sky-400 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
                         >
                           + Add team member
                         </button>
@@ -635,29 +804,44 @@ export default function BookingRequests({
                       <div className="grid gap-2 sm:grid-cols-[9rem_9rem_1fr]">
                         <input
                           className={field}
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          maxLength={MAX_MONEY_DIGITS}
                           placeholder="Talent fee (₱)"
                           value={d.fee}
-                          onChange={(e) => setDraft(r, { fee: e.target.value })}
+                          onChange={(e) => setDraft(r, { fee: moneyDigits(e.target.value) })}
                         />
                         <input
                           className={field}
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          maxLength={MAX_MONEY_DIGITS}
                           placeholder="Downpayment (₱)"
                           value={d.downpayment}
-                          onChange={(e) => setDraft(r, { downpayment: e.target.value })}
+                          onChange={(e) => setDraft(r, { downpayment: moneyDigits(e.target.value) })}
                         />
-                        <input
-                          className={field}
-                          placeholder="Message to client (optional)"
-                          value={d.message}
-                          onChange={(e) => setDraft(r, { message: e.target.value })}
-                          maxLength={500}
-                        />
+                        <div className="min-w-0">
+                          <input
+                            className={field}
+                            placeholder="Message to client (optional)"
+                            aria-label="Message to client"
+                            value={d.message}
+                            onChange={(e) => setDraft(r, { message: cleanMessage(e.target.value) })}
+                            maxLength={MAX_TEXT_LENGTH}
+                          />
+                          <p
+                            className={`mt-1 text-right text-[11px] tabular-nums ${
+                              d.message.length >= MAX_TEXT_LENGTH
+                                ? "text-amber-400"
+                                : "text-slate-500"
+                            }`}
+                            aria-live="polite"
+                          >
+                            {d.message.length}/{MAX_TEXT_LENGTH}
+                          </p>
+                        </div>
                       </div>
 
                       {feeNum > 0 && d.downpayment !== "" && (
@@ -668,20 +852,26 @@ export default function BookingRequests({
                         </p>
                       )}
 
+                      {offerMissing.length > 0 && (
+                        <p className="text-right text-xs text-slate-500" aria-live="polite">
+                          To send the offer, add: {offerMissing.join(", ")}.
+                        </p>
+                      )}
+
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
                           disabled={busy}
-                          onClick={() => decline(r)}
+                          onClick={() => openDecline(r)}
                           className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-50"
                         >
                           Decline
                         </button>
                         <button
                           type="button"
-                          disabled={busy}
+                          disabled={busy || offerMissing.length > 0}
                           onClick={() => sendOffer(r)}
-                          className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-sky-400 disabled:opacity-50"
+                          className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {busy ? "Sending..." : "Send offer"}
                         </button>
@@ -704,7 +894,7 @@ export default function BookingRequests({
                         <button
                           type="button"
                           disabled={busy}
-                          onClick={() => decline(r)}
+                          onClick={() => openDecline(r)}
                           className="text-xs text-slate-500 hover:text-white disabled:opacity-50"
                         >
                           Withdraw offer
@@ -850,6 +1040,123 @@ export default function BookingRequests({
           </div>
         </section>
       )}
+
+      {/* ---------- Decline: ask why, send the reason to the client ---------- */}
+      {declineTarget &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) closeDecline();
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="booking-decline-title"
+              className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <h3 id="booking-decline-title" className="text-lg font-bold text-white">
+                {declineTarget.status === "offered" ? "Withdraw offer" : "Decline request"}
+              </h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Tell {declineTarget.client_name || "the client"} why. This message is sent back to
+                them with your decision.
+              </p>
+
+              <div className="mt-4 rounded-lg bg-slate-500/10 p-3 text-sm">
+                <p className="font-semibold text-white">{declineTarget.title}</p>
+                <p className="text-xs text-slate-400">
+                  {declineTarget.event_date} · {declineTarget.start_time.slice(0, 5)}–
+                  {declineTarget.end_time.slice(0, 5)}
+                </p>
+              </div>
+
+              <label
+                htmlFor="booking-decline-quick"
+                className="mt-4 block text-xs font-semibold text-slate-300"
+              >
+                Quick reason
+              </label>
+              <select
+                id="booking-decline-quick"
+                className={`${field} mt-1 ${declineQuick === "" ? "text-slate-500" : ""}`}
+                value={declineQuick}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setDeclineQuick(value);
+                  setDeclineError("");
+                  setDeclineText(cleanMessage(QUICK_REASONS[Number(value)]?.text || ""));
+                }}
+              >
+                <option value="" disabled>
+                  Choose a reason to fill in the message
+                </option>
+                {QUICK_REASONS.map((reason, index) => (
+                  <option key={reason.label} value={String(index)} className="bg-slate-800 text-white">
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
+
+              <label
+                htmlFor="booking-decline-reason"
+                className="mt-3 block text-xs font-semibold text-slate-300"
+              >
+                Message to the client
+              </label>
+              <textarea
+                id="booking-decline-reason"
+                className={`${field} mt-1 resize-none`}
+                rows={4}
+                maxLength={MAX_TEXT_LENGTH}
+                placeholder="e.g. I'm already booked on that date. Feel free to request another day."
+                value={declineText}
+                onChange={(e) => setDeclineText(cleanMessage(e.target.value))}
+                autoFocus
+              />
+              <p
+                className={`mt-1 text-right text-[11px] tabular-nums ${
+                  declineText.length >= MAX_TEXT_LENGTH ? "text-amber-400" : "text-slate-500"
+                }`}
+                aria-live="polite"
+              >
+                {declineText.length}/{MAX_TEXT_LENGTH}
+              </p>
+
+              {declineError && (
+                <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
+                  {declineError}
+                </p>
+              )}
+
+              <div className="mt-5 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={closeDecline}
+                  disabled={declineBusy}
+                  className="text-xs text-slate-500 transition-colors duration-200 hover:text-white disabled:opacity-50"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={submitDecline}
+                  disabled={declineBusy}
+                  className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:bg-rose-400 disabled:opacity-50"
+                >
+                  {declineBusy
+                    ? "Sending..."
+                    : declineTarget.status === "offered"
+                    ? "Withdraw and send reason"
+                    : "Decline and send reason"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* ---------- Downpayment received / Cancel ---------- */}
       {modal &&

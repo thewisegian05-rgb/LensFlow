@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { FaMinus, FaPlus } from "react-icons/fa";
 
 /*
@@ -47,6 +48,54 @@ export const crewProblem = (crew) =>
     ? "Choose at least one photographer, videographer or other creative."
     : null;
 
+// The number box. While the client is typing it keeps its own text, so the box
+// can be emptied and retyped. The real number (0 when empty) is still sent up
+// on every keystroke, and the box is tidied when the client leaves it.
+function CountInput({ value, onChange, label }) {
+  const [text, setText] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setText(String(value));
+  }, [value, editing]);
+
+  function handleChange(e) {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 2);
+
+    if (digits === "") {
+      setText("");
+      onChange(0);
+      return;
+    }
+
+    const n = clamp(parseInt(digits, 10));
+    setText(String(n));
+    onChange(n);
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      autoComplete="off"
+      value={text}
+      placeholder="0"
+      onFocus={(e) => {
+        setEditing(true);
+        e.target.select();
+      }}
+      onBlur={() => {
+        setEditing(false);
+        setText(String(value));
+      }}
+      onChange={handleChange}
+      aria-label={label}
+      className="h-8 w-12 rounded-lg border border-slate-600 bg-slate-900 text-center text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+    />
+  );
+}
+
 export default function CrewNeededField({ value, onChange, disabled = false }) {
   const crew = { ...emptyCrew(), ...value };
   const total = crewTotal(crew);
@@ -84,19 +133,10 @@ export default function CrewNeededField({ value, onChange, disabled = false }) {
                   <FaMinus className="text-[10px]" />
                 </button>
 
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={MAX_PER_ROLE}
-                  step={1}
+                <CountInput
                   value={n}
-                  onChange={(e) => set(role.key, parseInt(e.target.value, 10))}
-                  onKeyDown={(e) => {
-                    if (["e", "E", "+", "-", ".", ","].includes(e.key)) e.preventDefault();
-                  }}
-                  aria-label={`Number of ${role.label.toLowerCase()}`}
-                  className="h-8 w-12 rounded-lg border border-slate-600 bg-slate-900 text-center text-sm text-white focus:border-sky-500 focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  onChange={(next) => set(role.key, next)}
+                  label={`Number of ${role.label.toLowerCase()}`}
                 />
 
                 <button

@@ -1,49 +1,67 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-
 import { supabase } from "../../lib/supabaseClient";
 import { CATEGORY_LABELS } from "./eventCategory";
 import { CREW_ROLES, crewSummary, crewTotal } from "./CrewNeededField";
-
 // Database function that cancels a booked event after the client asked to cancel.
 // It receives { p_id } (the booking request id). If yours is named differently,
 // change it here.
 const APPROVE_CANCELLATION_RPC = "approve_booking_cancellation";
-
 // Confirms the downpayment of an event the photographer added by hand
 // (those requests carry extra details in `manual_details`). It receives
 // { p_id, p_paid_at } and returns the new schedule event's id.
 const MANUAL_CONFIRM_RPC = "confirm_manual_downpayment";
-
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-
 const shortDate = (iso) =>
   new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-
 const todayString = () => new Date().toLocaleDateString("en-CA");
+
+const displayOcrTransactionDate = (submission) => {
+  if (submission?.ocr_transaction_date) {
+    return shortDate(submission.ocr_transaction_date);
+  }
+
+  const text = submission?.ocr_extracted_text || "";
+  const match = text.match(
+    /\b(\d{1,2})\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})(?:,?\s+(\d{1,2}):(\d{2}))?/i
+  );
+
+  if (!match) return "Not detected";
+
+  const monthNames = [
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "oct", "nov", "dec",
+  ];
+  const monthIndex = monthNames.indexOf(match[2].slice(0, 3).toLowerCase());
+  if (monthIndex < 0) return "Not detected";
+
+  const parsed = new Date(
+    Number(match[3]),
+    monthIndex,
+    Number(match[1]),
+    Number(match[4] || 12),
+    Number(match[5] || 0)
+  );
+
+  return Number.isNaN(parsed.getTime()) ? "Not detected" : shortDate(parsed);
+};
 
 const field =
   "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
-
 // ---------- production team ----------
 // The assigned team is saved on the request as [{ name, position }] and shown
 // on the schedule event as readable text, the same format the Add Event form
 // uses:  "Juan (Photographer) · Maria (Videographer)"
 const MEMBER_SEPARATOR = " · ";
-
 // Position given to rows the photographer adds with "+ Add team member".
 // Positions can't be typed; the ones the client asked for are filled in automatically.
 const DEFAULT_POSITION = "Assistant";
-
 // Parentheses and "·" are never allowed because they separate members in the text.
 const NAME_RULE = /[^\p{L}\p{M}\s.'’-]/gu;
-
 const cleanText = (value, rule, max) =>
   String(value).replace(rule, "").replace(/^\s+/, "").replace(/\s{2,}/g, " ").slice(0, max);
-
 const emptyMember = (position = "") => ({ name: "", position });
-
 // One empty row per creative the client asked for, with the position already
 // filled in, so the photographer only has to type the names.
 const teamFromCrew = (crew) => {
@@ -54,23 +72,19 @@ const teamFromCrew = (crew) => {
   }
   return rows.length ? rows : [emptyMember(DEFAULT_POSITION)];
 };
-
 const cleanTeam = (members) =>
   (members || [])
     .map((m) => ({ name: String(m.name || "").trim(), position: String(m.position || "").trim() }))
     .filter((m) => m.name);
-
 const teamToText = (members) =>
   cleanTeam(members)
     .map((m) => (m.position ? `${m.name} (${m.position})` : m.name))
     .join(MEMBER_SEPARATOR);
-
 // The team to show for a request: the one assigned here, or the one typed in
 // the Add Event form for events added by hand.
 const teamTextOf = (r) =>
   (Array.isArray(r.team_members) && teamToText(r.team_members)) ||
   String(r.manual_details?.photographer || "");
-
 /**
  * Photographer's inbox of client booking requests. Two separate boxes:
  *
@@ -106,14 +120,15 @@ export default function BookingRequests({
   const [error, setError] = useState("");
   const [errorId, setErrorId] = useState(null); // which request the error belongs to
   const [loadError, setLoadError] = useState("");
-
   // "Downpayment received / Cancel" modal
   const [modal, setModal] = useState(null); // the request being reviewed
   const [modalVisible, setModalVisible] = useState(false);
   const [paidDate, setPaidDate] = useState(todayString());
   const [modalBusy, setModalBusy] = useState(null); // "confirm" | "cancel" | null
   const [modalError, setModalError] = useState("");
-
+  const [reviewNote, setReviewNote] = useState("");
+  const [paymentSubmissions, setPaymentSubmissions] = useState({});
+  const [receiptUrls, setReceiptUrls] = useState({});
   const load = useCallback(async () => {
     // New requests, plus booked events the client has asked to cancel.
     const { data, error: err } = await supabase
@@ -123,16 +138,55 @@ export default function BookingRequests({
         "status.in.(pending,offered,awaiting_dp),and(status.eq.approved,cancel_requested_at.not.is.null)"
       )
       .order("event_date", { ascending: true });
-
     if (err) {
       console.error("Failed to load booking requests:", err.message);
       setLoadError(err.message);
       return;
     }
     setLoadError("");
-    setRows(data || []);
+    const bookingRows = data || [];
+    setRows(bookingRows);
+    const awaitingIds = bookingRows
+      .filter((row) => row.status === "awaiting_dp" && !row.manual_details)
+      .map((row) => row.id);
+    if (!awaitingIds.length) {
+      setPaymentSubmissions({});
+      setReceiptUrls({});
+      return;
+    }
+    const { data: submissions, error: paymentError } = await supabase
+      .from("booking_payment_submissions")
+      .select("*")
+      .in("booking_request_id", awaitingIds)
+      .order("created_at", { ascending: false });
+    if (paymentError) {
+      console.error("Failed to load payment submissions:", paymentError);
+      setPaymentSubmissions({});
+      setReceiptUrls({});
+      return;
+    }
+    const latestByBooking = {};
+    for (const submission of submissions || []) {
+      if (!latestByBooking[submission.booking_request_id]) {
+        latestByBooking[submission.booking_request_id] = submission;
+      }
+    }
+    setPaymentSubmissions(latestByBooking);
+    const signedEntries = await Promise.all(
+      Object.values(latestByBooking).map(async (submission) => {
+        if (!submission.receipt_storage_path) return [submission.booking_request_id, ""];
+        const { data: signed, error: signedError } = await supabase.storage
+          .from("payment-receipts")
+          .createSignedUrl(submission.receipt_storage_path, 3600);
+        if (signedError) {
+          console.error("Could not create receipt preview URL:", signedError);
+          return [submission.booking_request_id, ""];
+        }
+        return [submission.booking_request_id, signed?.signedUrl || ""];
+      })
+    );
+    setReceiptUrls(Object.fromEntries(signedEntries));
   }, []);
-
   useEffect(() => {
     load();
     const onFocus = () => load();
@@ -144,68 +198,53 @@ export default function BookingRequests({
       clearInterval(timer);
     };
   }, [load]);
-
   // Reload right away when the parent says something changed.
   useEffect(() => {
     if (refreshKey) load();
   }, [refreshKey, load]);
-
   // A request's form values. The team starts with one row per creative the
   // client asked for, so it isn't lost when the list reloads.
   const getDraft = (r) =>
     drafts[r.id] || { fee: "", downpayment: "", message: "", team: teamFromCrew(r.crew_needed) };
-
   const setDraft = (r, patch) =>
     setDrafts((d) => ({ ...d, [r.id]: { ...getDraft(r), ...patch } }));
-
   const updateMember = (r, index, value) => {
     const clean = cleanText(value, NAME_RULE, 50);
-
     setDraft(r, {
       team: getDraft(r).team.map((m, i) => (i === index ? { ...m, name: clean } : m)),
     });
   };
-
   const addMember = (r) =>
     setDraft(r, { team: [...getDraft(r).team, emptyMember(DEFAULT_POSITION)] });
-
   const removeMember = (r, index) => {
     const next = getDraft(r).team.filter((_, i) => i !== index);
     setDraft(r, { team: next.length ? next : [emptyMember(DEFAULT_POSITION)] });
   };
-
   function fail(id, message) {
     setError(message);
     setErrorId(id);
   }
-
   async function sendOffer(r) {
     const { fee, downpayment, message, team } = getDraft(r);
     const amount = Number(fee);
     const down = Number(downpayment);
-
     if (fee === "" || Number.isNaN(amount) || amount < 0) {
       fail(r.id, "Enter a valid talent fee before sending the offer.");
       return;
     }
-
     if (downpayment === "" || Number.isNaN(down) || down < 0) {
       fail(r.id, "Enter the downpayment the client must pay to secure the date (use 0 if none).");
       return;
     }
-
     if (down > amount) {
       fail(r.id, "The downpayment can't be more than the talent fee.");
       return;
     }
-
     // Rows without a name (like the prefilled position rows) are simply left out.
     const members = cleanTeam(team);
-
     setBusyId(r.id);
     setError("");
     setErrorId(null);
-
     const { error: err } = await supabase
       .from("booking_requests")
       .update({
@@ -218,17 +257,14 @@ export default function BookingRequests({
       })
       .eq("id", r.id)
       .eq("status", "pending");
-
     setBusyId(null);
     if (err) fail(r.id, err.message);
     load();
   }
-
   async function decline(r) {
     setBusyId(r.id);
     setError("");
     setErrorId(null);
-
     const { error: err } = await supabase
       .from("booking_requests")
       .update({
@@ -238,20 +274,16 @@ export default function BookingRequests({
       })
       .eq("id", r.id)
       .in("status", ["pending", "offered"]);
-
     setBusyId(null);
     if (err) fail(r.id, err.message);
     load();
   }
-
   // ---------- client cancellation requests ----------
-
   function messageClient(r) {
     if (onMessage) {
       onMessage(r);
       return;
     }
-
     const subject = encodeURIComponent(`Your booking: ${r.title}`);
     if (r.client_email) {
       window.location.href = `mailto:${r.client_email}?subject=${subject}`;
@@ -261,7 +293,6 @@ export default function BookingRequests({
       fail(r.id, "There is no email or phone number saved on this request, so there is nothing to message.");
     }
   }
-
   async function cancelBooking(r) {
     if (
       !window.confirm(
@@ -270,45 +301,36 @@ export default function BookingRequests({
     ) {
       return;
     }
-
     setBusyId(r.id);
     setError("");
     setErrorId(null);
-
     const { error: err } = await supabase.rpc(APPROVE_CANCELLATION_RPC, { p_id: r.id });
-
     setBusyId(null);
-
     if (err) {
       console.error("Failed to cancel booking:", err);
       fail(r.id, err.message);
     }
-
     await load();
     if (!err) onBooked?.();
   }
-
   // ---------- awaiting-downpayment modal ----------
-
   function openModal(r) {
     setModal(r);
     setModalVisible(false);
     setPaidDate(todayString());
     setModalError("");
+    setReviewNote("");
     setModalBusy(null);
-
     // Let the browser render the hidden state before starting the transition.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => setModalVisible(true));
     });
   }
-
   function closeModal() {
     if (modalBusy) return;
     setModalVisible(false);
     setModalError("");
   }
-
   function handleModalTransitionEnd(e) {
     if (
       e.target === e.currentTarget &&
@@ -318,7 +340,6 @@ export default function BookingRequests({
       setModal(null);
     }
   }
-
   // Emails the client that their event is booked, through the same
   // `send-event-email` Edge Function the schedule page uses. Only used for
   // events added by hand: they're emailed once the downpayment is confirmed,
@@ -328,33 +349,26 @@ export default function BookingRequests({
     const { error: mailError } = await supabase.functions.invoke("send-event-email", {
       body: { event_id: eventId, kind: "created" },
     });
-
     if (!mailError) return;
-
     let detail = mailError.message;
-
     try {
       const body = await mailError.context.json();
       if (body?.error) detail = body.error;
     } catch {
       // keep the default message
     }
-
     console.error("Failed to email the client:", detail);
     window.alert(
       `The event was added to your schedule, but the confirmation email to the client could not be sent (${detail}).`
     );
   }
-
   // Puts the team you assigned onto the schedule event that was just created
   // from a client's request. The confirm function doesn't know about the team,
   // so it's added right after. A failure never undoes the booking.
   async function applyTeamToEvent(request, eventId) {
     const text = teamToText(request.team_members);
     if (!text) return;
-
     let updatedId = null;
-
     // 1. The confirm function may have returned the new event's id.
     if (typeof eventId === "string" && eventId) {
       const { data } = await supabase
@@ -364,13 +378,11 @@ export default function BookingRequests({
         .select("id");
       updatedId = data?.[0]?.id || null;
     }
-
     // 2. Otherwise find the new event: same title, same day, no team yet.
     if (!updatedId) {
       const dayStart = new Date(`${request.event_date}T00:00:00`);
       const dayEnd = new Date(dayStart);
       dayEnd.setDate(dayEnd.getDate() + 1);
-
       const { data: found } = await supabase
         .from("schedule_events")
         .select("id")
@@ -379,9 +391,7 @@ export default function BookingRequests({
         .lt("start_time", dayEnd.toISOString())
         .or("photographer.is.null,photographer.eq.")
         .limit(1);
-
       const foundId = found?.[0]?.id;
-
       if (foundId) {
         const { data } = await supabase
           .from("schedule_events")
@@ -391,7 +401,6 @@ export default function BookingRequests({
         updatedId = data?.[0]?.id || null;
       }
     }
-
     if (!updatedId) {
       console.error("Could not add the team to the new schedule event.");
       window.alert(
@@ -399,22 +408,54 @@ export default function BookingRequests({
       );
       return;
     }
-
     onBooked?.();
   }
-
+  async function reviewPayment(status) {
+    if (!modal) return;
+    const submission = paymentSubmissions[modal.id];
+    if (!submission) {
+      setModalError("No payment receipt has been submitted for this booking yet.");
+      return;
+    }
+    if (submission.status !== "pending") {
+      setModalError("This receipt has already been reviewed.");
+      return;
+    }
+    setModalBusy(status === "verified" ? "verify" : "reject");
+    setModalError("");
+    const { error: reviewError } = await supabase.rpc("review_booking_payment", {
+      p_submission_id: submission.id,
+      p_status: status,
+      p_review_note: reviewNote.trim() || null,
+    });
+    setModalBusy(null);
+    if (reviewError) {
+      console.error("Failed to review payment receipt:", reviewError);
+      setModalError(reviewError.message);
+      return;
+    }
+    setReviewNote("");
+    await load();
+    setModalError(status === "verified"
+      ? "Receipt verified. You can now confirm the booking."
+      : "Receipt rejected. The client can submit another receipt.");
+  }
   async function confirmDownpayment() {
     if (!modal) return;
-
     // Events the photographer added by hand use their own confirm function,
     // because they carry extra details (team, gear, project, client).
     const isManual = Boolean(modal.manual_details);
     const manualClientEmail = modal.manual_details?.client_email;
     const request = modal;
-
+    if (!isManual) {
+      const submission = paymentSubmissions[modal.id];
+      if (!submission || submission.status !== "verified") {
+        setModalError("Verify the client's payment receipt before confirming this booking.");
+        return;
+      }
+    }
     setModalBusy("confirm");
     setModalError("");
-
     const { data: newEventId, error: err } = await supabase.rpc(
       isManual ? MANUAL_CONFIRM_RPC : "confirm_downpayment",
       {
@@ -422,31 +463,24 @@ export default function BookingRequests({
         p_paid_at: new Date(`${paidDate || todayString()}T12:00:00`).toISOString(),
       }
     );
-
     setModalBusy(null);
-
     if (err) {
       console.error("Failed to confirm downpayment:", err);
       setModalError(err.message);
       return;
     }
-
     setModalVisible(false);
     await load();
     onBooked?.();
-
     if (isManual && manualClientEmail && newEventId) {
       emailClientAboutManualEvent(newEventId);
     }
-
     if (!isManual) {
       applyTeamToEvent(request, newEventId);
     }
   }
-
   async function cancelAwaiting() {
     if (!modal) return;
-
     if (
       !window.confirm(
         "Cancel this booking? Nothing will be added to your schedule and the client will see it as cancelled."
@@ -454,24 +488,18 @@ export default function BookingRequests({
     ) {
       return;
     }
-
     setModalBusy("cancel");
     setModalError("");
-
     const { error: err } = await supabase.rpc("cancel_awaiting_request", { p_id: modal.id });
-
     setModalBusy(null);
-
     if (err) {
       console.error("Failed to cancel request:", err);
       setModalError(err.message);
       return;
     }
-
     setModalVisible(false);
     await load();
   }
-
   if (loadError) {
     return (
       <p className="mb-4 rounded-xl border border-rose-500/40 p-3 text-xs text-rose-300">
@@ -479,11 +507,9 @@ export default function BookingRequests({
       </p>
     );
   }
-
   if (rows.length === 0) {
     // On the dashboard the Booking Requests number already says "all caught up".
     if (hideWhenEmpty) return null;
-
     return (
       <section className="mb-4 rounded-xl border border-slate-700 bg-slate-900 p-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -496,19 +522,17 @@ export default function BookingRequests({
       </section>
     );
   }
-
   // Split into the two boxes
   const cancelRows = rows.filter(
     (r) => r.status === "approved" && Boolean(r.cancel_requested_at)
   );
   const requestRows = rows.filter((r) => r.status !== "approved");
-
   const errorInCancelBox = cancelRows.some((r) => r.id === errorId);
-
   const modalFee = Number(modal?.offered_fee || 0);
   const modalDown = Number(modal?.downpayment_amount || 0);
   const modalTeam = modal ? teamTextOf(modal) : "";
-
+  const modalPayment = modal ? paymentSubmissions[modal.id] : null;
+  const modalReceiptUrl = modal ? receiptUrls[modal.id] : "";
   return (
     <>
       {/* ---------- Box 1: new booking requests ---------- */}
@@ -523,9 +547,7 @@ export default function BookingRequests({
               {requestRows.length}
             </span>
           </header>
-
           {error && !errorInCancelBox && <p className="mb-2 text-xs text-red-400">{error}</p>}
-
           <div className="space-y-3">
             {requestRows.map((r) => {
               const d = getDraft(r);
@@ -536,7 +558,6 @@ export default function BookingRequests({
               const requestedTotal = crewTotal(r.crew_needed);
               const assignedCount = cleanTeam(d.team).length;
               const savedTeam = teamTextOf(r);
-
               return (
                 <div
                   key={r.id}
@@ -559,7 +580,6 @@ export default function BookingRequests({
                       )}
                       {r.notes && <p className="mt-1 text-xs text-slate-400">{r.notes}</p>}
                     </div>
-
                     {r.status === "offered" && (
                       <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold text-sky-500">
                         Waiting for client
@@ -571,7 +591,6 @@ export default function BookingRequests({
                       </span>
                     )}
                   </div>
-
                   {r.status === "pending" && (
                     <div className="mt-3 space-y-3">
                       {/* ---- assign the team ---- */}
@@ -588,7 +607,6 @@ export default function BookingRequests({
                             </p>
                           )}
                         </div>
-
                         <div className="space-y-2">
                           {d.team.map((member, index) => (
                             <div
@@ -621,7 +639,6 @@ export default function BookingRequests({
                             </div>
                           ))}
                         </div>
-
                         <button
                           type="button"
                           onClick={() => addMember(r)}
@@ -630,7 +647,6 @@ export default function BookingRequests({
                           + Add team member
                         </button>
                       </div>
-
                       {/* ---- fee, downpayment, message ---- */}
                       <div className="grid gap-2 sm:grid-cols-[9rem_9rem_1fr]">
                         <input
@@ -659,7 +675,6 @@ export default function BookingRequests({
                           maxLength={500}
                         />
                       </div>
-
                       {feeNum > 0 && d.downpayment !== "" && (
                         <p className="text-xs text-slate-400">
                           {peso(feeNum)} fee − {peso(downNum)} down ={" "}
@@ -667,7 +682,6 @@ export default function BookingRequests({
                           due after the event
                         </p>
                       )}
-
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
@@ -688,7 +702,6 @@ export default function BookingRequests({
                       </div>
                     </div>
                   )}
-
                   {r.status === "offered" && (
                     <div className="mt-3 rounded-lg bg-slate-500/10 px-3 py-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -715,7 +728,6 @@ export default function BookingRequests({
                       )}
                     </div>
                   )}
-
                   {r.status === "awaiting_dp" && (
                     <div className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -756,7 +768,6 @@ export default function BookingRequests({
           </section>
         )
       )}
-
       {/* ---------- Box 2: cancellation requests (only when there are some) ---------- */}
       {cancelRows.length > 0 && (
         <section className="mb-4 rounded-xl border border-rose-500/30 bg-slate-900 p-4">
@@ -769,14 +780,11 @@ export default function BookingRequests({
               {cancelRows.length}
             </span>
           </header>
-
           {error && errorInCancelBox && <p className="mb-2 text-xs text-red-400">{error}</p>}
-
           <div className="space-y-3">
             {cancelRows.map((r) => {
               const busy = busyId === r.id;
               const hasDown = r.downpayment_amount != null && Number(r.downpayment_amount) > 0;
-
               return (
                 <div
                   key={r.id}
@@ -793,12 +801,10 @@ export default function BookingRequests({
                         {r.location ? ` · ${r.location}` : ""}
                       </p>
                     </div>
-
                     <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-500">
                       Cancellation requested
                     </span>
                   </div>
-
                   <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/5 p-3">
                     <p className="text-sm text-slate-300">
                       The client asked to cancel this booked event on{" "}
@@ -807,13 +813,11 @@ export default function BookingRequests({
                       </span>
                       . The date stays booked until you answer.
                     </p>
-
                     {r.cancel_reason && (
                       <p className="mt-1 whitespace-pre-line text-xs text-slate-400">
                         Client's note: {r.cancel_reason}
                       </p>
                     )}
-
                     <p className="mt-2 text-xs text-slate-500">
                       Fee {peso(r.offered_fee)}
                       {hasDown &&
@@ -824,7 +828,6 @@ export default function BookingRequests({
                         }`}
                       . The downpayment is non-refundable.
                     </p>
-
                     <div className="mt-3 flex flex-wrap justify-end gap-2">
                       <button
                         type="button"
@@ -850,7 +853,6 @@ export default function BookingRequests({
           </div>
         </section>
       )}
-
       {/* ---------- Downpayment received / Cancel ---------- */}
       {modal &&
         createPortal(
@@ -882,7 +884,6 @@ export default function BookingRequests({
                   ? "You added this event manually. The date is added to your schedule once you confirm the downpayment."
                   : "The client accepted the quote. The date is added to your schedule once you confirm the downpayment."}
               </p>
-
               <div className="mt-4 space-y-1 rounded-lg bg-slate-500/10 p-3 text-sm">
                 <p className="font-semibold text-white">{modal.title}</p>
                 <p className="text-slate-400">
@@ -903,7 +904,61 @@ export default function BookingRequests({
                   <span className="font-semibold">{peso(Math.max(modalFee - modalDown, 0))}</span>
                 </div>
               </div>
-
+              {!modal.manual_details && (
+                <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800/60 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-white">Client payment receipt</h4>
+                    {modalPayment && (
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                        modalPayment.status === "verified"
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : modalPayment.status === "rejected"
+                            ? "bg-rose-500/10 text-rose-400"
+                            : "bg-amber-500/10 text-amber-400"
+                      }`}>
+                        {modalPayment.status === "verified" ? "Verified" : modalPayment.status === "rejected" ? "Rejected" : "Pending review"}
+                      </span>
+                    )}
+                  </div>
+                  {!modalPayment ? (
+                    <p className="text-xs text-slate-400">The client has not submitted a payment receipt yet.</p>
+                  ) : (
+                    <>
+                      {modalReceiptUrl ? (
+                        <a href={modalReceiptUrl} target="_blank" rel="noreferrer" className="block">
+                          <img src={modalReceiptUrl} alt="Client's uploaded payment receipt" className="max-h-64 w-full rounded-lg border border-slate-700 bg-slate-900 object-contain" />
+                          <span className="mt-1 block text-center text-xs text-sky-400 hover:underline">Open receipt in a new tab</span>
+                        </a>
+                      ) : (
+                        <p className="text-xs text-amber-400">Receipt preview is unavailable. Check the payment-receipts storage permissions.</p>
+                      )}
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-md bg-slate-900/70 p-2"><p className="text-slate-500">Submitted amount</p><p className="mt-1 font-semibold text-white">{peso(modalPayment.amount)}</p></div>
+                        <div className="rounded-md bg-slate-900/70 p-2"><p className="text-slate-500">OCR amount</p><p className="mt-1 font-semibold text-white">{modalPayment.ocr_amount != null ? peso(modalPayment.ocr_amount) : "Not detected"}</p></div>
+                        <div className="rounded-md bg-slate-900/70 p-2"><p className="text-slate-500">Reference number</p><p className="mt-1 break-all font-semibold text-white">{modalPayment.ocr_reference_number || "Not detected"}</p></div>
+                        <div className="rounded-md bg-slate-900/70 p-2"><p className="text-slate-500">Transaction date</p><p className="mt-1 font-semibold text-white">{displayOcrTransactionDate(modalPayment)}</p></div>
+                      </div>
+                      {modalPayment.review_note && <p className="mt-2 rounded-md bg-slate-900/70 p-2 text-xs text-slate-300">Review note: {modalPayment.review_note}</p>}
+                      {modalPayment.ocr_extracted_text && (
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-xs font-medium text-sky-400">View extracted OCR text</summary>
+                          <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-950 p-2 text-[10px] text-slate-400">{modalPayment.ocr_extracted_text}</pre>
+                        </details>
+                      )}
+                      {modalPayment.status === "pending" && (
+                        <>
+                          <label className="mt-3 block text-xs text-slate-400">Review note (optional)</label>
+                          <textarea value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} rows={2} maxLength={500} placeholder="Add a note for the client..." className={`${field} mt-1 resize-y`} />
+                          <div className="mt-3 flex flex-wrap justify-end gap-2">
+                            <button type="button" onClick={() => reviewPayment("rejected")} disabled={!!modalBusy} className="rounded-lg border border-rose-500/50 px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/10 disabled:opacity-50">{modalBusy === "reject" ? "Rejecting..." : "Reject receipt"}</button>
+                            <button type="button" onClick={() => reviewPayment("verified")} disabled={!!modalBusy} className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-50">{modalBusy === "verify" ? "Verifying..." : "Verify receipt"}</button>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
               <label className="mt-4 block text-xs text-slate-400">Date received</label>
               <input
                 type="date"
@@ -911,18 +966,15 @@ export default function BookingRequests({
                 value={paidDate}
                 onChange={(e) => setPaidDate(e.target.value)}
               />
-
               <p className="mt-2 text-xs text-slate-500">
                 Downpayments are non-refundable. Confirming adds the event to your schedule and
                 records {peso(modalDown)} as income.
               </p>
-
               {modalError && (
                 <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
                   {modalError}
                 </p>
               )}
-
               <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
@@ -932,7 +984,6 @@ export default function BookingRequests({
                 >
                   Close
                 </button>
-
                 <div className="flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
@@ -945,10 +996,10 @@ export default function BookingRequests({
                   <button
                     type="button"
                     onClick={confirmDownpayment}
-                    disabled={!!modalBusy}
-                    className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-900 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-sky-400 active:translate-y-0 disabled:opacity-50"
+                    disabled={!!modalBusy || (!modal.manual_details && modalPayment?.status !== "verified")}
+                    className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-900 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-sky-400 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {modalBusy === "confirm" ? "Saving…" : "Downpayment received"}
+                    {modalBusy === "confirm" ? "Saving…" : modal.manual_details ? "Downpayment received" : "Confirm booking"}
                   </button>
                 </div>
               </div>

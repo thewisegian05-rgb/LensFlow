@@ -1161,10 +1161,10 @@ body {
 .login-camera-shutter:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 5px; }
 .login-camera-shutter:disabled { cursor: wait; }
 .login-camera-hint { color: #8fa4ba; font-size: 10px; font-weight: 800; letter-spacing: .25em; animation: camera-hint-pulse 1.8s ease-in-out infinite; }
-.login-camera-flash { position: fixed; z-index: 200; inset: 0; pointer-events: none; background: #fff; animation: camera-flash-burst 550ms ease-out forwards; }
+.login-camera-flash { position: fixed; z-index: 200; inset: 0; pointer-events: none; background: #fff; animation: camera-flash-burst 420ms ease-out forwards; }
 .login-form-reveal { animation: none; opacity: 1; transform: none; filter: none; }
 @keyframes camera-flash-burst {
-  0% { opacity: 0; } 10% { opacity: 1; } 30% { opacity: .9; } 65% { opacity: .22; } 100% { opacity: 0; }
+  0% { opacity: 0; } 8% { opacity: 1; } 25% { opacity: .95; } 65% { opacity: .28; } 100% { opacity: 0; }
 }
 @keyframes camera-form-reveal { from { opacity: 0; transform: scale(.97) translateY(18px); filter: blur(8px); } to { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } }
 @keyframes camera-copy-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
@@ -1178,4 +1178,315 @@ body {
   .login-camera-copy, .login-camera-hint, .login-form-reveal { animation: none; }
   .login-camera-shutter { transition: none; }
   .login-camera-flash { animation-duration: 250ms; }
+}
+
+
+/* Instant handoff: the login is mounted behind the flash and revealed in one frame. */
+.login-form-reveal.is-hidden { display: none; }
+.login-form-reveal.is-visible { display: block; animation: none !important; opacity: 1; visibility: visible; }
+.login-camera-intro { transition: opacity 0s linear; }
+.login-camera-intro:has(+ .login-form-reveal.is-visible) { display: none; }
+
+
+/* Initial state: show the camera scene by itself, centered in the viewport. */
+.login-page:has(.login-camera-intro) {
+  display: block;
+  width: 100%;
+  min-height: 100dvh;
+  height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+}
+.login-page:has(.login-camera-intro) > .login-container {
+  display: none !important;
+}
+.login-camera-intro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 4vh, 38px);
+  min-height: 100dvh;
+  padding: 70px 20px 30px;
+  text-align: center;
+}
+.login-camera-visual {
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+.login-camera-body {
+  margin-left: auto;
+  margin-right: auto;
+}
+@media (max-width: 560px) {
+  .login-camera-intro {
+    gap: 34px;
+    padding: 76px 14px 24px;
+  }
+}
+
+
+/* Camera entrance: drop into position, bounce softly, then settle. */
+.login-camera-visual {
+  position: relative;
+  animation: lensflow-camera-drop 1.8s cubic-bezier(.18,.72,.24,1) both;
+  transform-origin: center top;
+  will-change: transform, opacity;
+}
+.login-camera-visual::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  bottom: 39px;
+  width: min(82vw, 390px);
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .72);
+  filter: blur(12px);
+  opacity: 0;
+  transform: translateX(-50%) scale(.45);
+  animation: lensflow-camera-ground-shadow 1.8s ease-out both;
+}
+.login-camera-copy {
+  animation: lensflow-camera-copy-in 650ms ease-out 180ms both;
+}
+.login-camera-hint {
+  opacity: 0;
+  animation: lensflow-camera-hint-in 450ms ease-out 950ms forwards,
+             camera-hint-pulse 1.8s ease-in-out 1.4s infinite;
+}
+@keyframes lensflow-camera-drop {
+  0% { opacity: 0; transform: translateY(-100vh) rotate(-7deg) scale(.92); }
+  48% { opacity: 1; transform: translateY(0) rotate(1.5deg) scale(1); }
+  56% { transform: translateY(20px) rotate(-1deg) scale(1.025,.965); }
+  66% { transform: translateY(-11px) rotate(.7deg) scale(.99,1.015); }
+  76% { transform: translateY(7px) rotate(-.4deg) scale(1.012,.99); }
+  86% { transform: translateY(-3px) rotate(.2deg) scale(.997,1.005); }
+  94% { transform: translateY(1px) rotate(0) scale(1); }
+  100% { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+}
+@keyframes lensflow-camera-ground-shadow {
+  0%, 35% { opacity: 0; transform: translateX(-50%) scale(.35); }
+  52% { opacity: .75; transform: translateX(-50%) scale(1.12); }
+  62% { opacity: .48; transform: translateX(-50%) scale(.88); }
+  76% { opacity: .62; transform: translateX(-50%) scale(1.03); }
+  100% { opacity: .55; transform: translateX(-50%) scale(1); }
+}
+@keyframes lensflow-camera-copy-in {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes lensflow-camera-hint-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-camera-visual,
+  .login-camera-visual::before,
+  .login-camera-body,
+  .login-camera-copy,
+  .login-camera-hint {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+  }
+}
+
+@keyframes lensflow-camera-body-impact {
+  0%, 46% { transform: translateY(0); }
+  54% { transform: translateY(3px) scaleY(.985); }
+  65% { transform: translateY(-2px) scaleY(1.008); }
+  77% { transform: translateY(1px) scaleY(.995); }
+  90%, 100% { transform: translateY(0) scaleY(1); }
+}
+.login-camera-body {
+  animation: lensflow-camera-body-impact 1.8s ease-out both;
+  transform-origin: center bottom;
+}
+
+
+/* Ground contact cue: the camera lands on a subtle studio floor shadow. */
+.login-camera-visual {
+  position: relative;
+  isolation: isolate;
+}
+.login-camera-visual::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 190px;
+  width: clamp(250px, 55vw, 410px);
+  height: 24px;
+  transform: translateX(-50%) scaleX(.28);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .72);
+  filter: blur(12px);
+  opacity: 0;
+  animation: lensflow-ground-impact 1.9s ease-out both;
+  pointer-events: none;
+}
+@keyframes lensflow-ground-impact {
+  0%, 43% { opacity: 0; transform: translateX(-50%) scaleX(.22); }
+  56% { opacity: .85; transform: translateX(-50%) scaleX(1.08); }
+  70% { opacity: .48; transform: translateX(-50%) scaleX(.9); }
+  84% { opacity: .62; transform: translateX(-50%) scaleX(1); }
+  100% { opacity: .58; transform: translateX(-50%) scaleX(1); }
+}
+@media (max-width: 480px) {
+  .login-camera-visual::after { top: 168px; width: 290px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-camera-visual::after {
+    animation: none;
+    opacity: .55;
+    transform: translateX(-50%) scaleX(1);
+  }
+}
+
+
+/* Refined DSLR styling: matte camera body, tactile grip, and layered glass lens. */
+.login-camera-body {
+  border: 1px solid #667487;
+  border-radius: 22px 22px 25px 25px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.10), transparent 15%),
+    linear-gradient(115deg, #3b4653 0%, #202a36 24%, #111a25 68%, #263342 100%);
+  box-shadow:
+    0 25px 38px rgba(0,0,0,.48),
+    inset 0 1px 0 rgba(255,255,255,.28),
+    inset 0 -8px 16px rgba(0,0,0,.32);
+}
+.login-camera-body::before {
+  left: 28px;
+  right: 28px;
+  top: 14px;
+  height: 6px;
+  border: 1px solid rgba(0,0,0,.35);
+  background: linear-gradient(90deg,#101720,#526170 50%,#111923);
+  box-shadow: 0 1px 0 rgba(255,255,255,.08);
+}
+.login-camera-body::after {
+  content: "LENSFLOW  •  DSLR";
+  position: absolute;
+  right: 48px;
+  bottom: 17px;
+  color: #9aa9b8;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-shadow: 0 1px 2px #000;
+}
+.login-camera-top {
+  left: 34px;
+  width: 112px;
+  height: 26px;
+  border: 1px solid #718093;
+  border-bottom: 0;
+  border-radius: 10px 10px 2px 2px;
+  background: linear-gradient(180deg,#667587,#293746);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 -2px 5px rgba(0,0,0,.2);
+}
+.login-camera-top span {
+  background: #111a24;
+  box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255,255,255,.1);
+}
+.login-camera-top i {
+  background: radial-gradient(circle at 35% 30%,#fff,#aab8c5 38%,#526273 70%);
+  box-shadow: 0 0 0 2px #293746, inset 0 0 0 3px #8292a2;
+}
+.login-camera-viewfinder {
+  top: 21px;
+  width: 62px;
+  height: 27px;
+  border: 3px solid #8b9aab;
+  border-radius: 5px;
+  background: linear-gradient(145deg,#111a24,#05090e);
+  box-shadow: 0 2px 5px rgba(0,0,0,.55), inset 0 0 5px #000;
+}
+.login-camera-lens {
+  top: 49px;
+  width: 146px;
+  height: 146px;
+  border: 7px solid #7d8b9a;
+  background: linear-gradient(145deg,#101820,#536170 42%,#101820 72%);
+  box-shadow:
+    0 0 0 3px #111a24,
+    0 0 0 6px #8492a1,
+    0 0 0 8px #263341,
+    inset 0 0 0 3px #0a1119,
+    inset 0 0 16px #000,
+    0 7px 14px rgba(0,0,0,.45);
+}
+.login-camera-lens::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 2px solid rgba(190,205,220,.45);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.45), inset 0 0 9px #000;
+}
+.login-camera-lens::after {
+  content: "50mm";
+  position: absolute;
+  bottom: -19px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #c3ced8;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-shadow: 0 1px 2px #000;
+}
+.login-camera-lens-inner {
+  width: 96px;
+  height: 96px;
+  border: 6px solid #263747;
+  background:
+    radial-gradient(ellipse at 35% 30%, rgba(120,185,220,.55), transparent 18%),
+    radial-gradient(circle at 50% 50%, #02060b 0%, #071522 42%, #17405d 58%, #03070d 74%);
+  box-shadow:
+    inset 0 0 0 3px #050a10,
+    inset 0 0 18px #000,
+    0 0 12px rgba(0,0,0,.8);
+}
+.login-camera-lens-inner span {
+  top: 13px;
+  left: 17px;
+  width: 25px;
+  height: 11px;
+  background: rgba(190,225,245,.58);
+  filter: blur(3px);
+}
+.login-camera-grip {
+  right: 0;
+  top: 36px;
+  width: 28px;
+  height: 133px;
+  border: 1px solid rgba(125,145,165,.28);
+  border-right: 0;
+  border-radius: 7px 18px 18px 7px;
+  background:
+    repeating-linear-gradient(180deg,rgba(255,255,255,.035) 0 2px,transparent 2px 5px),
+    linear-gradient(90deg,#0b121b,#283746);
+  box-shadow: inset 3px 0 6px rgba(0,0,0,.4);
+}
+.login-camera-shutter {
+  right: 35px;
+  top: -34px;
+  border: 1px solid #a9b5c1;
+  border-radius: 8px 8px 4px 4px;
+  background: linear-gradient(180deg,#e0e6eb 0%,#8796a5 45%,#465666 100%);
+  box-shadow: 0 4px 0 #111b26, 0 6px 8px rgba(0,0,0,.35), inset 0 1px 0 #fff;
+}
+.login-camera-shutter span {
+  width: 17px;
+  height: 5px;
+  border-radius: 4px;
+  background: linear-gradient(#17212b,#40505f);
 }

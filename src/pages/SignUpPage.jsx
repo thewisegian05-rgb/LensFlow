@@ -150,9 +150,9 @@ const validateSignUpForm = (form, passwordIsValid) => {
   if (emailError) errors.email = emailError;
   if (
     form.accountType !== "customer" &&
-    form.studioName.trim().length > 100
+    form.studioName.trim().length > 50
   ) {
-    errors.studioName = "Studio / Business Name must not exceed 100 characters.";
+    errors.studioName = "Studio / Business Name must not exceed 50 characters.";
   }
   if (!form.password) {
     errors.password = "Please enter a password.";
@@ -480,7 +480,7 @@ function SignUpPage() {
                         value={form.studioName}
                         onChange={handleChange}
                         autoComplete="organization"
-                        maxLength={100}
+                        maxLength={50}
                         aria-invalid={Boolean(errors.studioName)}
                         aria-describedby="studioName-counter"
                       />
@@ -492,11 +492,11 @@ function SignUpPage() {
                         </small>
                       ) : (
                         <small className="signup-field-help">
-                          Maximum of 100 characters.
+                          Maximum of 50 characters.
                         </small>
                       )}
                       <small id="studioName-counter" className="signup-field-help ml-auto whitespace-nowrap">
-                        {form.studioName.length}/100
+                        {form.studioName.length}/50
                       </small>
                     </div>
                   </div>

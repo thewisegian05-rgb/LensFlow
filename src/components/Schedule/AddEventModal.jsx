@@ -22,8 +22,29 @@ const peso = (n) => `₱${Math.round(Number(n) || 0).toLocaleString("en-PH")}`;
 
 const todayString = () => new Date().toLocaleDateString("en-CA");
 
+// ---------- booking window ----------
+// How far ahead a date can be booked. The window is rolling: today + 2 years.
+const MAX_YEARS_AHEAD = 2;
+
+// "2026-11-05" + 2 years -> "2028-11-05"
+const addYears = (dateStr, years) => {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setFullYear(d.getFullYear() + years);
+  return d.toLocaleDateString("en-CA");
+};
+
+// Current local time as "HH:MM" (same format as <input type="time">)
+const nowTimeString = () => new Date().toTimeString().slice(0, 5);
+
 // "2026-10-25" -> ISO timestamp at local noon (avoids timezone day-shifts)
 const dateToIso = (dateStr) => new Date(`${dateStr}T12:00:00`).toISOString();
+
+// Red asterisk shown next to required fields.
+const Req = () => (
+  <span className="ml-0.5 text-red-500" aria-hidden="true" title="Required">
+    *
+  </span>
+);
 
 // ---------- production team ----------
 // The team is saved into the existing `photographer` field as readable text:
@@ -398,7 +419,7 @@ function AddEventModal({
     clientLast: "",
     clientEmail: "",
     clientId: null,
-    category: CATEGORY_KEYS[0],
+    category: "",
     team: [emptyMember()],
     location: emptyLocation(),
     gears: [],
@@ -419,6 +440,17 @@ function AddEventModal({
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
   const clientBoxRef = useRef(null);
   const [formError, setFormError] = useState("");
+  // Turns on after the person clicks the submit button while something is
+  // still missing: the missing fields get a red highlight.
+  const [showErrors, setShowErrors] = useState(false);
+
+  // Bring the error message at the bottom into view when one appears.
+  useEffect(() => {
+    if (!formError) return;
+    document
+      .getElementById("form-error")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [formError]);
 
   // Close the client dropdown when clicking anywhere outside it.
   useEffect(() => {
@@ -497,6 +529,7 @@ function AddEventModal({
     }
 
     setIsVisible(false);
+    setShowErrors(false);
     const frame = requestAnimationFrame(() => setIsVisible(true));
     return () => cancelAnimationFrame(frame);
   }, [open]);
@@ -579,6 +612,7 @@ function AddEventModal({
 
   useEffect(() => {
     setFormError("");
+    setShowErrors(false);
 
     if (editingEvent) {
       const startDate = editingEvent.start
@@ -605,7 +639,7 @@ function AddEventModal({
         category:
           editingEvent.category ||
           editingEvent.type ||
-          CATEGORY_KEYS[0],
+          "",
         team: parseTeam(editingEvent.photographer),
         location: parseLocation(editingEvent.location),
         gears: Array.isArray(editingEvent.gears)
@@ -797,6 +831,124 @@ function AddEventModal({
     : 0;
   const balanceDue = Math.max(fee - collected, 0);
 
+  // ---------- booking window: date range and past times ----------
+  // Earliest bookable date is today; latest is today + MAX_YEARS_AHEAD years.
+  const minDate = todayString();
+  const maxDate = addYears(minDate, MAX_YEARS_AHEAD);
+
+  // When editing, an event whose date/start time hasn't been changed is not
+  // re-checked, so an old event that already happened stays editable.
+  const originalDate = editingEvent
+    ? editingEvent.date ||
+      (editingEvent.start
+        ? new Date(editingEvent.start).toLocaleDateString("en-CA")
+        : "")
+    : "";
+  const originalStart =
+    editingEvent && editingEvent.start
+      ? new Date(editingEvent.start).toTimeString().slice(0, 5)
+      : "";
+  const scheduleUnchanged =
+    Boolean(editingEvent) &&
+    form.date === originalDate &&
+    form.start === originalStart;
+
+  // Returns { message, field } where field is the input to highlight.
+  const getScheduleError = () => {
+    if (form.start && form.end && form.end <= form.start) {
+      return { message: "End time must be after the start time.", field: "end" };
+    }
+
+    if (scheduleUnchanged || !form.date) return null;
+
+    if (form.date < minDate) {
+      return {
+        message: "That date has already passed. Choose today or a later date.",
+        field: "date",
+      };
+    }
+
+    if (form.date > maxDate) {
+      return {
+        message: `Bookings are only open up to ${MAX_YEARS_AHEAD} years ahead (until ${maxDate}).`,
+        field: "date",
+      };
+    }
+
+    if (form.date === minDate && form.start && form.start <= nowTimeString()) {
+      return {
+        message: "That start time has already passed today. Choose a later time.",
+        field: "start",
+      };
+    }
+
+    return null;
+  };
+
+  const scheduleResult = getScheduleError();
+  const scheduleError = scheduleResult ? scheduleResult.message : null;
+  const scheduleField = scheduleResult ? scheduleResult.field : null;
+
+  // ---------- what is still missing ----------
+  // The submit button stays disabled until this list is empty.
+  // Listed in the same order the fields appear in the form, so the first
+  // item is the first thing to scroll to. Each id matches an element id
+  // "f-<id>" in the form below.
+  const missingItems = [];
+  const need = (id, label) => missingItems.push({ id, label });
+
+  if (form.title.trim().length < 3) need("title", "event title (at least 3 characters)");
+  if (!form.clientFirst.trim()) need("clientFirst", "client first name");
+  if (!form.clientLast.trim()) need("clientLast", "client last name");
+  if (gmailProblem(form.clientEmail)) need("clientEmail", "a valid client Gmail address");
+  if (!form.team.some((m) => m.name.trim())) {
+    need("team", "at least one production member");
+  } else if (form.team.some((m) => m.position.trim() && !m.name.trim())) {
+    need("team", "a name for every production member");
+  }
+  if (!form.location.city.trim()) need("city", "location city");
+  if (!form.location.province.trim()) need("province", "location province");
+  if (!form.location.region) need("region", "location region");
+  if (!editingEvent) {
+    if (fee <= 0) need("fee", "talent fee");
+    if (form.downpaymentDue === "") need("downpayment", "downpayment due");
+    else if (downpaymentDue > fee) {
+      need("downpayment", "a downpayment that isn't more than the fee");
+    }
+  }
+  if (!form.category) need("category", "event type");
+  if (!form.date) need("date", "date");
+  if (!form.start) need("start", "start time");
+  if (!form.end) need("end", "end time");
+
+  const missing = missingItems.map((m) => m.label);
+  const missingIds = new Set(missingItems.map((m) => m.id));
+
+  // True when this field should show the red highlight.
+  const flag = (id) => showErrors && (missingIds.has(id) || scheduleField === id);
+  const errRing = (id) => (flag(id) ? " !border-red-500 ring-2 ring-red-500/40" : "");
+
+  // Highlight everything that is still needed and scroll to the first one.
+  const flagMissing = () => {
+    setShowErrors(true);
+
+    const firstId = missingItems.length ? missingItems[0].id : scheduleField;
+    if (!firstId) return;
+
+    // Wait one tick so the highlight renders before scrolling.
+    setTimeout(() => {
+      const el = document.getElementById(`f-${firstId}`);
+      if (!el) return;
+
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      const target = el.matches("input, select, textarea")
+        ? el
+        : el.querySelector("input, select, textarea");
+      target?.focus({ preventScroll: true });
+    }, 0);
+  };
+
   // ---------- record a payment on an existing event ----------
   const addPayment = async () => {
     const amount = parseFloat(newPayment.amount);
@@ -857,6 +1009,15 @@ function AddEventModal({
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    // Something is still missing, or the date/time isn't allowed (typed or
+    // pasted dates can bypass the date picker's min/max, so this is the real
+    // check): highlight it and scroll to the first problem.
+    if (missing.length > 0 || scheduleError) {
+      setFormError("");
+      flagMissing();
+      return;
+    }
+
     // New events become a booking request that waits for its downpayment,
     // so the fee and the downpayment due are both needed.
     if (!editingEvent) {
@@ -874,6 +1035,16 @@ function AddEventModal({
         setFormError("The downpayment can't be more than the talent fee.");
         return;
       }
+    }
+
+    if (!form.category) {
+      setFormError("Choose the event type.");
+      return;
+    }
+
+    if (!form.team.some((m) => m.name.trim())) {
+      setFormError("Add at least one production member.");
+      return;
     }
 
     if (form.team.some((m) => m.position.trim() && !m.name.trim())) {
@@ -908,17 +1079,17 @@ function AddEventModal({
     // Locations of older events (or an unchanged location) are not re-checked.
     const locationChanged = locationText !== String(editingEvent?.location || "");
 
-    if (!problem && locationText && locationChanged) {
-      if (!loc.city.trim() || !loc.province.trim() || !loc.region) {
-        problem = "For the location, please fill in the city, province and region.";
-      } else {
-        problem =
-          textProblem("Venue", loc.venue) ||
-          textProblem("Street", loc.street) ||
-          textProblem("Barangay", loc.barangay, { minLetters: 0 }) ||
-          textProblem("City", loc.city) ||
-          textProblem("Province", loc.province);
-      }
+    if (!problem && (!loc.city.trim() || !loc.province.trim() || !loc.region)) {
+      problem = "Please fill in the location's city, province and region.";
+    }
+
+    if (!problem && locationChanged) {
+      problem =
+        textProblem("Venue", loc.venue) ||
+        textProblem("Street", loc.street) ||
+        textProblem("Barangay", loc.barangay, { minLetters: 0 }) ||
+        textProblem("City", loc.city) ||
+        textProblem("Province", loc.province);
     }
 
     if (problem) {
@@ -984,23 +1155,31 @@ function AddEventModal({
             {editingEvent ? "Edit Event" : "Add New Event"}
           </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <input
-              type="text"
-              name="title"
-              placeholder="Event Title"
-              value={form.title}
-              onChange={handleChange}
-              maxLength={RULES.title.max}
-              className={inputClass}
-              required
-            />
+          {/* noValidate: our own check runs on submit so it can highlight and
+              scroll to what is missing (the browser's popup would block it). */}
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Event Title <Req />
+              </label>
+              <input
+                type="text"
+                id="f-title"
+                name="title"
+                placeholder="Event Title"
+                value={form.title}
+                onChange={handleChange}
+                maxLength={RULES.title.max}
+                className={inputClass + errRing("title")}
+                required
+              />
+            </div>
 
             {/* ---------- Client name (first + last) ---------- */}
             <div ref={clientBoxRef} className="relative">
               <div className="mb-1 flex items-center justify-between">
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Client Name
+                  Client Name <Req />
                 </label>
 
                 <button
@@ -1015,6 +1194,7 @@ function AddEventModal({
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <input
                   type="text"
+                  id="f-clientFirst"
                   name="clientFirst"
                   placeholder="First name"
                   aria-label="Client first name"
@@ -1022,12 +1202,13 @@ function AddEventModal({
                   autoComplete="off"
                   value={form.clientFirst}
                   onChange={handleClientNameChange}
-                  className={inputClass}
+                  className={inputClass + errRing("clientFirst")}
                   required
                 />
 
                 <input
                   type="text"
+                  id="f-clientLast"
                   name="clientLast"
                   placeholder="Last name"
                   aria-label="Client last name"
@@ -1035,7 +1216,7 @@ function AddEventModal({
                   autoComplete="off"
                   value={form.clientLast}
                   onChange={handleClientNameChange}
-                  className={inputClass}
+                  className={inputClass + errRing("clientLast")}
                   required
                 />
               </div>
@@ -1083,14 +1264,14 @@ function AddEventModal({
             {/* ---------- Client Google email ---------- */}
             <div>
               <label
-                htmlFor="client-email"
+                htmlFor="f-clientEmail"
                 className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
               >
-                Client Google Email
+                Client Google Email <Req />
               </label>
 
               <input
-                id="client-email"
+                id="f-clientEmail"
                 type="text"
                 name="clientEmail"
                 inputMode="email"
@@ -1101,7 +1282,7 @@ function AddEventModal({
                 maxLength={RULES.clientEmail.max}
                 value={form.clientEmail}
                 onChange={handleEmailChange}
-                className={inputClass}
+                className={inputClass + errRing("clientEmail")}
                 required
               />
 
@@ -1115,10 +1296,15 @@ function AddEventModal({
             {/* ---------- Production team (name + position) ---------- */}
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Production Team
+                Production Team <Req />
               </label>
 
-              <div className="space-y-2">
+              <div
+                id="f-team"
+                className={`space-y-2${
+                  flag("team") ? " rounded-lg p-2 ring-2 ring-red-500/60" : ""
+                }`}
+              >
                 {form.team.map((member, index) => (
                   <div
                     key={index}
@@ -1165,7 +1351,7 @@ function AddEventModal({
             {/* ---------- Location (split into parts) ---------- */}
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Location
+                Location <Req />
               </label>
 
               <div className="space-y-2">
@@ -1208,38 +1394,41 @@ function AddEventModal({
 
                   <input
                     type="text"
+                    id="f-city"
                     name="city"
-                    placeholder="City / Municipality"
+                    placeholder="City / Municipality *"
                     aria-label="City or municipality"
                     maxLength={RULES.city.max}
                     autoComplete="off"
                     value={form.location.city}
                     onChange={handleLocationChange}
-                    className={inputClass}
+                    className={inputClass + errRing("city")}
                   />
                 </div>
 
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <input
                     type="text"
+                    id="f-province"
                     name="province"
-                    placeholder="Province (or Metro Manila)"
+                    placeholder="Province (or Metro Manila) *"
                     aria-label="Province"
                     maxLength={RULES.province.max}
                     autoComplete="off"
                     value={form.location.province}
                     onChange={handleLocationChange}
-                    className={inputClass}
+                    className={inputClass + errRing("province")}
                   />
 
                   <select
+                    id="f-region"
                     name="region"
                     aria-label="Region"
                     value={form.location.region}
                     onChange={handleLocationChange}
-                    className={inputClass}
+                    className={inputClass + errRing("region")}
                   >
-                    <option value="">Select region</option>
+                    <option value="">Select region *</option>
                     {REGIONS.map((region) => (
                       <option key={region.value} value={region.value}>
                         {region.label}
@@ -1250,14 +1439,14 @@ function AddEventModal({
               </div>
 
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-                Leave all blank if the location isn't set yet. If you fill any
-                part in, the city, province and region are required.
+                The city, province and region are required. Venue, street and
+                barangay are optional.
               </p>
             </div>
 
             <div>
               <label className="mb-2 block text-sm text-slate-600 dark:text-slate-400">
-                Talent Fee (₱)
+                Talent Fee (₱) {!editingEvent && <Req />}
               </label>
 
               <div className="relative">
@@ -1266,6 +1455,7 @@ function AddEventModal({
                 </span>
 
                 <input
+                  id="f-fee"
                   type="number"
                   name="talentFee"
                   placeholder="0.00"
@@ -1276,7 +1466,7 @@ function AddEventModal({
                   value={form.talentFee}
                   onChange={handleMoneyChange}
                   onKeyDown={blockNumberKeys}
-                  className={`${inputClass} pl-7`}
+                  className={`${inputClass} pl-7${errRing("fee")}`}
                 />
               </div>
 
@@ -1302,13 +1492,14 @@ function AddEventModal({
                 </p>
 
                 <label className="mb-1 block text-xs text-slate-600 dark:text-slate-400">
-                  Downpayment due (₱)
+                  Downpayment due (₱) <Req />
                 </label>
                 <div className="relative">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
                     ₱
                   </span>
                   <input
+                    id="f-downpayment"
                     type="number"
                     name="downpaymentDue"
                     placeholder="0.00"
@@ -1319,7 +1510,7 @@ function AddEventModal({
                     value={form.downpaymentDue}
                     onChange={handleMoneyChange}
                     onKeyDown={blockNumberKeys}
-                    className={`${inputClass} pl-7`}
+                    className={`${inputClass} pl-7${errRing("downpayment")}`}
                   />
                 </div>
 
@@ -1443,10 +1634,15 @@ function AddEventModal({
             )}
 
             <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Event Type <Req />
+              </label>
               <select
+                id="f-category"
                 name="category"
                 value={form.category}
                 onChange={handleChange}
+                required
                 className="
                   category-select
                   w-full rounded-lg border p-3 outline-none transition
@@ -1456,8 +1652,15 @@ function AddEventModal({
                 "
                 style={{
                   "--category-color": activeColor,
+                  ...(flag("category")
+                    ? {
+                        borderColor: "#ef4444",
+                        boxShadow: "0 0 0 2px rgba(239, 68, 68, 0.4)",
+                      }
+                    : {}),
                 }}
               >
+                <option value="">Select event type</option>
                 {CATEGORY_KEYS.map((key) => (
                   <option key={key} value={key}>
                     {CATEGORY_LABELS[key]}
@@ -1519,33 +1722,67 @@ function AddEventModal({
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <input
-                type="date"
-                name="date"
-                value={form.date}
-                onChange={handleChange}
-                className="rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                required
-              />
+              <div>
+                <label className="mb-1 block text-sm text-slate-600 dark:text-slate-400">
+                  Date <Req />
+                </label>
+                <input
+                  type="date"
+                  name="date"
+                  value={form.date}
+                  onChange={handleChange}
+                  min={editingEvent ? undefined : minDate}
+                  max={maxDate}
+                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  required
+                />
+              </div>
 
-              <input
-                type="time"
-                name="start"
-                value={form.start}
-                onChange={handleChange}
-                className="rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                required
-              />
+              <div>
+                <label className="mb-1 block text-sm text-slate-600 dark:text-slate-400">
+                  Start time <Req />
+                </label>
+                <input
+                  type="time"
+                  name="start"
+                  value={form.start}
+                  onChange={handleChange}
+                  min={
+                    form.date === minDate && !editingEvent
+                      ? nowTimeString()
+                      : undefined
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  required
+                />
+              </div>
 
-              <input
-                type="time"
-                name="end"
-                value={form.end}
-                onChange={handleChange}
-                className="rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                required
-              />
+              <div>
+                <label className="mb-1 block text-sm text-slate-600 dark:text-slate-400">
+                  End time <Req />
+                </label>
+                <input
+                  type="time"
+                  name="end"
+                  value={form.end}
+                  onChange={handleChange}
+                  min={form.start || undefined}
+                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  required
+                />
+              </div>
             </div>
+
+            <p className="-mt-2 text-xs text-slate-500 dark:text-slate-500">
+              Bookings can be made from today up to {MAX_YEARS_AHEAD} years ahead
+              (until {maxDate}). Past dates and times can't be booked.
+            </p>
+
+            {scheduleError && (
+              <p className="text-sm text-red-500" aria-live="polite">
+                {scheduleError}
+              </p>
+            )}
 
             <textarea
               rows="4"
@@ -1556,6 +1793,16 @@ function AddEventModal({
               onChange={handleChange}
               className="w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-slate-900 placeholder-slate-500 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
             />
+
+            <p className="text-xs text-slate-500">
+              <span className="text-red-500">*</span> Required
+            </p>
+
+            {missing.length > 0 && (
+              <p className="text-xs text-slate-500" aria-live="polite">
+                To save, add: {missing.join(", ")}.
+              </p>
+            )}
 
             {formError && <p className="text-sm text-red-500">{formError}</p>}
 
@@ -1570,7 +1817,8 @@ function AddEventModal({
 
               <button
                 type="submit"
-                className="rounded-lg bg-sky-500 px-5 py-2 font-semibold text-slate-900 transition hover:bg-sky-600"
+                disabled={missing.length > 0 || Boolean(scheduleError)}
+                className="rounded-lg bg-sky-500 px-5 py-2 font-semibold text-slate-900 transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-sky-500"
               >
                 {editingEvent ? "Update Event" : "Add to Booking Requests"}
               </button>

@@ -4,6 +4,7 @@ import { useOutletContext } from "react-router-dom";
 import { supabase } from "../../../lib/supabaseClient";
 import Calendar from "../../../components/Schedule/Calendar";
 import BookingModal from "../../../components/Schedule/BookingModal";
+import { crewSummary } from "../../../components/Schedule/CrewNeededField";
 import Section from "../components/ui/Section";
 import TabHeader from "../components/ui/TabHeader";
 
@@ -165,6 +166,9 @@ export default function ScheduleTab() {
     ? Math.max(Number(selected.offered_fee || 0) - Number(selected.downpayment_amount || 0), 0)
     : 0;
 
+  // "2 photographers · 1 videographer", or "" for older requests without it.
+  const crewText = selected ? crewSummary(selected.crew_needed) : "";
+
   return (
     <div className="min-w-0 space-y-4">
       <TabHeader
@@ -257,6 +261,13 @@ export default function ScheduleTab() {
                   <div className="flex justify-between gap-4">
                     <dt className="text-slate-400">Location</dt>
                     <dd className="break-words text-right">{selected.location}</dd>
+                  </div>
+                )}
+
+                {crewText && (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Creatives needed</dt>
+                    <dd className="break-words text-right">{crewText}</dd>
                   </div>
                 )}
 

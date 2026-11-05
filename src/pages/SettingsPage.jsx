@@ -8,6 +8,7 @@ import {
   FaKey,
   FaLaptop,
   FaSignOutAlt,
+  FaWallet,
 } from "react-icons/fa";
 
 import { flushSync } from "react-dom";
@@ -19,6 +20,7 @@ import ReportProblemModal from "../components/Settings/ReportProblemModal";
 import ActiveSessionsModal from "../components/Settings/ActiveSessionsModal";
 import SignOutOthersModal from "../components/Settings/SignOutOthersModal";
 import ChangePasswordModal from "../components/Settings/ChangePasswordModal";
+import PaymentSettings from "../components/Settings/PaymentSettings";
 
 /* ------------------------------------------------------------------ */
 /*                    This is the Animations                       */
@@ -97,6 +99,7 @@ function SettingsSkeleton() {
 function SettingsPage() {
   const { reportPageReady, routeKey } = useOutletContext();
   const { theme, setTheme } = useTheme();
+  const [showPaymentSettings, setShowPaymentSettings] = useState(false);
 
   const themeButtonRef = useRef(null);
   const [iconRolling, setIconRolling] = useState(false);
@@ -420,6 +423,57 @@ function SettingsPage() {
             >
               Sign Out Others
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Settings */}
+      <div
+        className="settings-reveal mt-6 rounded-xl border border-slate-300 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none"
+        style={{ animationDelay: "200ms" }}
+      >
+        {/* Collapsible Header */}
+        <button
+          type="button"
+          onClick={() => setShowPaymentSettings((prev) => !prev)}
+          className="flex w-full items-center justify-between gap-4 bg-transparent text-left outline-none focus:bg-transparent focus:outline-none focus:ring-0"
+          aria-expanded={showPaymentSettings}
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
+              <FaWallet />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">
+                Payment Settings
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                	Manage your preferred payment account and QR code.
+              </p>
+            </div>
+          </div>
+
+          <FaChevronDown
+            className={`shrink-0 text-slate-500 transition-transform duration-300 ease-out dark:text-slate-400 ${
+              showPaymentSettings ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {/* Smooth Expand / Collapse */}
+        <div
+          className={`grid transition-all duration-300 ease-out ${
+            showPaymentSettings
+              ? "mt-5 grid-rows-[1fr] opacity-100"
+              : "mt-0 grid-rows-[0fr] opacity-0"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="border-t border-slate-200 pt-5 dark:border-slate-700">
+              <PaymentSettings />
+            </div>
           </div>
         </div>
       </div>

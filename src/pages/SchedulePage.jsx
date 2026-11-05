@@ -188,6 +188,10 @@ function SchedulePage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
 
+  // Bumped after a manual event is added, so the Booking Requests box
+  // reloads right away and shows it as "Awaiting downpayment".
+  const [requestsVersion, setRequestsVersion] = useState(0);
+
   // IDs of events currently being deleted. Lives in a shared module,
   // so it survives switching to another page and coming back.
   const pendingIds = usePendingDeletes();
@@ -232,7 +236,7 @@ function SchedulePage() {
     // starting blank.
     const { data, error } = await supabase
       .from("clients")
-      .select("id, name, talent_fee")
+      .select("id, name, talent_fee, email")
       .eq("user_id", user.id)
       .order("name", { ascending: true });
 
@@ -245,6 +249,8 @@ function SchedulePage() {
       id: row.id,
       name: row.name,
       talentFee: row.talent_fee,
+      // Lets AddEventModal pre-fill the client's Google email.
+      email: row.email || "",
     }));
 
     setClients(mapped);
@@ -497,6 +503,47 @@ function SchedulePage() {
   // ADD / UPDATE EVENT
   // =========================================================
 
+  // Emails the client through the `send-event-email` Edge Function. Only an
+  // id is sent: the function looks up the details and the client's email
+  // itself, so nothing is trusted from the browser. A failure never blocks
+  // saving; it just tells the creative.
+  //
+  //   "awaiting_downpayment"  `id` is a booking request id (a new event that
+  //                           is waiting for its downpayment)
+  //   "created" / "updated"   `id` is a schedule event id
+  const notifyClient = async (id, kind) => {
+    const body =
+      kind === "awaiting_downpayment"
+        ? { request_id: id, kind }
+        : { event_id: id, kind };
+
+    const { error } = await supabase.functions.invoke("send-event-email", {
+      body,
+    });
+
+    if (!error) return;
+
+    let detail = error.message;
+
+    try {
+      const response = await error.context.json();
+      if (response?.error) detail = response.error;
+    } catch {
+      // keep the default message
+    }
+
+    console.error("Failed to email the client:", detail);
+
+    const saved =
+      kind === "awaiting_downpayment"
+        ? "The booking request was saved"
+        : "The event was saved";
+
+    window.alert(
+      `${saved}, but the email to the client could not be sent (${detail}).`
+    );
+  };
+
   const addOrUpdateEvent = async (form) => {
 
     const {
@@ -509,6 +556,17 @@ function SchedulePage() {
     }
 
     const talentFee = Number(form.talentFee) || 0;
+    const clientEmail = String(form.clientEmail || "").trim().toLowerCase();
+
+    // The email we already had for this client, read before anything is
+    // saved. If the creative typed a different address, the new address
+    // hasn't been told about the event yet.
+    const previousEmail = String(
+      clients.find((c) => c.id === form.clientId)?.email || ""
+    )
+      .trim()
+      .toLowerCase();
+
     let clientId = form.clientId;
 
     if (!clientId) {
@@ -539,6 +597,7 @@ function SchedulePage() {
             project_status: "Ongoing",
             initials,
             talent_fee: talentFee,
+            email: clientEmail || null,
           },
         ])
         .select()
@@ -560,13 +619,18 @@ function SchedulePage() {
           id: newClient.id,
           name: newClient.name,
           talentFee,
+          email: clientEmail,
         },
       ]);
     }
 
+    // The fee, and the client's Google email (used for booking emails).
     const { error: clientFeeError } = await supabase
       .from("clients")
-      .update({ talent_fee: talentFee })
+      .update({
+        talent_fee: talentFee,
+        ...(clientEmail ? { email: clientEmail } : {}),
+      })
       .eq("id", clientId)
       .eq("user_id", user.id);
 
@@ -607,43 +671,80 @@ function SchedulePage() {
         return;
       }
 
+      // Email the client again only when something they care about changed
+      // (or when this is the first time this address hears about the event),
+      // so small edits like notes or gear don't send an email.
+      const original = events.find((e) => e.id === form.id);
+
+      const detailsChanged =
+        !original ||
+        original.title !== payload.title ||
+        original.start.getTime() !== new Date(payload.start_time).getTime() ||
+        original.end.getTime() !== new Date(payload.end_time).getTime() ||
+        (original.location || "") !== (payload.location || "") ||
+        Number(original.talentFee || 0) !== talentFee;
+
+      if (clientEmail) {
+        if (clientEmail !== previousEmail) {
+          notifyClient(form.id, "created");
+        } else if (detailsChanged) {
+          notifyClient(form.id, "updated");
+        }
+      }
+
     } else {
-      // .select("id").single() hands back the new event's id so the
-      // downpayment can be attached to it.
-      const { data: createdEvent, error } = await supabase
-        .from("schedule_events")
-        .insert([{ ...payload, user_id: user.id }])
+      // A NEW event is not put on the schedule straight away. It is saved as a
+      // booking request that waits for its downpayment ("Awaiting downpayment"
+      // in Booking Requests). The photographer confirms the downpayment was
+      // received from there, and only then does the confirm_manual_downpayment
+      // function create the schedule event and record the payment.
+      //
+      // The details a booking request has no column for (team, gear, project,
+      // client, exact times, email) travel in `manual_details` and are copied
+      // onto the schedule event at that point.
+      const downpaymentDue = Number(form.downpaymentDue) || 0;
+
+      const { data: createdRequest, error } = await supabase
+        .from("booking_requests")
+        .insert({
+          photographer_id: user.id,
+          client_name: form.client,
+          title: form.title,
+          category: form.category,
+          event_date: form.date,
+          start_time: form.start,
+          end_time: form.end,
+          location: form.location || null,
+          notes: form.notes || null,
+          status: "awaiting_dp",
+          offered_fee: talentFee,
+          downpayment_amount: downpaymentDue,
+          responded_at: new Date().toISOString(),
+          manual_details: {
+            client_id: clientId,
+            client_email: clientEmail || null,
+            photographer: form.photographer || null,
+            gears: form.gears || [],
+            project_id: form.projectId || null,
+            start_time: payload.start_time,
+            end_time: payload.end_time,
+          },
+        })
         .select("id")
         .single();
 
       if (error) {
-        console.error("Failed to add event:", error.message);
+        console.error("Failed to add booking request:", error.message);
+        window.alert(`The event could not be added (${error.message}).`);
         return;
       }
 
-      // Downpayment typed into the Add Event form -> event_payments row.
-      const downpayment = Number(form.downpayment) || 0;
+      setRequestsVersion((v) => v + 1);
 
-      if (downpayment > 0) {
-        const { error: paymentError } = await supabase
-          .from("event_payments")
-          .insert({
-            event_id: createdEvent.id,
-            amount: downpayment,
-            type: "downpayment",
-            paid_at: form.downpaymentPaidAt || new Date().toISOString(),
-          });
-
-        if (paymentError) {
-          console.error("Failed to save downpayment:", paymentError.message);
-          window.alert(
-            `The event was saved, but its ₱${downpayment.toLocaleString(
-              "en-PH"
-            )} downpayment could not be recorded (${paymentError.message}). ` +
-              "Open the event, choose Edit, and add it under Payments."
-          );
-        }
-      }
+      // Tell the client right away that the booking is waiting for its
+      // downpayment. This doesn't hold up saving: if the email fails, the
+      // creative gets an alert and the request stays in Booking Requests.
+      notifyClient(createdRequest.id, "awaiting_downpayment");
     }
 
     await fetchEvents();
@@ -851,6 +952,7 @@ function SchedulePage() {
       <ScheduleSummary events={events} />
 
       <BookingRequests
+        refreshKey={requestsVersion}
         onBooked={() => {
           fetchEvents(true);
           fetchClients();

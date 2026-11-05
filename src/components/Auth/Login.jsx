@@ -47,6 +47,21 @@ function Login() {
 
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
+  const [cameraRevealed, setCameraRevealed] = useState(false);
+  const [flashActive, setFlashActive] = useState(false);
+
+  const triggerCameraShutter = () => {
+    if (flashActive || cameraRevealed) return;
+    setFlashActive(true);
+
+    // Switch to the login screen while the flash is still bright.
+    // The flash then fades over the login screen, hiding the camera change.
+    window.setTimeout(() => setCameraRevealed(true), 110);
+  };
+
+  const handleFlashEnd = () => {
+    setFlashActive(false);
+  };
 
   // Validate the fields before opening the role-selection modal.
   const handleSubmit = async (e) => {
@@ -219,7 +234,36 @@ function Login() {
         <FaArrowLeft />
         Back to Home
       </Link>
-      <div className="login-container">
+      {!cameraRevealed && (
+        <section className="login-camera-intro" aria-label="LensFlow camera intro">
+          <div className="login-camera-copy">
+            <span className="login-camera-eyebrow">LENSFLOW STUDIO</span>
+            <h1>Every moment<br />starts with a click.</h1>
+            <p>Step into your photography workspace.</p>
+          </div>
+          <div className="login-camera-visual">
+            <div className="login-camera-glow" />
+            <div className="login-camera-body">
+              <div className="login-camera-top"><span /><i /></div>
+              <div className="login-camera-viewfinder" />
+              <div className="login-camera-lens">
+                <div className="login-camera-lens-inner"><span /></div>
+              </div>
+              <div className="login-camera-grip" />
+              <button
+                type="button"
+                className="login-camera-shutter"
+                onClick={triggerCameraShutter}
+                disabled={flashActive}
+                aria-label="Press the camera shutter to reveal the login form"
+              ><span /></button>
+            </div>
+            <span className="login-camera-hint">PRESS THE SHUTTER</span>
+          </div>
+        </section>
+      )}
+      {flashActive && <div className="login-camera-flash" onAnimationEnd={handleFlashEnd} />}
+      {cameraRevealed && <div className="login-container login-form-reveal">
 
         {/* Login heading */}
         <div className="login-header">
@@ -391,7 +435,7 @@ function Login() {
         <div className="login-footer">
           © 2026 LensFlow Studio Management
         </div>
-      </div>
+      </div>}
 
       {/* Role selection modal */}
       {showRoleModal && (

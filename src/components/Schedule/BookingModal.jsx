@@ -3,6 +3,16 @@ import { FaTimes } from "react-icons/fa";
 
 import BookingPanel from "./BookingPanel";
 
+// Slim, rounded scrollbar that matches the dark theme and turns sky blue on hover.
+// The first line is for Firefox, the rest are for Chrome, Edge and Safari.
+const scrollbar = `
+  [scrollbar-width:thin] [scrollbar-color:#334155_transparent]
+  [&::-webkit-scrollbar]:w-2
+  [&::-webkit-scrollbar-track]:my-2 [&::-webkit-scrollbar-track]:bg-transparent
+  [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-700
+  [&::-webkit-scrollbar-thumb:hover]:bg-sky-500
+`;
+
 /** Popup shown when a client clicks a date on the portal calendar. */
 export default function BookingModal({
   open,
@@ -23,7 +33,7 @@ export default function BookingModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      className="custom-scrollbar fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -45,7 +55,7 @@ export default function BookingModal({
           </button>
         </div>
 
-        <div className="overflow-y-auto p-4">
+        <div className={`overflow-y-auto p-4 ${scrollbar}`}>
           <BookingPanel
             photographerId={photographerId}
             events={events}

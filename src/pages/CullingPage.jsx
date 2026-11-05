@@ -54,6 +54,10 @@ import {
 } from "../lib/storageLimit";
 import ConfirmModal from "../components/Common/ConfirmModal";
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+).replace(/\/$/, "");
+
 const FILTERS = [
   { key: "all", label: "All", group: "photographer" },
   { key: "star", label: "Starred", group: "photographer" },
@@ -313,7 +317,9 @@ const PhotoTile = memo(function PhotoTile({
 
       {/* Top row: filename and Best Pick */}
       <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 p-2">
-        <span className="max-w-[60%] truncate rounded-md bg-black/70 px-2 py-1 font-mono text-[9px] text-white shadow">
+        <span
+          className="inline-block max-w-[60%] truncate rounded-md bg-black px-2 py-1 font-mono text-[9px] font-bold leading-relaxed !text-white shadow-lg"
+        >
           {img.fileName}
         </span>
 
@@ -1001,7 +1007,7 @@ function CullingPage() {
         pollAttempts += 1;
 
         const progressResponse = await fetch(
-          `http://127.0.0.1:8000/cull/progress/${jobId}`,
+          `${API_BASE_URL}/cull/progress/${jobId}`,
           {
             method: "GET",
             headers: {
@@ -1171,7 +1177,7 @@ function CullingPage() {
         throw new Error("No active Supabase session.");
       }
 
-      const response = await fetch("http://127.0.0.1:8000/cull", {
+      const response = await fetch(`${API_BASE_URL}/cull`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1297,7 +1303,7 @@ function CullingPage() {
         throw new Error("No active Supabase session.");
       }
 
-      const response = await fetch("http://127.0.0.1:8000/export", {
+      const response = await fetch(`${API_BASE_URL}/export`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1392,7 +1398,7 @@ function CullingPage() {
         throw new Error("No active Supabase session.");
       }
 
-      const response = await fetch("http://127.0.0.1:8000/generate-preview", {
+      const response = await fetch(`${API_BASE_URL}/generate-preview`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2793,7 +2799,11 @@ function CullingPage() {
               {/* Photos in the currently open folder */}
               {path.length > 0 && (
                 <div
-                  className={`space-y-5 transform-gpu transition-all duration-250 ease-out ${
+                  className={`grid items-start gap-5 transform-gpu transition-all duration-250 ease-out ${
+                    lightboxImage
+                      ? "grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]"
+                      : "grid-cols-1"
+                  } ${
                     folderViewVisible
                       ? "translate-y-0 opacity-100 scale-100"
                       : "translate-y-3 opacity-0 scale-[0.99] pointer-events-none"
@@ -3199,7 +3209,7 @@ function CullingPage() {
                               role="dialog"
                               aria-modal="true"
                               aria-labelledby="detail-info-title"
-                              className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl transition-all duration-200 ease-out dark:border-slate-700 dark:bg-slate-900"
+                              className="custom-scrollbar max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl transition-all duration-200 ease-out dark:border-slate-700 dark:bg-slate-900"
                               onClick={(event) => event.stopPropagation()}
                             >
                               <div className="flex items-start justify-between gap-3">

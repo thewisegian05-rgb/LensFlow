@@ -85,7 +85,7 @@ const splitName = (text) => {
 // many times the same character may repeat in a row ("zzzz..." is cut to the
 // limit as you type). Commas are not allowed in location parts because the
 // location is saved as one comma-separated line.
-const MAX_MONEY_DIGITS = 7; // up to ₱9,999,999.99
+const MAX_MONEY_DIGITS = 6; // up to ₱9,999,999.99
 
 const RULES = {
   title: { allowed: /[^\p{L}\p{M}\p{N}\s&'’.,:!#()\/+-]/gu, max: 80, repeat: 3 },
@@ -1460,7 +1460,7 @@ function AddEventModal({
                   name="talentFee"
                   placeholder="0.00"
                   min="0"
-                  max="9999999.99"
+                  max="999999.99"
                   step="0.01"
                   inputMode="decimal"
                   value={form.talentFee}
@@ -1504,7 +1504,7 @@ function AddEventModal({
                     name="downpaymentDue"
                     placeholder="0.00"
                     min="0"
-                    max="9999999.99"
+                    max="999999.99"
                     step="0.01"
                     inputMode="decimal"
                     value={form.downpaymentDue}
@@ -1579,7 +1579,7 @@ function AddEventModal({
                     type="number"
                     placeholder="Amount"
                     min="0"
-                    max="9999999.99"
+                    max="999999.99"
                     step="0.01"
                     inputMode="decimal"
                     value={newPayment.amount}

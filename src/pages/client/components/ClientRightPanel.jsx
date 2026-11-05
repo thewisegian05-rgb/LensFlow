@@ -4,7 +4,6 @@ import { FaKey, FaCamera, FaCommentDots } from "react-icons/fa";
 import { supabase } from "../../../lib/supabaseClient";
 import { getFeaturedPhotoSignedUrl, getProfile } from "../utils/portalUrls";
 import { useClientNav } from "../utils/clientRoutes";
-import ClientChatPopup from "./ClientChatPopup";
 import NotificationBell from "./NotificationBell";
 
 /* my_connections() rows use `photographer_id` as their id. */
@@ -112,12 +111,9 @@ function Avatar({ path, signedUrl }) {
 
 export default function ClientRightPanel({ connections = [], activeId, portal, onSelect, onOpenCode }) {
   const navigate = useNavigate();
-  const { tabUrl } = useClientNav();
-  const asideRef = useRef(null);
+  const { tabUrl, current } = useClientNav();
   const requested = useRef(new Set());
   const [profiles, setProfiles] = useState({}); // photographer_id -> { name, avatarPath }
-  const [chatId, setChatId] = useState(null);
-  const [chatRight, setChatRight] = useState(264);
 
   /* my_connections has no display name, so load each photographer's profile once */
   useEffect(() => {
@@ -136,23 +132,6 @@ export default function ClientRightPanel({ connections = [], activeId, portal, o
     });
   }, [connections]);
 
-  /* keep the chat popup right next to this panel */
-  useEffect(() => {
-    if (!chatId) return;
-    const update = () => {
-      const r = asideRef.current?.getBoundingClientRect();
-      if (r) setChatRight(Math.max(8, window.innerWidth - r.left + 12));
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, [chatId]);
-
-  /* close the chat if that photographer is no longer in the list */
-  useEffect(() => {
-    if (chatId && !connections.some((c) => getId(c) === chatId)) setChatId(null);
-  }, [connections, chatId]);
-
   const describe = (c) => {
     const id = getId(c);
     const active = id != null && id === activeId;
@@ -165,94 +144,78 @@ export default function ClientRightPanel({ connections = [], activeId, portal, o
     return { id, active, name, avatarPath, signedUrl };
   };
 
-  const chatConn = chatId ? connections.find((c) => getId(c) === chatId) : null;
-  const chat = chatConn ? describe(chatConn) : null;
-
-  /* clicking a photographer only switches to them and shows their portfolio (no chat popup) */
+  /* clicking a photographer only switches to them and shows their portfolio */
   const handleClick = (id) => {
     onSelect(id);
-    setChatId(null);
     navigate(tabUrl("portfolio"));
   };
 
-  /* "Messages" button: opens the chat of the active photographer (or the first one) */
-  const openMessages = () => {
-    const id = activeId || getId(connections[0]);
-    if (!id) return;
-    setChatId((cur) => (cur === id ? null : id));
-  };
+  /* Messages: the inbox with all your conversations */
+  const openMessages = () => navigate(tabUrl("messages"));
+  const onMessages = current === "messages";
 
   return (
-    <>
-      <aside
-        ref={asideRef}
-        className="custom-scrollbar sticky top-0 hidden h-screen w-[248px] shrink-0 self-start overflow-y-auto border-l border-white/10 px-4 py-5 xl:block"
-      >
-        <div className="relative flex items-center gap-2">
-          <button
-            onClick={onOpenCode}
-            className="lf-btn lf-cta flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 px-2.5 py-2.5 text-[11px] font-semibold text-slate-950 shadow-lg shadow-sky-500/20"
-          >
-            <FaKey className="shrink-0 text-[11px]" />
-            <span className="truncate">Enter Connection Code</span>
-          </button>
-          <NotificationBell
-            compact
-            items={portal?.notifications || []}
-            menuClassName="right-0 w-52"
-          />
-        </div>
-
-        
-
-        <h3 className="mb-3 mt-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-          Creatives
-        </h3>
-
-        {connections.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-700 px-3 py-6 text-center text-xs text-slate-500">
-            No creatives connected yet.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {connections.map((c, index) => {
-              const { id, active, name, avatarPath, signedUrl } = describe(c);
-              return (
-                <li key={id ?? index}>
-                  <button
-                    onClick={() => handleClick(id)}
-                    title="View portfolio"
-                    className={`lf-row flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition ${
-                      active
-                        ? "border-sky-500/50 bg-sky-500/10"
-                        : "border-white/5 bg-white/[0.02] hover:bg-white/5"
-                    }`}
-                  >
-                    <Avatar path={avatarPath} signedUrl={signedUrl} />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-100">
-                      {name}
-                    </span>
-                    {active && <span className="h-2 w-2 shrink-0 rounded-full bg-sky-400" />}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </aside>
-
-      {chat && (
-        <ClientChatPopup
-          key={chat.id}
-          photographerId={chat.id}
-          name={chat.name}
-          avatarPath={chat.avatarPath}
-          avatarSignedUrl={chat.signedUrl}
-          right={chatRight}
-          onClose={() => setChatId(null)}
+    <aside className="custom-scrollbar sticky top-0 hidden h-screen w-[248px] shrink-0 self-start overflow-y-auto border-l border-white/10 px-4 py-5 xl:block">
+      <div className="relative flex items-center gap-2">
+        <button
+          onClick={onOpenCode}
+          className="lf-btn lf-cta flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 px-2.5 py-2.5 text-[11px] font-semibold text-slate-950 shadow-lg shadow-sky-500/20"
+        >
+          <FaKey className="shrink-0 text-[11px]" />
+          <span className="truncate">Enter Connection Code</span>
+        </button>
+        <NotificationBell
+          compact
+          items={portal?.notifications || []}
+          menuClassName="right-0 w-52"
         />
+      </div>
+
+      <button
+        onClick={openMessages}
+        className={`lf-btn mt-4 flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition ${
+          onMessages
+            ? "border-sky-500/50 bg-sky-500/10 text-sky-300"
+            : "border-white/5 bg-white/[0.02] text-slate-200 hover:bg-white/5"
+        }`}
+      >
+        <FaCommentDots className="shrink-0 text-slate-400" /> Messages
+      </button>
+
+      <h3 className="mb-3 mt-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+        Creatives
+      </h3>
+
+      {connections.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-slate-700 px-3 py-6 text-center text-xs text-slate-500">
+          No creatives connected yet.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {connections.map((c, index) => {
+            const { id, active, name, avatarPath, signedUrl } = describe(c);
+            return (
+              <li key={id ?? index}>
+                <button
+                  onClick={() => handleClick(id)}
+                  title="View portfolio"
+                  className={`lf-row flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition ${
+                    active
+                      ? "border-sky-500/50 bg-sky-500/10"
+                      : "border-white/5 bg-white/[0.02] hover:bg-white/5"
+                  }`}
+                >
+                  <Avatar path={avatarPath} signedUrl={signedUrl} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-100">
+                    {name}
+                  </span>
+                  {active && <span className="h-2 w-2 shrink-0 rounded-full bg-sky-400" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    </>
+    </aside>
   );
 }
-

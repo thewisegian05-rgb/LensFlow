@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 
 import { supabase } from "../../lib/supabaseClient";
 import { CATEGORY_LABELS } from "./eventCategory";
+import { CREW_ROLES, crewSummary, crewTotal } from "./CrewNeededField";
 
 // Database function that cancels a booked event after the client asked to cancel.
 // It receives { p_id } (the booking request id). If yours is named differently,
@@ -25,14 +26,62 @@ const todayString = () => new Date().toLocaleDateString("en-CA");
 const field =
   "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
 
+// ---------- production team ----------
+// The assigned team is saved on the request as [{ name, position }] and shown
+// on the schedule event as readable text, the same format the Add Event form
+// uses:  "Juan (Photographer) · Maria (Videographer)"
+const MEMBER_SEPARATOR = " · ";
+
+// Position given to rows the photographer adds with "+ Add team member".
+// Positions can't be typed; the ones the client asked for are filled in automatically.
+const DEFAULT_POSITION = "Assistant";
+
+// Parentheses and "·" are never allowed because they separate members in the text.
+const NAME_RULE = /[^\p{L}\p{M}\s.'’-]/gu;
+
+const cleanText = (value, rule, max) =>
+  String(value).replace(rule, "").replace(/^\s+/, "").replace(/\s{2,}/g, " ").slice(0, max);
+
+const emptyMember = (position = "") => ({ name: "", position });
+
+// One empty row per creative the client asked for, with the position already
+// filled in, so the photographer only has to type the names.
+const teamFromCrew = (crew) => {
+  const rows = [];
+  for (const role of CREW_ROLES) {
+    const n = Math.min(Math.max(Math.floor(Number(crew?.[role.key]) || 0), 0), 10);
+    for (let i = 0; i < n; i += 1) rows.push(emptyMember(role.single));
+  }
+  return rows.length ? rows : [emptyMember(DEFAULT_POSITION)];
+};
+
+const cleanTeam = (members) =>
+  (members || [])
+    .map((m) => ({ name: String(m.name || "").trim(), position: String(m.position || "").trim() }))
+    .filter((m) => m.name);
+
+const teamToText = (members) =>
+  cleanTeam(members)
+    .map((m) => (m.position ? `${m.name} (${m.position})` : m.name))
+    .join(MEMBER_SEPARATOR);
+
+// The team to show for a request: the one assigned here, or the one typed in
+// the Add Event form for events added by hand.
+const teamTextOf = (r) =>
+  (Array.isArray(r.team_members) && teamToText(r.team_members)) ||
+  String(r.manual_details?.photographer || "");
+
 /**
  * Photographer's inbox of client booking requests. Two separate boxes:
  *
  * Booking Requests
- * 1. Quote a talent fee + downpayment (or decline).
+ * 1. See how many creatives the client needs, assign your team (names; the
+ *    positions are filled in from the request), quote a talent fee +
+ *    downpayment (or decline).
  * 2. After the client accepts, the request waits here as "Awaiting downpayment".
  *    Events the photographer adds by hand also wait here.
- * 3. "Downpayment received" puts the event on the schedule; "Cancel" drops it.
+ * 3. "Downpayment received" puts the event on the schedule (with the team you
+ *    assigned); "Cancel" drops it.
  *
  * Cancellation Requests
  * 4. If a client asks to cancel a booked event, it shows up here to approve or keep.
@@ -52,7 +101,7 @@ export default function BookingRequests({
   refreshKey = 0,
 }) {
   const [rows, setRows] = useState([]);
-  const [drafts, setDrafts] = useState({}); // { [id]: { fee, downpayment, message } }
+  const [drafts, setDrafts] = useState({}); // { [id]: { fee, downpayment, message, team } }
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
   const [errorId, setErrorId] = useState(null); // which request the error belongs to
@@ -101,9 +150,29 @@ export default function BookingRequests({
     if (refreshKey) load();
   }, [refreshKey, load]);
 
-  const draft = (id) => drafts[id] || { fee: "", downpayment: "", message: "" };
-  const setDraft = (id, patch) =>
-    setDrafts((d) => ({ ...d, [id]: { ...draft(id), ...patch } }));
+  // A request's form values. The team starts with one row per creative the
+  // client asked for, so it isn't lost when the list reloads.
+  const getDraft = (r) =>
+    drafts[r.id] || { fee: "", downpayment: "", message: "", team: teamFromCrew(r.crew_needed) };
+
+  const setDraft = (r, patch) =>
+    setDrafts((d) => ({ ...d, [r.id]: { ...getDraft(r), ...patch } }));
+
+  const updateMember = (r, index, value) => {
+    const clean = cleanText(value, NAME_RULE, 50);
+
+    setDraft(r, {
+      team: getDraft(r).team.map((m, i) => (i === index ? { ...m, name: clean } : m)),
+    });
+  };
+
+  const addMember = (r) =>
+    setDraft(r, { team: [...getDraft(r).team, emptyMember(DEFAULT_POSITION)] });
+
+  const removeMember = (r, index) => {
+    const next = getDraft(r).team.filter((_, i) => i !== index);
+    setDraft(r, { team: next.length ? next : [emptyMember(DEFAULT_POSITION)] });
+  };
 
   function fail(id, message) {
     setError(message);
@@ -111,7 +180,7 @@ export default function BookingRequests({
   }
 
   async function sendOffer(r) {
-    const { fee, downpayment, message } = draft(r.id);
+    const { fee, downpayment, message, team } = getDraft(r);
     const amount = Number(fee);
     const down = Number(downpayment);
 
@@ -130,6 +199,9 @@ export default function BookingRequests({
       return;
     }
 
+    // Rows without a name (like the prefilled position rows) are simply left out.
+    const members = cleanTeam(team);
+
     setBusyId(r.id);
     setError("");
     setErrorId(null);
@@ -140,6 +212,7 @@ export default function BookingRequests({
         status: "offered",
         offered_fee: amount,
         downpayment_amount: down,
+        team_members: members.length ? members : null,
         admin_message: message.trim() || null,
         responded_at: new Date().toISOString(),
       })
@@ -160,7 +233,7 @@ export default function BookingRequests({
       .from("booking_requests")
       .update({
         status: "declined",
-        admin_message: draft(r.id).message.trim() || null,
+        admin_message: getDraft(r).message.trim() || null,
         responded_at: new Date().toISOString(),
       })
       .eq("id", r.id)
@@ -273,6 +346,63 @@ export default function BookingRequests({
     );
   }
 
+  // Puts the team you assigned onto the schedule event that was just created
+  // from a client's request. The confirm function doesn't know about the team,
+  // so it's added right after. A failure never undoes the booking.
+  async function applyTeamToEvent(request, eventId) {
+    const text = teamToText(request.team_members);
+    if (!text) return;
+
+    let updatedId = null;
+
+    // 1. The confirm function may have returned the new event's id.
+    if (typeof eventId === "string" && eventId) {
+      const { data } = await supabase
+        .from("schedule_events")
+        .update({ photographer: text })
+        .eq("id", eventId)
+        .select("id");
+      updatedId = data?.[0]?.id || null;
+    }
+
+    // 2. Otherwise find the new event: same title, same day, no team yet.
+    if (!updatedId) {
+      const dayStart = new Date(`${request.event_date}T00:00:00`);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+
+      const { data: found } = await supabase
+        .from("schedule_events")
+        .select("id")
+        .eq("title", request.title)
+        .gte("start_time", dayStart.toISOString())
+        .lt("start_time", dayEnd.toISOString())
+        .or("photographer.is.null,photographer.eq.")
+        .limit(1);
+
+      const foundId = found?.[0]?.id;
+
+      if (foundId) {
+        const { data } = await supabase
+          .from("schedule_events")
+          .update({ photographer: text })
+          .eq("id", foundId)
+          .select("id");
+        updatedId = data?.[0]?.id || null;
+      }
+    }
+
+    if (!updatedId) {
+      console.error("Could not add the team to the new schedule event.");
+      window.alert(
+        "The event was added to your schedule, but the team you assigned could not be added to it. You can add it by editing the event."
+      );
+      return;
+    }
+
+    onBooked?.();
+  }
+
   async function confirmDownpayment() {
     if (!modal) return;
 
@@ -280,6 +410,7 @@ export default function BookingRequests({
     // because they carry extra details (team, gear, project, client).
     const isManual = Boolean(modal.manual_details);
     const manualClientEmail = modal.manual_details?.client_email;
+    const request = modal;
 
     setModalBusy("confirm");
     setModalError("");
@@ -306,6 +437,10 @@ export default function BookingRequests({
 
     if (isManual && manualClientEmail && newEventId) {
       emailClientAboutManualEvent(newEventId);
+    }
+
+    if (!isManual) {
+      applyTeamToEvent(request, newEventId);
     }
   }
 
@@ -372,6 +507,7 @@ export default function BookingRequests({
 
   const modalFee = Number(modal?.offered_fee || 0);
   const modalDown = Number(modal?.downpayment_amount || 0);
+  const modalTeam = modal ? teamTextOf(modal) : "";
 
   return (
     <>
@@ -392,10 +528,14 @@ export default function BookingRequests({
 
           <div className="space-y-3">
             {requestRows.map((r) => {
-              const d = draft(r.id);
+              const d = getDraft(r);
               const busy = busyId === r.id;
               const feeNum = Number(d.fee) || 0;
               const downNum = Number(d.downpayment) || 0;
+              const requestedCrew = crewSummary(r.crew_needed);
+              const requestedTotal = crewTotal(r.crew_needed);
+              const assignedCount = cleanTeam(d.team).length;
+              const savedTeam = teamTextOf(r);
 
               return (
                 <div
@@ -412,6 +552,11 @@ export default function BookingRequests({
                         {r.event_date} · {r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)}
                         {r.location ? ` · ${r.location}` : ""}
                       </p>
+                      {requestedCrew && (
+                        <p className="mt-1 text-xs text-sky-400">
+                          Client needs: {requestedCrew}
+                        </p>
+                      )}
                       {r.notes && <p className="mt-1 text-xs text-slate-400">{r.notes}</p>}
                     </div>
 
@@ -428,7 +573,65 @@ export default function BookingRequests({
                   </div>
 
                   {r.status === "pending" && (
-                    <div className="mt-3 space-y-2">
+                    <div className="mt-3 space-y-3">
+                      {/* ---- assign the team ---- */}
+                      <div>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-slate-300">Assign your team</p>
+                          {requestedTotal > 0 && (
+                            <p
+                              className={`text-xs ${
+                                assignedCount >= requestedTotal ? "text-emerald-400" : "text-slate-500"
+                              }`}
+                            >
+                              {assignedCount} of {requestedTotal} assigned
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          {d.team.map((member, index) => (
+                            <div
+                              key={index}
+                              className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]"
+                            >
+                              <input
+                                className={field}
+                                placeholder="Name"
+                                aria-label={`Team member ${index + 1} name`}
+                                maxLength={50}
+                                value={member.name}
+                                onChange={(e) => updateMember(r, index, e.target.value)}
+                              />
+                              <input
+                                className={`${field} cursor-default select-none text-slate-300 focus:border-slate-700`}
+                                aria-label={`Team member ${index + 1} position`}
+                                readOnly
+                                tabIndex={-1}
+                                value={member.position}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeMember(r, index)}
+                                aria-label={`Remove team member ${index + 1}`}
+                                className="rounded-lg border border-slate-700 px-3 text-slate-500 transition hover:text-red-400"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => addMember(r)}
+                          className="mt-2 text-xs font-semibold text-sky-400 hover:underline"
+                        >
+                          + Add team member
+                        </button>
+                      </div>
+
+                      {/* ---- fee, downpayment, message ---- */}
                       <div className="grid gap-2 sm:grid-cols-[9rem_9rem_1fr]">
                         <input
                           className={field}
@@ -437,7 +640,7 @@ export default function BookingRequests({
                           step="0.01"
                           placeholder="Talent fee (₱)"
                           value={d.fee}
-                          onChange={(e) => setDraft(r.id, { fee: e.target.value })}
+                          onChange={(e) => setDraft(r, { fee: e.target.value })}
                         />
                         <input
                           className={field}
@@ -446,13 +649,13 @@ export default function BookingRequests({
                           step="0.01"
                           placeholder="Downpayment (₱)"
                           value={d.downpayment}
-                          onChange={(e) => setDraft(r.id, { downpayment: e.target.value })}
+                          onChange={(e) => setDraft(r, { downpayment: e.target.value })}
                         />
                         <input
                           className={field}
                           placeholder="Message to client (optional)"
                           value={d.message}
-                          onChange={(e) => setDraft(r.id, { message: e.target.value })}
+                          onChange={(e) => setDraft(r, { message: e.target.value })}
                           maxLength={500}
                         />
                       </div>
@@ -487,41 +690,51 @@ export default function BookingRequests({
                   )}
 
                   {r.status === "offered" && (
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-500/10 px-3 py-2">
-                      <p className="text-sm">
-                        Offered <span className="font-semibold text-sky-500">{peso(r.offered_fee)}</span>
-                        {r.downpayment_amount != null && (
-                          <>
-                            {" · "}Downpayment{" "}
-                            <span className="font-semibold text-sky-500">{peso(r.downpayment_amount)}</span>
-                          </>
-                        )}
-                      </p>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => decline(r)}
-                        className="text-xs text-slate-500 hover:text-white disabled:opacity-50"
-                      >
-                        Withdraw offer
-                      </button>
+                    <div className="mt-3 rounded-lg bg-slate-500/10 px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm">
+                          Offered <span className="font-semibold text-sky-500">{peso(r.offered_fee)}</span>
+                          {r.downpayment_amount != null && (
+                            <>
+                              {" · "}Downpayment{" "}
+                              <span className="font-semibold text-sky-500">{peso(r.downpayment_amount)}</span>
+                            </>
+                          )}
+                        </p>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => decline(r)}
+                          className="text-xs text-slate-500 hover:text-white disabled:opacity-50"
+                        >
+                          Withdraw offer
+                        </button>
+                      </div>
+                      {savedTeam && (
+                        <p className="mt-1 text-xs text-slate-400">Team: {savedTeam}</p>
+                      )}
                     </div>
                   )}
 
                   {r.status === "awaiting_dp" && (
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-500/10 px-3 py-2">
-                      <p className="text-sm">
-                        Fee <span className="font-semibold">{peso(r.offered_fee)}</span>
-                        {" · "}Downpayment due{" "}
-                        <span className="font-semibold text-amber-600">{peso(r.downpayment_amount)}</span>
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => openModal(r)}
-                        className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-amber-400"
-                      >
-                        Review downpayment
-                      </button>
+                    <div className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm">
+                          Fee <span className="font-semibold">{peso(r.offered_fee)}</span>
+                          {" · "}Downpayment due{" "}
+                          <span className="font-semibold text-amber-600">{peso(r.downpayment_amount)}</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => openModal(r)}
+                          className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-amber-400"
+                        >
+                          Review downpayment
+                        </button>
+                      </div>
+                      {savedTeam && (
+                        <p className="mt-1 text-xs text-slate-400">Team: {savedTeam}</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -676,6 +889,7 @@ export default function BookingRequests({
                   {modal.client_name} · {modal.event_date} · {modal.start_time.slice(0, 5)}–
                   {modal.end_time.slice(0, 5)}
                 </p>
+                {modalTeam && <p className="text-xs text-slate-400">Team: {modalTeam}</p>}
                 <div className="flex justify-between pt-2">
                   <span className="text-slate-400">Talent fee</span>
                   <span className="font-semibold">{peso(modalFee)}</span>

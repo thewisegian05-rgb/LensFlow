@@ -126,6 +126,7 @@ export default function BookingRequests({
   const [paidDate, setPaidDate] = useState(todayString());
   const [modalBusy, setModalBusy] = useState(null); // "confirm" | "cancel" | null
   const [modalError, setModalError] = useState("");
+  const [modalSuccess, setModalSuccess] = useState("");
   const [reviewNote, setReviewNote] = useState("");
   const [paymentSubmissions, setPaymentSubmissions] = useState({});
   const [receiptUrls, setReceiptUrls] = useState({});
@@ -436,7 +437,8 @@ export default function BookingRequests({
     }
     setReviewNote("");
     await load();
-    setModalError(status === "verified"
+    setModalError("");
+    setModalSuccess(status === "verified"
       ? "Receipt verified. You can now confirm the booking."
       : "Receipt rejected. The client can submit another receipt.");
   }
@@ -456,6 +458,7 @@ export default function BookingRequests({
     }
     setModalBusy("confirm");
     setModalError("");
+    setModalSuccess("");
     const { data: newEventId, error: err } = await supabase.rpc(
       isManual ? MANUAL_CONFIRM_RPC : "confirm_downpayment",
       {
@@ -490,6 +493,7 @@ export default function BookingRequests({
     }
     setModalBusy("cancel");
     setModalError("");
+    setModalSuccess("");
     const { error: err } = await supabase.rpc("cancel_awaiting_request", { p_id: modal.id });
     setModalBusy(null);
     if (err) {
@@ -971,8 +975,13 @@ export default function BookingRequests({
                 records {peso(modalDown)} as income.
               </p>
               {modalError && (
-                <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
+                <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-400">
                   {modalError}
+                </p>
+              )}
+              {modalSuccess && (
+                <p className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+                  {modalSuccess}
                 </p>
               )}
               <div className="mt-5 flex flex-wrap items-center justify-between gap-2">

@@ -54,6 +54,10 @@ import {
 } from "../lib/storageLimit";
 import ConfirmModal from "../components/Common/ConfirmModal";
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+).replace(/\/$/, "");
+
 const FILTERS = [
   { key: "all", label: "All", group: "photographer" },
   { key: "star", label: "Starred", group: "photographer" },
@@ -1001,7 +1005,7 @@ function CullingPage() {
         pollAttempts += 1;
 
         const progressResponse = await fetch(
-          `http://127.0.0.1:8000/cull/progress/${jobId}`,
+          `${API_BASE_URL}/cull/progress/${jobId}`,
           {
             method: "GET",
             headers: {
@@ -1171,7 +1175,7 @@ function CullingPage() {
         throw new Error("No active Supabase session.");
       }
 
-      const response = await fetch("http://127.0.0.1:8000/cull", {
+      const response = await fetch(`${API_BASE_URL}/cull`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1297,7 +1301,7 @@ function CullingPage() {
         throw new Error("No active Supabase session.");
       }
 
-      const response = await fetch("http://127.0.0.1:8000/export", {
+      const response = await fetch(`${API_BASE_URL}/export`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1392,7 +1396,7 @@ function CullingPage() {
         throw new Error("No active Supabase session.");
       }
 
-      const response = await fetch("http://127.0.0.1:8000/generate-preview", {
+      const response = await fetch(`${API_BASE_URL}/generate-preview`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

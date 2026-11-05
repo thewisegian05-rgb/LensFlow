@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -20,6 +19,24 @@ import {
   FaCheckCircle,
 } from "react-icons/fa";
 
+// The team is saved as text: "Juan (Photographer) · Maria (Videographer)".
+// This turns it back into [{ name, position }] so it can be shown as a list.
+const MEMBER_SEPARATOR = "·";
+
+function parseTeam(text) {
+  return String(text || "")
+    .split(MEMBER_SEPARATOR)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const match = part.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+      if (match && match[1]) {
+        return { name: match[1].trim(), position: match[2].trim() };
+      }
+      return { name: part, position: "" };
+    });
+}
+
 function EventDetailsModal({
   open,
   event,
@@ -31,7 +48,7 @@ function EventDetailsModal({
   const [isVisible, setIsVisible] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  
+
   useEffect(() => {
     if (!open || !event) {
       setIsVisible(false);
@@ -78,6 +95,7 @@ function EventDetailsModal({
 
   const isLinked = Boolean(event.project_id);
   const isCompleted = event.status === "completed";
+  const team = parseTeam(event.photographer);
 
   return createPortal(
     <div
@@ -192,21 +210,50 @@ function EventDetailsModal({
             </span>
           </div>
 
-         <div className="flex items-center gap-3">
-          <FaTag className="shrink-0 text-sky-500" />
-          <span className="text-slate-700 dark:text-slate-200">
-            {CATEGORY_LABELS[getEventCategory({
-              category: event.category || event.type,
-              title: event.title,
-            })] || CATEGORY_LABELS.default}
-          </span>
-        </div>
-
           <div className="flex items-center gap-3">
-            <FaCamera className="shrink-0 text-sky-500" />
+            <FaTag className="shrink-0 text-sky-500" />
             <span className="text-slate-700 dark:text-slate-200">
-              {event.photographer || "Not Assigned"}
+              {CATEGORY_LABELS[getEventCategory({
+                category: event.category || event.type,
+                title: event.title,
+              })] || CATEGORY_LABELS.default}
             </span>
+          </div>
+
+          {/* Team */}
+          <div className="flex items-start gap-3">
+            <FaCamera className="mt-1 shrink-0 text-sky-500" />
+
+            {team.length === 0 ? (
+              <span className="text-slate-700 dark:text-slate-200">
+                Not Assigned
+              </span>
+            ) : (
+              <div className="min-w-0 flex-1">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Team · {team.length}
+                </p>
+
+                <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 dark:divide-slate-700/70 dark:border-slate-700">
+                  {team.map((member, index) => (
+                    <li
+                      key={`${member.name}-${index}`}
+                      className="flex items-center justify-between gap-3 bg-slate-50 px-3 py-2 dark:bg-slate-800/50"
+                    >
+                      <span className="min-w-0 break-words text-sm font-medium text-slate-800 dark:text-slate-100">
+                        {member.name}
+                      </span>
+
+                      {member.position && (
+                        <span className="shrink-0 rounded-full bg-sky-500/10 px-2.5 py-0.5 text-xs font-semibold text-sky-600 dark:text-sky-300">
+                          {member.position}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div className="flex items-start gap-3">

@@ -32,6 +32,10 @@ const statusOf = (event) => String(event?.status || "").toLowerCase();
 const isCompleted = (event) => statusOf(event) === "completed";
 const isCancelled = (event) => statusOf(event) === "cancelled";
 
+// A client counts as "completed" when their project status says so.
+const isClientCompleted = (client) =>
+  String(client?.projectStatus || "").toLowerCase() === "completed";
+
 function ClientPage() {
   const { reportPageReady, routeKey } = useOutletContext();
   const location = useLocation();
@@ -358,8 +362,11 @@ function ClientPage() {
     }, DELETE_ANIM_MS);
   };
 
-  // Mark Client as Completed
-  const handleCompleteClient = (id) => {
+  // Mark Client as Completed.
+  // The client moves into the "Completed Clients" section right away, and the
+  // status is also saved to the database so the page's background refresh
+  // (every 15 seconds) doesn't move it back.
+  const handleCompleteClient = async (id) => {
     setClients((previousClients) =>
       previousClients.map((client) =>
         client.id === id ? { ...client, projectStatus: "Completed" } : client
@@ -371,6 +378,24 @@ function ClientPage() {
         ? { ...previousClient, projectStatus: "Completed" }
         : previousClient
     );
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("clients")
+      .update({ project_status: "Completed" })
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Failed to mark client as completed:", error.message);
+      // Show what the database really has.
+      fetchClients({ silent: true });
+    }
   };
 
   // Filter clients based on search term or selected category
@@ -387,6 +412,12 @@ function ClientPage() {
 
     return matchesSearch && matchesCategory;
   });
+
+  // Split the filtered clients into their sections.
+  const ongoingClients = filteredClients.filter(
+    (client) => !isClientCompleted(client)
+  );
+  const completedClients = filteredClients.filter(isClientCompleted);
 
   // Edit Client
   const handleEditClient = async (updatedClient) => {
@@ -444,6 +475,56 @@ function ClientPage() {
   const inactiveToggleClass =
     "!border-transparent !bg-transparent !text-slate-500 hover:!bg-slate-100 hover:!text-slate-800 dark:!text-slate-500 dark:hover:!bg-slate-800 dark:hover:!text-slate-300";
 
+  // Draws one list of clients in the current view (blocks or list).
+  const renderClients = (list) =>
+    viewType === "list" ? (
+      <ClientList
+        clients={list}
+        onDelete={handleDeleteClient}
+        onView={(client) => setSelectedClient(client)}
+        onEdit={(client) => setEditingClient(client)}
+        onComplete={handleCompleteClient}
+        leavingIds={leavingIds}
+      />
+    ) : (
+      <div className="clients-grid">
+        {list.map((client, index) => (
+          <div
+            key={client.id}
+            className={`client-card-wrap transition-all duration-500 ${
+              leavingIds.has(client.id) ? " client-leaving" : ""
+            } ${highlightedClientId === client.id ? "rounded-2xl ring-4 ring-sky-400 ring-offset-4 ring-offset-slate-100 dark:ring-offset-slate-950" : ""}`}
+            style={{ "--i": Math.min(index, 12) }}
+          >
+            <ClientCard
+              client={client}
+              onDelete={handleDeleteClient}
+              onView={() => setSelectedClient(client)}
+              onComplete={handleCompleteClient}
+              onEdit={() => setEditingClient(client)}
+              isLeaving={leavingIds.has(client.id)}
+            />
+          </div>
+        ))}
+      </div>
+    );
+
+  // The sections shown on the page. A section is hidden when it has no clients.
+  const sections = [
+    {
+      key: "ongoing",
+      title: "Ongoing Clients",
+      dot: "bg-amber-400",
+      list: ongoingClients,
+    },
+    {
+      key: "completed",
+      title: "Completed Clients",
+      dot: "bg-emerald-400",
+      list: completedClients,
+    },
+  ].filter((section) => section.list.length > 0);
+
   return (
     <div className="clients-page">
       {/* ==========================================
@@ -486,6 +567,11 @@ function ClientPage() {
         <div className="client-count">
           <span>{loadingClients ? "–" : filteredClients.length}</span>{" "}
           {!loadingClients && filteredClients.length === 1 ? "client" : "clients"}
+          {!loadingClients && completedClients.length > 0 && (
+            <span className="ml-2 text-xs opacity-70">
+              ({ongoingClients.length} ongoing · {completedClients.length} completed)
+            </span>
+          )}
         </div>
 
         
@@ -578,7 +664,7 @@ function ClientPage() {
       </div>
 
       {/* ==========================================
-          LOADER / GRID / LIST
+          LOADER / SECTIONS (Ongoing, Completed)
       ========================================== */}
 
       {loadingClients ? (
@@ -603,41 +689,23 @@ function ClientPage() {
           <p>No clients found.</p>
         </div>
       ) : (
-        <>
-          {viewType === "grid" && (
-            <div className="clients-grid">
-              {filteredClients.map((client, index) => (
-                <div
-                  key={client.id}
-                  className={`client-card-wrap transition-all duration-500 ${
-                    leavingIds.has(client.id) ? " client-leaving" : ""
-                  } ${highlightedClientId === client.id ? "rounded-2xl ring-4 ring-sky-400 ring-offset-4 ring-offset-slate-100 dark:ring-offset-slate-950" : ""}`}
-                  style={{ "--i": Math.min(index, 12) }}
-                >
-                  <ClientCard
-                    client={client}
-                    onDelete={handleDeleteClient}
-                    onView={() => setSelectedClient(client)}
-                    onComplete={handleCompleteClient}
-                    onEdit={() => setEditingClient(client)}
-                    isLeaving={leavingIds.has(client.id)}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="space-y-8">
+          {sections.map((section) => (
+            <section key={section.key} aria-label={section.title}>
+              <div className="mb-3 flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${section.dot}`} />
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-300">
+                  {section.title}
+                </h2>
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {section.list.length}
+                </span>
+              </div>
 
-          {viewType === "list" && (
-            <ClientList
-              clients={filteredClients}
-              onDelete={handleDeleteClient}
-              onView={(client) => setSelectedClient(client)}
-              onEdit={(client) => setEditingClient(client)}
-              onComplete={handleCompleteClient}
-              leavingIds={leavingIds}
-            />
-          )}
-        </>
+              {renderClients(section.list)}
+            </section>
+          ))}
+        </div>
       )}
 
       {/* ==========================================

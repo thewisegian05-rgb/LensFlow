@@ -316,6 +316,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [paymentQrUrl, setPaymentQrUrl] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [paymentSubmissions, setPaymentSubmissions] = useState({});
   const [receiptFiles, setReceiptFiles] = useState({});
   const [uploadBusyId, setUploadBusyId] = useState(null);
@@ -444,6 +445,12 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedBookingId, busyId, uploadBusyId]);
+
+  // Reset the agreement whenever the booking details modal opens or closes.
+  useEffect(() => {
+    setTermsAccepted(false);
+  }, [selectedBookingId]);
+
   async function run(id, call) {
     setBusyId(id);
     setError("");
@@ -466,6 +473,11 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   const cancelAwaiting = (id) =>
     run(id, () => supabase.rpc("cancel_awaiting_request", { p_id: id }));
   async function submitReceipt(booking) {
+    if (!termsAccepted) {
+      setError("Please read and agree to the Downpayment Terms and Conditions.");
+      setErrorId(booking.id);
+      return;
+    }
     const file = receiptFiles[booking.id];
     if (!file) {
       setError("Please select your payment receipt first.");
@@ -516,6 +528,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
         await supabase.rpc("submit_booking_payment", {
           p_booking_request_id: booking.id,
           p_receipt_storage_path: uploadedPath,
+          p_terms_accepted: termsAccepted,
         });
       if (submitError) throw submitError;
       submissionCreated = true;
@@ -956,16 +969,114 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
                                     />
                                   </label>
                                 </div>
+                                
+                                <div className="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/5 p-3 sm:p-4">
+                                  <div className="flex items-start gap-2">
+                                    <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                                    <div>
+                                      <p className="text-sm font-semibold text-amber-200">
+                                        Downpayment Terms and Conditions
+                                      </p>
+                                      <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                                        Please review the payment and cancellation policy before submitting
+                                        your receipt.
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <details className="mt-3 group">
+                                    <summary className="cursor-pointer text-xs font-semibold text-blue-300 transition hover:text-blue-200">
+                                      View full Terms and Conditions
+                                    </summary>
+
+                                    <div className="mt-3 space-y-3 border-t border-slate-700/70 pt-3 text-xs leading-relaxed text-slate-300">
+                                      <div>
+                                        <p className="font-semibold text-slate-100">1. Downpayment Requirement</p>
+                                        <p className="mt-1">
+                                          A downpayment is required to secure your booking. Your booking
+                                          will only be confirmed after your photographer verifies your payment.
+                                        </p>
+                                      </div>
+
+                                      <div>
+                                        <p className="font-semibold text-slate-100">2. Non-Refundable Downpayment</p>
+                                        <p className="mt-1">
+                                          Once paid, the downpayment is non-refundable if you voluntarily
+                                          cancel the booking or fail to attend the scheduled session.
+                                        </p>
+                                      </div>
+
+                                      <div>
+                                        <p className="font-semibold text-slate-100">3. Booking Cancellation</p>
+                                        <p className="mt-1">
+                                          Please communicate with your photographer as early as possible
+                                          if you need to cancel or make changes to your booking.
+                                        </p>
+                                      </div>
+
+                                      <div>
+                                        <p className="font-semibold text-slate-100">4. Rescheduling</p>
+                                        <p className="mt-1">
+                                          Rescheduling requests are subject to the photographer's
+                                          availability and approval.
+                                        </p>
+                                      </div>
+
+                                      <div>
+                                        <p className="font-semibold text-slate-100">5. Photographer Cancellation</p>
+                                        <p className="mt-1">
+                                          If the photographer cancels or cannot provide the agreed service,
+                                          an appropriate remedy, including a refund where applicable,
+                                          should be arranged.
+                                        </p>
+                                      </div>
+
+                                      <div>
+                                        <p className="font-semibold text-slate-100">6. Payment Verification</p>
+                                        <p className="mt-1">
+                                          You must submit a valid payment receipt. Your photographer may
+                                          reject incomplete, invalid, or unverifiable payment submissions.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </details>
+
+                                  <label
+                                    htmlFor={`downpayment-terms-${r.id}`}
+                                    className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-700/70 bg-slate-900/60 p-3"
+                                  >
+                                    <input
+                                      id={`downpayment-terms-${r.id}`}
+                                      type="checkbox"
+                                      checked={termsAccepted}
+                                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                                      disabled={uploadBusyId === r.id}
+                                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-500"
+                                    />
+                                    <span className="text-xs leading-relaxed text-slate-300">
+                                      I have read and agree to the Downpayment Terms and Conditions.
+                                      I understand that my downpayment is non-refundable under the
+                                      stated conditions.
+                                    </span>
+                                  </label>
+                                </div>
+
                                 <button
                                   type="button"
-                                  disabled={!receiptFiles[r.id] || uploadBusyId === r.id}
+                                  disabled={
+                                    !receiptFiles[r.id] ||
+                                    !termsAccepted ||
+                                    uploadBusyId === r.id
+                                  }
                                   onClick={() => submitReceipt(r)}
                                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
                                 >
                                   <Icon name="send" className="h-4 w-4" />
                                   {uploadBusyId === r.id
                                     ? "Submitting receipt..."
-                                    : "Submit Payment Receipt"}
+                                    : !termsAccepted
+                                      ? "Agree to Terms to Continue"
+                                      : "Submit Payment Receipt"}
                                 </button>
                               </>
                             );

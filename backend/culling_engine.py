@@ -12,75 +12,42 @@ from PIL import Image
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics.pairwise import cosine_similarity
 from torchvision import transforms
-
 # ============================================================
 # Configuration
 # ============================================================
 CONFIG = {
-
-    # --------------------------------------------------------
-    # Similarity Grouping
-    # --------------------------------------------------------
+    # Similarity grouping
     "similarity_threshold": 0.90,
-
-    # --------------------------------------------------------
-    # OpenCV Exposure Measurements
-    # --------------------------------------------------------
+    # OpenCV exposure measurements
     "dark_pixel_threshold": 30,
     "bright_pixel_threshold": 225,
-
-    # --------------------------------------------------------
-    # Absolute Quality Calibration
-    # --------------------------------------------------------
-
-    # Global sharpness (raw Laplacian variance)
+    # Absolute quality calibration
     "sharpness_low": 30.0,
     "sharpness_high": 75.0,
-
-    # Face sharpness (raw Laplacian variance)
     "face_sharpness_low": 10.0,
     "face_sharpness_high": 60.0,
-
-    # Face blur detection threshold (raw face sharpness)
+    # Starting point; calibrate against representative clear/blurry face photos.
     "face_sharpness_review_threshold": 12.0,
-
-    # Aesthetic score calibration
     "aesthetic_low": 2.0,
     "aesthetic_high": 5.0,
-
-    # --------------------------------------------------------
-    # Base Quality Weights
-    # --------------------------------------------------------
+    # Base quality weights
     "weight_technical": 0.35,
     "weight_face": 0.25,
     "weight_eyes": 0.25,
     "weight_aesthetic": 0.15,
-
-    # --------------------------------------------------------
-    # Defect Thresholds
-    # --------------------------------------------------------
-
-    # Eye / Blink Detection
+    # Defect thresholds
     "partial_blink": 0.35,
     "probable_closed_eyes": 0.50,
     "strong_closed_eyes": 0.70,
-
-    # Exposure Detection
     "overexposed_pixels": 30.0,
     "underexposed_pixels": 20.0,
-
-    # Global Sharpness (normalized 0–1)
     "very_low_sharpness": 0.15,
     "low_sharpness": 0.40,
-
-    # --------------------------------------------------------
-    # Decision Thresholds
-    # --------------------------------------------------------
+    # Decision thresholds
     "keep_margin": 0.08,
     "reject_margin": 0.20,
     "low_quality": 0.40,
 }
-
 BASE_DIR = Path(__file__).resolve().parent
 MODELS_DIR = BASE_DIR / "models"
 FACE_MODEL_PATH = MODELS_DIR / "blaze_face_short_range.tflite"
@@ -159,55 +126,29 @@ dino_transform = transforms.Compose(
 # ============================================================
 # Technical Quality — OpenCV
 # ============================================================
-# ============================================================
-# Technical Quality — OpenCV
-# ============================================================
 def analyze_technical_quality(image_path):
     """
     Measures basic technical image quality using OpenCV.
-
     Returns:
         dict: Global sharpness, brightness, dark-pixel percentage,
         bright-pixel percentage, and contrast.
     """
-
     image = cv2.imread(str(image_path))
-
     if image is None:
         raise ValueError(f"Could not read image: {image_path}")
-
-    gray = cv2.cvtColor(
-        image,
-        cv2.COLOR_BGR2GRAY
-    )
-
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     return {
         "sharpness": float(
-            cv2.Laplacian(
-                gray,
-                cv2.CV_64F
-            ).var()
+            cv2.Laplacian(gray, cv2.CV_64F).var()
         ),
-
-        "brightness": float(
-            np.mean(gray)
-        ),
-
+        "brightness": float(np.mean(gray)),
         "dark_pixels_percent": float(
-            np.mean(
-                gray < CONFIG["dark_pixel_threshold"]
-            ) * 100
+            np.mean(gray < CONFIG["dark_pixel_threshold"]) * 100
         ),
-
         "bright_pixels_percent": float(
-            np.mean(
-                gray > CONFIG["bright_pixel_threshold"]
-            ) * 100
+            np.mean(gray > CONFIG["bright_pixel_threshold"]) * 100
         ),
-
-        "contrast": float(
-            np.std(gray)
-        ),
+        "contrast": float(np.std(gray)),
     }
 # ============================================================
 # Subject Quality — MediaPipe + OpenCV
@@ -645,76 +586,49 @@ def detect_defects(
     bright_pixels_percent,
     dark_pixels_percent,
     technical_score,
+    sharpness=None,
     average_face_sharpness=None,
 ):
     """
     Detects specific quality concerns separately from the Base Quality Score.
-
     Possible issues include:
         - partial blink or closed eyes
         - overexposure
         - underexposure
-        - low or very low global sharpness
-        - blurry face regions
-
-    Args:
-        maximum_blink_score: Highest eye-blink score detected.
-        bright_pixels_percent: Percentage of bright image pixels.
-        dark_pixels_percent: Percentage of dark image pixels.
-        technical_score: Normalized global sharpness score (0–1).
-        average_face_sharpness: Raw average sharpness of detected faces.
-
+        - low or very low sharpness
     Returns:
         list[dict]: Detected issues with type, severity, and message.
     """
-
     defects = []
-
-    # --------------------------------------------------------
-    # Face Blur Detection
-    # --------------------------------------------------------
-    # Flag low face-region sharpness even if the rest
-    # of the image is sharp.
+    # Flag low face-region sharpness even if the rest of the image is sharp.
     if (
         average_face_sharpness is not None
-        and average_face_sharpness
-        <= CONFIG["face_sharpness_review_threshold"]
+        and average_face_sharpness <= CONFIG["face_sharpness_review_threshold"]
     ):
         defects.append({
             "type": "face_blur",
             "severity": "strong",
             "message": "Blurry face",
         })
-
-    # --------------------------------------------------------
-    # Eye / Blink Detection
-    # --------------------------------------------------------
     if maximum_blink_score is not None:
-
         if maximum_blink_score >= CONFIG["strong_closed_eyes"]:
             defects.append({
                 "type": "closed_eyes",
                 "severity": "strong",
                 "message": "Strong closed-eye indication",
             })
-
         elif maximum_blink_score >= CONFIG["probable_closed_eyes"]:
             defects.append({
                 "type": "closed_eyes",
                 "severity": "moderate",
                 "message": "Possible closed eyes",
             })
-
         elif maximum_blink_score >= CONFIG["partial_blink"]:
             defects.append({
                 "type": "blink",
                 "severity": "mild",
                 "message": "Possible partial blink",
             })
-
-    # --------------------------------------------------------
-    # Overexposure Detection
-    # --------------------------------------------------------
     if (
         bright_pixels_percent is not None
         and bright_pixels_percent >= CONFIG["overexposed_pixels"]
@@ -724,10 +638,6 @@ def detect_defects(
             "severity": "moderate",
             "message": "Possible overexposure",
         })
-
-    # --------------------------------------------------------
-    # Underexposure Detection
-    # --------------------------------------------------------
     if (
         dark_pixels_percent is not None
         and dark_pixels_percent >= CONFIG["underexposed_pixels"]
@@ -737,48 +647,30 @@ def detect_defects(
             "severity": "moderate",
             "message": "Possible underexposure",
         })
-
-    # --------------------------------------------------------
-    # Global Sharpness Detection
-    # --------------------------------------------------------
-    # IMPORTANT:
-    # technical_score is already normalized to a 0–1 scale.
-    # Therefore, it can be compared directly against the
-    # normalized sharpness defect thresholds.
-    if technical_score is not None:
-
-        if technical_score <= CONFIG["very_low_sharpness"]:
+    if sharpness is not None:
+        if sharpness < CONFIG["very_low_sharpness"]:
             defects.append({
                 "type": "sharpness",
                 "severity": "strong",
                 "message": "Very low sharpness",
             })
-
-        elif technical_score <= CONFIG["low_sharpness"]:
+        elif sharpness <= CONFIG["low_sharpness"]:
             defects.append({
                 "type": "sharpness",
                 "severity": "moderate",
                 "message": "Low sharpness",
             })
-
     return defects
-
 def has_severity(defects, severity):
-    """
-    Checks whether a defect list contains a specific severity level.
-    """
+    """Checks whether a defect list contains a specific severity level."""
     return any(
         defect["severity"] == severity
         for defect in defects
     )
-
 def defect_messages(defects):
-    """
-    Combines defect descriptions into one readable decision message.
-    """
+    """Combines defect descriptions into one readable decision message."""
     if not defects:
         return "No major issue detected"
-
     return "; ".join(
         defect["message"]
         for defect in defects

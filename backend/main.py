@@ -418,7 +418,8 @@ def analyze_photo(photo: dict, temp_path: Path):
         technical_result["bright_pixels_percent"],
         technical_result["dark_pixels_percent"],
         quality_scores["technical_score"],
-        subject_result["average_face_sharpness"],
+        technical_result["sharpness"],
+        average_face_sharpness=subject_result["average_face_sharpness"],
     )
     return {
         "photo_id": photo["id"],

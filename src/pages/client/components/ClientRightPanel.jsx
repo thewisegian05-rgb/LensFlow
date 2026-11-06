@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaKey, FaCamera, FaCommentDots } from "react-icons/fa";
+import { FaCamera, FaCommentDots } from "react-icons/fa";
 import { supabase } from "../../../lib/supabaseClient";
 import { getFeaturedPhotoSignedUrl, getProfile } from "../utils/portalUrls";
 import { useClientNav } from "../utils/clientRoutes";
@@ -156,31 +156,35 @@ export default function ClientRightPanel({ connections = [], activeId, portal, o
 
   return (
     <aside className="custom-scrollbar sticky top-0 hidden h-screen w-[248px] shrink-0 self-start overflow-y-auto border-l border-white/10 px-4 py-5 xl:block">
-      <div className="relative flex items-center gap-2">
+      {/* One line: messages, bell, then Enter Connection Code */}
+      <div className="relative flex items-center gap-1.5">
         <button
-          onClick={onOpenCode}
-          className="lf-btn lf-cta flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 px-2.5 py-2.5 text-[11px] font-semibold text-slate-950 shadow-lg shadow-sky-500/20"
+          type="button"
+          onClick={openMessages}
+          title="Messages"
+          aria-label="Messages"
+          className={`lf-btn relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs transition focus:outline-none focus:ring-2 focus:ring-sky-400 ${
+            onMessages
+              ? "border-sky-500/60 bg-sky-500/15 text-sky-300"
+              : "border-slate-700 bg-[#0B1628] text-slate-300 hover:text-white"
+          }`}
         >
-          <FaKey className="shrink-0 text-[11px]" />
-          <span className="truncate">Enter Connection Code</span>
+          <FaCommentDots />
         </button>
+
         <NotificationBell
           compact
           items={portal?.notifications || []}
-          menuClassName="right-0 w-52"
+          menuClassName="-left-[38px] w-[215px]"
         />
-      </div>
 
-      <button
-        onClick={openMessages}
-        className={`lf-btn mt-4 flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition ${
-          onMessages
-            ? "border-sky-500/50 bg-sky-500/10 text-sky-300"
-            : "border-white/5 bg-white/[0.02] text-slate-200 hover:bg-white/5"
-        }`}
-      >
-        <FaCommentDots className="shrink-0 text-slate-400" /> Messages
-      </button>
+        <button
+          onClick={onOpenCode}
+          className="lf-btn lf-cta flex h-8 min-w-0 flex-1 items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 px-2 text-[10px] font-semibold text-slate-950 shadow-lg shadow-sky-500/20"
+        >
+          <span className="truncate">Enter Connection Code</span>
+        </button>
+      </div>
 
       <h3 className="mb-3 mt-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
         Creatives

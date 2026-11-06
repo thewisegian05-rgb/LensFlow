@@ -28,7 +28,7 @@ export default function NotificationBell({
         aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
         aria-expanded={open}
         className={`relative flex items-center justify-center rounded-full border border-slate-700 bg-[#0B1628] text-slate-300 transition hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-400 ${
-          compact ? "h-9 w-9 text-sm" : "h-10 w-10"
+          compact ? "h-8 w-8 text-xs" : "h-10 w-10"
         }`}
       >
         <FaBell />

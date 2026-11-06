@@ -1,88 +1,13 @@
-import { FaChevronRight, FaInbox } from "react-icons/fa";
 import { useOutletContext } from "react-router-dom";
+import Section from "../components/ui/Section";
+import MyBookings from "../../../components/Schedule/MyBookings";
 import EventProgress from "./EventProgress";
 
 const HERO_IMG =
   "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1800&q=85";
 
-// ASSUMPTION: adjust to match your real portal data shape.
-const getRequests = (portal) =>
-  portal.booking_requests || portal.bookingRequests || portal.requests || [];
-
-const STATUS_STYLES = {
-  pending: "bg-amber-400/10 text-amber-300",
-  approved: "bg-emerald-400/10 text-emerald-300",
-  confirmed: "bg-emerald-400/10 text-emerald-300",
-  declined: "bg-rose-400/10 text-rose-300",
-  cancelled: "bg-rose-400/10 text-rose-300",
-};
-
-function BookingRequests({ requests, goTo }) {
-  const pendingCount = requests.filter((r) => (r.status || "pending") === "pending").length;
-
-  return (
-    <section className="min-w-0 rounded-2xl border border-amber-400/25 bg-gradient-to-r from-[#2A2210] via-[#1B1A12] to-[#0B1628] p-4 sm:p-5">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/10 text-amber-300">
-            <FaInbox />
-          </span>
-          <h2 className="text-base font-semibold text-white">Booking requests</h2>
-          {pendingCount > 0 && (
-            <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[11px] font-bold text-slate-950">
-              {pendingCount} pending
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => goTo("schedule")}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-300 hover:text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-300 rounded"
-        >
-          View all <FaChevronRight className="text-[10px]" />
-        </button>
-      </div>
-
-      {requests.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-700 px-4 py-5 text-sm text-slate-400">
-          No booking requests yet. Pick a date in the calendar to send one.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {requests.slice(0, 3).map((r, i) => {
-            const status = (r.status || "pending").toLowerCase();
-            return (
-              <li
-                key={r.id ?? i}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-[#0B1628]/80 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">
-                    {r.title || r.event_name || r.package_name || "Booking request"}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {r.date || r.event_date || r.requested_date || "Date to be confirmed"}
-                  </p>
-                </div>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${
-                    STATUS_STYLES[status] || "bg-slate-500/10 text-slate-300"
-                  }`}
-                >
-                  {status}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 export default function HomeTab() {
-  const { portal, goTo, activeId } = /** @type {any} */ (useOutletContext());
-  const requests = getRequests(portal);
+  const { goTo, activeId, reload } = /** @type {any} */ (useOutletContext());
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-5">
@@ -120,8 +45,10 @@ export default function HomeTab() {
         </div>
       </section>
 
-      {/* Priority: booking requests */}
-      <BookingRequests requests={requests} goTo={goTo} />
+      {/* Priority: your upcoming bookings (replaces the My Bookings sidebar page) */}
+      <Section title="My Bookings" dot="bg-violet-400">
+        <MyBookings photographerId={activeId} refreshKey={0} onChanged={reload} futureOnly />
+      </Section>
 
       {/* Progress of the client's confirmed events (follows the photographer's Workflow tab) */}
       <EventProgress activeId={activeId} goTo={goTo} />

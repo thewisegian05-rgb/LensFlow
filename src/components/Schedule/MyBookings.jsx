@@ -36,66 +36,139 @@ function refundNote(r) {
   if (!hasDown) return null;
   return `If you already sent your downpayment of ${peso(r.downpayment_amount)}, it is non-refundable. Please do not send it if you are cancelling.`;
 }
+
 async function extractReceiptData(file) {
   const worker = await createWorker("eng");
+
   try {
     const {
       data: { text },
     } = await worker.recognize(file);
+
     const lines = text
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
-    // Extract amount from a line labeled "Amount".
+
+    // ==========================================
+    // 1. EXTRACT TRANSACTION AMOUNT
+    // ==========================================
+
     let amount = null;
-    const amountIndex = lines.findIndex((line) =>
-      /amount(?:\s+sent|\s+transferred)?|total amount/i.test(line)
-    );
-    if (amountIndex !== -1) {
-      const candidates = lines.slice(amountIndex, amountIndex + 3);
-      for (const candidate of candidates) {
-        const match = candidate.match(
-          /(?:PHP|₱|P)\s*([\d,]+(?:\.\d{1,2})?)/i
-        );
-        if (match) {
-          amount = Number(match[1].replace(/,/g, ""));
-          break;
+
+    const amountPatterns = [
+      // Specific transfer/payment amount labels.
+      /(?:transfer(?:red)?\s*amount|amount\s*(?:sent|transferred|paid)|payment\s*amount|transaction\s*amount)\s*[:\-]?\s*(?:PHP|₱|P)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+
+      // Generic amount label.
+      /(?:^|\b)amount\s*[:\-]?\s*(?:PHP|₱|P)?\s*([\d,]+(?:\.\d{1,2})?)/im,
+
+      // Total amount fallback.
+      /total\s+amount\s*[:\-]?\s*(?:PHP|₱|P)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+    ];
+
+    for (const pattern of amountPatterns) {
+      const match = text.match(pattern);
+
+      if (match) {
+        amount = Number(match[1].replace(/,/g, ""));
+        break;
+      }
+    }
+
+    // Handle labels and amounts on separate lines.
+    if (amount === null) {
+      const amountLabelIndex = lines.findIndex((line) =>
+        /^(?:transfer(?:red)?\s*amount|amount\s*(?:sent|transferred|paid)|payment\s*amount|transaction\s*amount|amount)\s*[:\-]?\s*$/i.test(line)
+      );
+
+      if (amountLabelIndex !== -1) {
+        for (
+          let i = amountLabelIndex + 1;
+          i < Math.min(amountLabelIndex + 3, lines.length);
+          i++
+        ) {
+          if (/fee|total/i.test(lines[i])) continue;
+
+          const match = lines[i].match(
+            /(?:PHP|₱|P)?\s*([\d,]+(?:\.\d{1,2})?)/
+          );
+
+          if (match) {
+            amount = Number(match[1].replace(/,/g, ""));
+            break;
+          }
         }
       }
     }
-    // Extract GCash reference number.
+
+    // ==========================================
+    // 2. EXTRACT REFERENCE NUMBER
+    // ==========================================
+
     let referenceNumber = null;
-    const referenceIndex = lines.findIndex((line) =>
-      /reference|ref\.?\s*(?:no|number)|transaction\s*id/i.test(line)
-    );
-    if (referenceIndex !== -1) {
-      const referenceText = lines
-        .slice(referenceIndex, referenceIndex + 2)
-        .join(" ");
-      const match = referenceText.match(
-        /(?:reference(?:\s*(?:no\.?|number))?|ref\.?\s*(?:no\.?|number)?|transaction\s*id)\s*[:#-]?\s*([A-Z0-9-]{6,})/i
+
+    const referencePattern =
+      /(?:reference\s*(?:no\.?|number)?|ref\.?\s*(?:no\.?|number)?|transaction\s*(?:id|no\.?|number)|trace\s*(?:no\.?|number)|instapay\s*(?:invoice\s*)?(?:no\.?|number))\s*[:#-]?\s*([A-Z0-9-]{6,})/i;
+
+    const referenceMatch = text.match(referencePattern);
+
+    if (referenceMatch) {
+      referenceNumber = referenceMatch[1];
+    } else {
+      // Handle reference labels and values on separate lines.
+      const referenceLabelIndex = lines.findIndex((line) =>
+        /^(?:reference|reference\s*(?:no\.?|number)?|ref\.?\s*(?:no\.?|number)?|transaction\s*(?:id|no\.?|number)|trace\s*(?:no\.?|number)|instapay\s*(?:invoice\s*)?(?:no\.?|number))\s*[:#-]?\s*$/i.test(
+          line
+        )
       );
-      if (match) {
-        referenceNumber = match[1];
+
+      if (referenceLabelIndex !== -1) {
+        const referenceText = lines
+          .slice(referenceLabelIndex + 1, referenceLabelIndex + 3)
+          .join(" ");
+
+        const match = referenceText.match(/\b([A-Z0-9-]{6,})\b/i);
+
+        if (match) {
+          referenceNumber = match[1];
+        }
       }
     }
-    // Extract dates from common bank receipt formats, including:
-    // "05 Nov 2026, 17:36", "Nov 05, 2026", and "2026-11-05 17:36".
+
+    // ==========================================
+    // 3. EXTRACT TRANSACTION DATE
+    // ==========================================
+
     let transactionDate = null;
+
     const monthPattern =
       "Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?";
+
+    // Examples:
+    // 06 Nov 2026, 10:31 AM
+    // 05 Nov 2026, 17:36
     const dayFirstMatch = text.match(
       new RegExp(
-        String.raw`\b(\d{1,2})\s+(${monthPattern})\s+(\d{4})(?:,?\s+(\d{1,2}):(\d{2}))?`,
+        String.raw`\b(\d{1,2})\s+(${monthPattern})\s+(\d{4})(?:,?\s+(\d{1,2}):(\d{2})(?:\s*(AM|PM))?)?`,
         "i"
       )
     );
+
+
+    // Examples:
+    // Nov 06, 2026 10:31 AM
+    // November 05, 2026
     const monthFirstMatch = text.match(
       new RegExp(
-        String.raw`\b(${monthPattern})\s+(\d{1,2}),?\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})\s*(AM|PM)?)?`,
+        String.raw`\b(${monthPattern})\s+(\d{1,2}),?\s*(\d{4})(?:\s+(\d{1,2}):(\d{2})(?:\s*(AM|PM))?)?`,
         "i"
       )
     );
+
+    // Examples:
+    // 2026-11-06
+    // 2026-11-06 10:31
     const isoMatch = text.match(
       /\b(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?/i
     );
@@ -105,56 +178,83 @@ async function extractReceiptData(file) {
       "jul", "aug", "sep", "oct", "nov", "dec",
     ];
 
+    function buildDate(year, month, day, hour = 12, minute = 0, meridiem = "") {
+      hour = Number(hour);
+      minute = Number(minute);
+
+      if (meridiem) {
+        meridiem = meridiem.toUpperCase();
+
+        if (meridiem === "PM" && hour < 12) hour += 12;
+        if (meridiem === "AM" && hour === 12) hour = 0;
+      }
+
+      const parsedDate = new Date(
+        Number(year),
+        Number(month),
+        Number(day),
+        hour,
+        minute
+      );
+
+      // Validate that the date components are valid.
+      if (
+        parsedDate.getFullYear() !== Number(year) ||
+        parsedDate.getMonth() !== Number(month) ||
+        parsedDate.getDate() !== Number(day)
+      ) {
+        return null;
+      }
+
+      return Number.isNaN(parsedDate.getTime())
+        ? null
+        : parsedDate.toISOString();
+    }
+
     if (dayFirstMatch) {
       const monthIndex = monthNames.indexOf(
         dayFirstMatch[2].slice(0, 3).toLowerCase()
       );
+
       if (monthIndex >= 0) {
-        const parsedDate = new Date(
-          Number(dayFirstMatch[3]),
+        transactionDate = buildDate(
+          dayFirstMatch[3],
           monthIndex,
-          Number(dayFirstMatch[1]),
-          Number(dayFirstMatch[4] || 12),
-          Number(dayFirstMatch[5] || 0)
+          dayFirstMatch[1],
+          dayFirstMatch[4] || 12,
+          dayFirstMatch[5] || 0,
+          dayFirstMatch[6] || ""
         );
-        if (!Number.isNaN(parsedDate.getTime())) {
-          transactionDate = parsedDate.toISOString();
-        }
       }
     } else if (monthFirstMatch) {
       const monthIndex = monthNames.indexOf(
         monthFirstMatch[1].slice(0, 3).toLowerCase()
       );
-      if (monthIndex >= 0) {
-        let hour = Number(monthFirstMatch[4] || 12);
-        const minute = Number(monthFirstMatch[5] || 0);
-        const meridiem = (monthFirstMatch[6] || "").toUpperCase();
-        if (meridiem === "PM" && hour < 12) hour += 12;
-        if (meridiem === "AM" && hour === 12) hour = 0;
 
-        const parsedDate = new Date(
-          Number(monthFirstMatch[3]),
+      if (monthIndex >= 0) {
+        transactionDate = buildDate(
+          monthFirstMatch[3],
           monthIndex,
-          Number(monthFirstMatch[2]),
-          hour,
-          minute
+          monthFirstMatch[2],
+          monthFirstMatch[4] || 12,
+          monthFirstMatch[5] || 0,
+          monthFirstMatch[6] || ""
         );
-        if (!Number.isNaN(parsedDate.getTime())) {
-          transactionDate = parsedDate.toISOString();
-        }
       }
     } else if (isoMatch) {
-      const parsedDate = new Date(
-        Number(isoMatch[1]),
+      transactionDate = buildDate(
+        isoMatch[1],
         Number(isoMatch[2]) - 1,
-        Number(isoMatch[3]),
-        Number(isoMatch[4] || 12),
-        Number(isoMatch[5] || 0)
+        isoMatch[3],
+        isoMatch[4] || 12,
+        isoMatch[5] || 0
       );
-      if (!Number.isNaN(parsedDate.getTime())) {
-        transactionDate = parsedDate.toISOString();
-      }
     }
+
+    // ==========================================
+    // 4. RETURN EXTRACTED RECEIPT DATA
+    // ==========================================
+
     return {
       extractedText: text,
       amount,
@@ -165,6 +265,7 @@ async function extractReceiptData(file) {
     await worker.terminate();
   }
 }
+
 function Icon({ name, className = "" }) {
   const common = {
     className,

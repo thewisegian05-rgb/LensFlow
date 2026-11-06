@@ -674,6 +674,37 @@ export default function BookingRequests({
       p_review_note: reviewNote.trim() || null,
     });
 
+    if (reviewError) {
+      setModalBusy(null);
+      console.error("Failed to review payment receipt:", reviewError);
+      setModalError(reviewError.message);
+      return;
+    }
+
+    // Delete the uploaded receipt only when rejected.
+    if (status === "rejected") {
+      const { error: deleteError } = await supabase.storage
+        .from("payment-receipts")
+        .remove([submission.receipt_storage_path]);
+
+      if (deleteError) {
+        console.error("Failed to delete rejected receipt:", deleteError);
+        setModalError(
+          "Receipt was rejected, but its uploaded image could not be deleted. Please try again or contact support."
+        );
+      }
+    }
+
+    setModalBusy(null);
+    setReviewNote("");
+    await load();
+
+    setModalSuccess(
+      status === "verified"
+        ? "Receipt verified. You can now confirm the booking."
+        : "Receipt rejected. The client can submit another receipt."
+    );
+
     setModalBusy(null);
 
     if (reviewError) {

@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FaCameraRetro,
@@ -95,10 +96,7 @@ function AnimatedNavLinks({ links, onNavigate, className = "" }) {
   }, [updateIndicator]);
 
   return (
-    <nav
-      ref={navRef}
-      className={`relative ${className}`}
-    >
+    <nav ref={navRef} className={`relative ${className}`}>
       {/* One shared highlight that slides between active links */}
       <span
         aria-hidden="true"
@@ -147,6 +145,12 @@ function Sidebar({ isOpen, onToggle, onClose }) {
     }
   };
 
+  // Navigate to the photographer's home page
+  const handleLogoClick = () => {
+    navigate("/dashboard");
+    handleNavClick();
+  };
+
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
 
@@ -180,18 +184,23 @@ function Sidebar({ isOpen, onToggle, onClose }) {
         }`}
       >
         <div className="flex h-full w-64 flex-col">
-          {/* Logo */}
+          {/* Clickable Logo / Home */}
           <div className="flex items-start justify-between border-b border-slate-200 p-6 dark:border-slate-800">
-            <div>
-              <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white">
-                <FaCameraRetro className="text-sky-500" />
+            <button
+              type="button"
+              onClick={handleLogoClick}
+              aria-label="Go to LensFlow home"
+              className="group border-0 bg-transparent p-0 text-left shadow-none outline-none"
+            >
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 transition-colors group-hover:text-sky-500 dark:text-white dark:group-hover:text-sky-400">
+                <FaCameraRetro className="lf-lens text-sky-500" />
                 LensFlow
               </h1>
 
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-500">
+              <p className="mt-1 text-xs text-slate-600 transition-colors group-hover:text-sky-500 dark:text-slate-500 dark:group-hover:text-sky-400">
                 Studio Management
               </p>
-            </div>
+            </button>
 
             <button
               onClick={onToggle}

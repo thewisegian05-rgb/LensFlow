@@ -147,15 +147,43 @@ export default function ScheduleTab() {
     return [...others, ...myEvents];
   }, [bookedEvents, myEvents]);
 
-  /* calendar date click -> open the booking form (today or later only) */
-  const handleSelectSlot = ({ start }) => {
-    const d = new Date(start);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-      d.getDate()
-    ).padStart(2, "0")}`;
-    const todayKey = new Date().toLocaleDateString("en-CA");
-    if (key >= todayKey) setBookingDate(key);
+  // Calendar date click -> allow only dates within the booking period.
+  const pad = (n) => String(n).padStart(2, "0");
+
+  const getManilaDate = () => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+
+    const values = Object.fromEntries(
+      parts
+        .filter((p) => p.type !== "literal")
+        .map((p) => [p.type, p.value])
+    );
+
+    return `${values.year}-${values.month}-${values.day}`;
   };
+
+  const getLastBookableDate = () => {
+    const year = Number(getManilaDate().slice(0, 4)) + 1;
+    return `${year}-12-31`;
+  };
+
+  
+  const handleSelectSlot = ({ start }) => {
+    const key = getManilaDateKey(start);
+
+    if (
+      key >= minimumBookingDate &&
+      key <= maximumBookingDate
+    ) {
+      setBookingDate(key);
+    }
+  };
+
 
   /* Only your own bookings open details. Other dates stay private. */
   const handleEventClick = (event) => {
@@ -168,6 +196,30 @@ export default function ScheduleTab() {
 
   // "2 photographers · 1 videographer", or "" for older requests without it.
   const crewText = selected ? crewSummary(selected.crew_needed) : "";
+
+  
+  const getManilaDateKey = (date = new Date()) => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+
+    const values = Object.fromEntries(
+      parts
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, part.value])
+    );
+
+    return `${values.year}-${values.month}-${values.day}`;
+  };
+
+  const minimumBookingDate = getManilaDateKey();
+
+  const maximumBookingDate =
+    `${Number(minimumBookingDate.slice(0, 4)) + 1}-12-31`;
+
 
   return (
     <div className="min-w-0 space-y-4">
@@ -183,6 +235,8 @@ export default function ScheduleTab() {
             events={calendarEvents}
             onSelectSlot={handleSelectSlot}
             onEventClick={handleEventClick}
+            minSelectableDate={minimumBookingDate}
+            maxSelectableDate={maximumBookingDate}
           />
         </div>
       </Section>
@@ -256,6 +310,21 @@ export default function ScheduleTab() {
                     {selected.start_time.slice(0, 5)}–{selected.end_time.slice(0, 5)}
                   </dd>
                 </div>
+
+                {/* Photographer Call Time */}
+                {selected.call_time && (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Photographer Call Time</dt>
+                    <dd className="text-right font-medium text-sky-400">
+                      {new Date(
+                        `2000-01-01T${selected.call_time.slice(0, 5)}:00`
+                      ).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </dd>
+                  </div>
+                )}
 
                 {selected.location && (
                   <div className="flex justify-between gap-4">

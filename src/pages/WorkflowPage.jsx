@@ -382,6 +382,7 @@ function WorkflowPage() {
         category: row.category,
         location: row.location,
         start_time: row.start_time,
+        call_time: row.call_time || null,
         event_date: new Date(row.start_time).toLocaleDateString("en-CA"),
         time: formatTime(row.start_time),
         stage: deriveStage(row, linked?.stage),

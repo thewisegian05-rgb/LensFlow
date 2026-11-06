@@ -1,3 +1,4 @@
+
 import { useMemo, useState } from "react";
 
 import format from "date-fns/format";
@@ -21,16 +22,64 @@ function Calendar({
   events = [],
   onSelectSlot,
   onEventClick,
+  minSelectableDate = null,
+  maxSelectableDate = null,
 }) {
   // =========================================================
   // VIEW
   // =========================================================
 
   const [view, setView] = useState("month");
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-  const [currentDate, setCurrentDate] = useState(
-    new Date()
-  );
+  // =========================================================
+  // DATE RESTRICTIONS
+  // =========================================================
+
+  const getDateKey = (date) => {
+    return format(date, "yyyy-MM-dd");
+  };
+
+  // Get today's date using Philippine time.
+  const getTodayDateKey = () => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+
+    const values = Object.fromEntries(
+      parts
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, part.value])
+    );
+
+    return `${values.year}-${values.month}-${values.day}`;
+  };
+
+  // Check whether a date can be selected.
+  const isSelectableDay = (day) => {
+    const key = getDateKey(day);
+    const todayKey = getTodayDateKey();
+
+    // Prevent selecting past dates for all calendar users.
+    if (key < todayKey) {
+      return false;
+    }
+
+    // Optional minimum date restriction.
+    if (minSelectableDate && key < minSelectableDate) {
+      return false;
+    }
+
+    // Optional maximum date restriction.
+    if (maxSelectableDate && key > maxSelectableDate) {
+      return false;
+    }
+
+    return true;
+  };
 
   // =========================================================
   // NAVIGATION
@@ -38,25 +87,17 @@ function Calendar({
 
   const goPrevious = () => {
     if (view === "week") {
-      setCurrentDate((prev) =>
-        subWeeks(prev, 1)
-      );
+      setCurrentDate((prev) => subWeeks(prev, 1));
     } else {
-      setCurrentDate((prev) =>
-        subMonths(prev, 1)
-      );
+      setCurrentDate((prev) => subMonths(prev, 1));
     }
   };
 
   const goNext = () => {
     if (view === "week") {
-      setCurrentDate((prev) =>
-        addWeeks(prev, 1)
-      );
+      setCurrentDate((prev) => addWeeks(prev, 1));
     } else {
-      setCurrentDate((prev) =>
-        addMonths(prev, 1)
-      );
+      setCurrentDate((prev) => addMonths(prev, 1));
     }
   };
 
@@ -82,8 +123,7 @@ function Calendar({
   const weekDays = useMemo(() => {
     return Array.from(
       { length: 7 },
-      (_, index) =>
-        addDays(weekStart, index)
+      (_, index) => addDays(weekStart, index)
     );
   }, [weekStart]);
 
@@ -92,29 +132,22 @@ function Calendar({
   // =========================================================
 
   const monthDays = useMemo(() => {
-    const monthStart =
-      startOfMonth(currentDate);
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
 
-    const monthEnd =
-      endOfMonth(currentDate);
+    const calendarStart = startOfWeek(monthStart, {
+      weekStartsOn: 1,
+    });
 
-    const calendarStart =
-      startOfWeek(monthStart, {
-        weekStartsOn: 1,
-      });
-
-    const calendarEnd =
-      endOfWeek(monthEnd, {
-        weekStartsOn: 1,
-      });
+    const calendarEnd = endOfWeek(monthEnd, {
+      weekStartsOn: 1,
+    });
 
     const days = [];
-
     let day = calendarStart;
 
     while (day <= calendarEnd) {
       days.push(day);
-
       day = addDays(day, 1);
     }
 
@@ -125,18 +158,12 @@ function Calendar({
   // TITLES
   // =========================================================
 
-  const monthTitle = format(
-    currentDate,
-    "MMMM yyyy"
-  );
+  const monthTitle = format(currentDate, "MMMM yyyy");
 
   const weekTitle = `${format(
     weekDays[0],
     "MMM d"
-  )} – ${format(
-    weekDays[6],
-    "MMM d, yyyy"
-  )}`;
+  )} – ${format(weekDays[6], "MMM d, yyyy")}`;
 
   // =========================================================
   // GET EVENTS FOR DAY
@@ -149,16 +176,10 @@ function Calendar({
           return false;
         }
 
-        return isSameDay(
-          new Date(event.start),
-          day
-        );
+        return isSameDay(new Date(event.start), day);
       })
       .sort((a, b) => {
-        return (
-          new Date(a.start) -
-          new Date(b.start)
-        );
+        return new Date(a.start) - new Date(b.start);
       });
   };
 
@@ -171,10 +192,7 @@ function Calendar({
       return "";
     }
 
-    return format(
-      new Date(event.start),
-      "h:mm a"
-    );
+    return format(new Date(event.start), "h:mm a");
   };
 
   // =========================================================
@@ -183,12 +201,14 @@ function Calendar({
 
   const hexToRgba = (hex, alpha = 1) => {
     const normalized = (hex || "#d946ef").replace("#", "");
-    const safeHex = normalized.length === 3
-      ? normalized
-          .split("")
-          .map((char) => char + char)
-          .join("")
-      : normalized;
+
+    const safeHex =
+      normalized.length === 3
+        ? normalized
+            .split("")
+            .map((char) => char + char)
+            .join("")
+        : normalized;
 
     const value = Number.parseInt(safeHex, 16);
     const r = (value >> 16) & 255;
@@ -214,10 +234,7 @@ function Calendar({
   // EVENT CLICK
   // =========================================================
 
-  const handleEventClick = (
-    event,
-    clickEvent
-  ) => {
+  const handleEventClick = (event, clickEvent) => {
     if (clickEvent) {
       clickEvent.stopPropagation();
     }
@@ -233,6 +250,11 @@ function Calendar({
 
   const handleDayClick = (day) => {
     if (!onSelectSlot) {
+      return;
+    }
+
+    // Do not open Add Event or Booking modal for past dates.
+    if (!isSelectableDay(day)) {
       return;
     }
 
@@ -253,13 +275,10 @@ function Calendar({
         type="button"
         className="calendar-event"
         style={getEventStyle(event)}
-        onClick={(e) =>
-          handleEventClick(event, e)
-        }
+        onClick={(e) => handleEventClick(event, e)}
       >
         <div className="calendar-event-title">
-          {event.title ||
-            "Untitled Event"}
+          {event.title || "Untitled Event"}
         </div>
 
         {event.start && (
@@ -278,7 +297,6 @@ function Calendar({
   const renderMonthView = () => {
     return (
       <div className="calendar-month">
-
         {/* WEEKDAY HEADER */}
 
         <div className="calendar-weekday-row">
@@ -291,10 +309,7 @@ function Calendar({
             "Sat",
             "Sun",
           ].map((day) => (
-            <div
-              key={day}
-              className="calendar-weekday"
-            >
+            <div key={day} className="calendar-weekday">
               {day}
             </div>
           ))}
@@ -303,52 +318,43 @@ function Calendar({
         {/* DAYS */}
 
         <div className="calendar-month-grid">
-
           {monthDays.map((day) => {
-            const dayEvents =
-              getEventsForDay(day);
+            const dayEvents = getEventsForDay(day);
 
-            // Maximum of 3 visible events
-            const visibleEvents =
-              dayEvents.slice(0, 3);
+            const visibleEvents = dayEvents.slice(0, 3);
 
-            const remainingCount =
-              Math.max(
-                dayEvents.length - 3,
-                0
-              );
+            const remainingCount = Math.max(
+              dayEvents.length - 3,
+              0
+            );
 
-            const isCurrentMonth =
-              isSameMonth(
-                day,
-                currentDate
-              );
+            const isCurrentMonth = isSameMonth(
+              day,
+              currentDate
+            );
 
-            const today =
-              isToday(day);
+            const today = isToday(day);
+            const selectable = isSelectableDay(day);
 
             return (
               <div
                 key={day.toISOString()}
                 className={[
                   "calendar-day",
-
-                  !isCurrentMonth
-                    ? "outside-month"
-                    : "",
-
-                  today
-                    ? "today"
-                    : "",
+                  !isCurrentMonth ? "outside-month" : "",
+                  today ? "today" : "",
+                  !selectable ? "calendar-day-disabled" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
-
-                onClick={() =>
-                  handleDayClick(day)
+                onClick={() => handleDayClick(day)}
+                aria-disabled={!selectable}
+                title={
+                  !selectable
+                    ? "Past dates cannot be selected."
+                    : "Select this date"
                 }
               >
-
                 {/* DAY NUMBER */}
 
                 <div className="calendar-day-number">
@@ -366,10 +372,7 @@ function Calendar({
                 {/* EVENTS */}
 
                 <div className="calendar-day-events">
-
-                  {visibleEvents.map(
-                    renderMonthEvent
-                  )}
+                  {visibleEvents.map(renderMonthEvent)}
 
                   {/* MORE */}
 
@@ -377,35 +380,24 @@ function Calendar({
                     <button
                       type="button"
                       className="calendar-more-button"
-
                       onClick={(e) => {
                         e.stopPropagation();
 
-                        const hiddenEvent =
-                          dayEvents[3];
+                        const hiddenEvent = dayEvents[3];
 
-                        if (
-                          hiddenEvent &&
-                          onEventClick
-                        ) {
-                          onEventClick(
-                            hiddenEvent
-                          );
+                        if (hiddenEvent && onEventClick) {
+                          onEventClick(hiddenEvent);
                         }
                       }}
                     >
                       +{remainingCount} more
                     </button>
                   )}
-
                 </div>
-
               </div>
             );
           })}
-
         </div>
-
       </div>
     );
   };
@@ -417,133 +409,90 @@ function Calendar({
   const renderWeekView = () => {
     return (
       <div className="calendar-week-view">
-
         <div className="calendar-week-grid">
-
           {weekDays.map((day) => {
-            const dayEvents =
-              getEventsForDay(day);
-
-            const today =
-              isToday(day);
+            const dayEvents = getEventsForDay(day);
+            const today = isToday(day);
+            const selectable = isSelectableDay(day);
 
             return (
               <div
                 key={day.toISOString()}
                 className={[
                   "calendar-week-day",
-
-                  today
-                    ? "today"
-                    : "",
+                  today ? "today" : "",
+                  !selectable ? "calendar-day-disabled" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
               >
-
                 {/* HEADER */}
 
                 <div className="calendar-week-day-header">
-
                   <span className="calendar-week-day-name">
-                    {format(
-                      day,
-                      "EEEE"
-                    )}
+                    {format(day, "EEEE")}
                   </span>
 
                   <span
                     className={[
                       "calendar-week-day-number",
-
-                      today
-                        ? "today-number"
-                        : "",
+                      today ? "today-number" : "",
                     ]
                       .filter(Boolean)
                       .join(" ")}
                   >
-                    {format(
-                      day,
-                      "MMM d"
-                    )}
+                    {format(day, "MMM d")}
                   </span>
-
                 </div>
 
                 {/* EVENTS */}
 
                 <div className="calendar-week-events">
-
                   {dayEvents.length === 0 ? (
-
                     <div className="calendar-week-empty">
                       No events
                     </div>
-
                   ) : (
-
-                    dayEvents.map(
-                      (event) => {
-                        return (
-                          <div
-                            key={event.id}
-                            className="calendar-week-event"
-                            style={getEventStyle(event)}
-                          >
-
-                            <div className="calendar-week-event-title">
-                              {event.title ||
-                                "Untitled Event"}
-                            </div>
-
-                            <div className="calendar-week-event-info">
-
-                              {formatEventTime(
-                                event
-                              )}
-
-                              {event.client && (
-                                <>
-                                  {" "}
-                                  •{" "}
-                                  {
-                                    event.client
-                                  }
-                                </>
-                              )}
-
-                            </div>
-
-                            <button
-                              type="button"
-                              className="calendar-week-event-button"
-
-                              onClick={(e) =>
-                                handleEventClick(
-                                  event,
-                                  e
-                                )
-                              }
-                            >
-                              View event
-                            </button>
-
+                    dayEvents.map((event) => {
+                      return (
+                        <div
+                          key={event.id}
+                          className="calendar-week-event"
+                          style={getEventStyle(event)}
+                        >
+                          <div className="calendar-week-event-title">
+                            {event.title || "Untitled Event"}
                           </div>
-                        );
-                      }
-                    )
 
+                          <div className="calendar-week-event-info">
+                            {formatEventTime(event)}
+
+                            {event.client && (
+                              <>
+                                {" "}•{" "}
+                                {event.client}
+                              </>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            className="calendar-week-event-button"
+                            onClick={(e) =>
+                              handleEventClick(event, e)
+                            }
+                          >
+                            View event
+                          </button>
+                        </div>
+                      );
+                    })
                   )}
-
                 </div>
-
               </div>
             );
           })}
-
         </div>
-
       </div>
     );
   };
@@ -554,87 +503,64 @@ function Calendar({
 
   return (
     <div className="calendar-wrapper">
-
-      {/* =====================================================
-          HEADER
-          ===================================================== */}
+      {/* HEADER */}
 
       <div className="calendar-header">
-
         {/* LEFT */}
 
         <div className="calendar-header-left">
-
           <button
             type="button"
             className="calendar-nav-button"
-
             onClick={goPrevious}
-
             aria-label="Previous"
           >
             ←
           </button>
 
           <h2 className="calendar-title">
-            {view === "month"
-              ? monthTitle
-              : weekTitle}
+            {view === "month" ? monthTitle : weekTitle}
           </h2>
 
           <button
             type="button"
             className="calendar-nav-button"
-
             onClick={goNext}
-
             aria-label="Next"
           >
             →
           </button>
-
         </div>
 
         {/* RIGHT */}
 
         <div className="calendar-header-right">
-
           {/* VIEW SWITCHER */}
 
           <div className="calendar-view-switcher">
-
             <button
               type="button"
-
               className={
                 view === "month"
                   ? "calendar-view-button active"
                   : "calendar-view-button"
               }
-
-              onClick={() =>
-                setView("month")
-              }
+              onClick={() => setView("month")}
             >
               Month
             </button>
 
             <button
               type="button"
-
               className={
                 view === "week"
                   ? "calendar-view-button active"
                   : "calendar-view-button"
               }
-
-              onClick={() =>
-                setView("week")
-              }
+              onClick={() => setView("week")}
             >
               Week
             </button>
-
           </div>
 
           {/* TODAY */}
@@ -642,24 +568,18 @@ function Calendar({
           <button
             type="button"
             className="calendar-today-button"
-
             onClick={goToday}
           >
             Today
           </button>
-
         </div>
-
       </div>
 
-      {/* =====================================================
-          CALENDAR CONTENT
-          ===================================================== */}
+      {/* CALENDAR CONTENT */}
 
       {view === "month"
         ? renderMonthView()
         : renderWeekView()}
-
     </div>
   );
 }

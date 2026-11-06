@@ -3738,9 +3738,10 @@ function CullingPage() {
         previewOpen &&
         lightboxImage &&
         lightboxImage.previewable &&
-        lightboxImage.fullUrl && (
+        lightboxImage.fullUrl &&
+        createPortal(
           <div
-            className="fixed inset-0 z-[70] flex flex-col bg-black/95 backdrop-blur-sm"
+            className="fixed inset-0 z-[999999] flex h-[100dvh] w-screen flex-col overflow-hidden bg-black/95 backdrop-blur-sm"
             onClick={() => setPreviewOpen(false)}
           >
             <div
@@ -3874,7 +3875,8 @@ function CullingPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
       {/* ============ LIGHTBOX: duplicate review ============ */}

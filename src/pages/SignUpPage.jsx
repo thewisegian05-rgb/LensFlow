@@ -126,6 +126,9 @@ const validateEmailAddress = (value) => {
   return "";
 };
 
+// Reject three consecutive identical letters, regardless of capitalization.
+const hasTripleRepeatedLetters = (value) => /([a-z])\1{2}/i.test(value);
+
 // Validate fields individually.
 
 const validateSignUpForm = (form, passwordIsValid) => {
@@ -144,15 +147,19 @@ const validateSignUpForm = (form, passwordIsValid) => {
       errors[field] = `${label} is required.`;
     } else if (value && (value.length < 2 || value.length > 50)) {
       errors[field] = `${label} must be between 2 and 50 characters.`;
+    } else if (value && hasTripleRepeatedLetters(value)) {
+      errors[field] = `${label} cannot contain three consecutive identical letters.`;
     }
   });
   const emailError = validateEmailAddress(form.email);
   if (emailError) errors.email = emailError;
-  if (
-    form.accountType !== "customer" &&
-    form.studioName.trim().length > 50
-  ) {
-    errors.studioName = "Studio / Business Name must not exceed 50 characters.";
+  if (form.accountType !== "customer" && form.studioName.trim()) {
+    const studioName = form.studioName.trim();
+    if (studioName.length > 50) {
+      errors.studioName = "Studio / Business Name must not exceed 50 characters.";
+    } else if (hasTripleRepeatedLetters(studioName)) {
+      errors.studioName = "Studio / Business Name cannot contain three consecutive identical letters.";
+    }
   }
   if (!form.password) {
     errors.password = "Please enter a password.";

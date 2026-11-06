@@ -22,8 +22,9 @@ export const NAV_ITEMS = [
   { id: "messages",  label: "Messages",    icon: FaCommentDots },
 ];
 
-// Messages now lives in the right panel, so it is not shown in this sidebar.
-const HIDDEN_IN_SIDEBAR = ["messages"];
+// Messages lives in the right panel and My Bookings is shown on the Home page,
+// so neither is listed in this sidebar. Their routes still work.
+const HIDDEN_IN_SIDEBAR = ["messages", "bookings"];
 const SIDEBAR_ITEMS = NAV_ITEMS.filter((i) => !HIDDEN_IN_SIDEBAR.includes(i.id));
 
 export default function ClientSidebar({ onSignOut }) {

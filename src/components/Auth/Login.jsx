@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import "./Login.css";
@@ -21,6 +21,45 @@ import {
 
 function Login() {
   const navigate = useNavigate();
+
+  const isSigningIn = useRef(false);
+
+  const routeAuthenticatedUser = (session) => {
+    const accountType = session?.user?.user_metadata?.account_type;
+
+    if (accountType === "photographer") {
+      localStorage.setItem("lensflow_active_role", "photographer");
+      prepareAuthTransition();
+      navigate("/dashboard", { replace: true });
+      return;
+    }
+
+    if (accountType === "customer") {
+      localStorage.setItem("lensflow_active_role", "customer");
+      navigate("/customer", { replace: true });
+      return;
+    }
+
+    if (accountType === "both") {
+      const activeRole = localStorage.getItem("lensflow_active_role");
+
+      if (activeRole === "photographer") {
+        prepareAuthTransition();
+        navigate("/dashboard", { replace: true });
+      } else if (activeRole === "customer") {
+        navigate("/customer", { replace: true });
+      } else {
+        setShowRoleModal(true);
+      }
+
+      return;
+    }
+
+    setError(
+      "This account has an invalid account type. Please contact the administrator."
+    );
+  };
+
   const prepareAuthTransition = () => {
     try {
       sessionStorage.setItem(
@@ -46,6 +85,44 @@ function Login() {
 
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkExistingSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error("Session check failed:", error);
+        return;
+      }
+
+      if (!cancelled && data.session) {
+        routeAuthenticatedUser(data.session);
+      }
+    };
+
+    checkExistingSession();
+
+    // Also detect logins performed in another browser tab.
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (
+          !cancelled &&
+          !isSigningIn.current &&
+          session &&
+          event === "SIGNED_IN"
+        ) {
+          routeAuthenticatedUser(session);
+        }
+      }
+    );
+
+    return () => {
+      cancelled = true;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   // Validate the fields before opening the role-selection modal.
   const handleSubmit = async (e) => {
@@ -75,6 +152,22 @@ function Login() {
     setLoading(true);
 
     try {
+      // Check whether another account is already authenticated.
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      if (sessionData.session) {
+        routeAuthenticatedUser(sessionData.session);
+        return;
+      }
+
+      // Only authenticate if there is no existing session.
+      isSigningIn.current = true;
+
       const { data, error: signInError } =
         await supabase.auth.signInWithPassword({
           email: normalizedEmail,
@@ -121,6 +214,7 @@ function Login() {
       console.error("Login failed:", err);
       setError("Something went wrong while signing in. Please try again.");
     } finally {
+      isSigningIn.current = false;
       setLoading(false);
     }
   };
@@ -133,6 +227,7 @@ function Login() {
     }
 
     if (selectedRole === "photographer") {
+      localStorage.setItem("lensflow_active_role", "photographer");
       setShowRoleModal(false);
       prepareAuthTransition();
       navigate("/dashboard");
@@ -140,6 +235,7 @@ function Login() {
     }
 
     if (selectedRole === "customer") {
+      localStorage.setItem("lensflow_active_role", "customer");
       setShowRoleModal(false);
       navigate("/customer");
       return;

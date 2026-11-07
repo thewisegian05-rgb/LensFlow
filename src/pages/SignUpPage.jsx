@@ -222,27 +222,58 @@ function SignUpPage() {
     hasConfirmPassword && form.password !== form.confirmPassword;
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Name fields and studio name must not contain
+    // three consecutive identical letters.
+    const repeatedLetterFields = {
+      firstName: "First name",
+      middleName: "Middle name",
+      lastName: "Last name",
+      studioName: "Studio / Business Name",
+    };
+
+    if (repeatedLetterFields[name] && hasTripleRepeatedLetters(value)) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: `${repeatedLetterFields[name]} cannot contain three consecutive identical letters.`,
+      }));
+
+      // Block the invalid input.
+      return;
+    }
+
+    // Accept valid input.
     setForm((prev) => ({
       ...prev,
       [name]: value,
     }));
+
     setErrors((prev) => {
       const updated = { ...prev };
+
       delete updated[name];
       delete updated.form;
+
       if (name === "email") {
         const emailError = validateEmailAddress(value);
-        if (value.trim() && emailError) updated.email = emailError;
-        else delete updated.email;
+
+        if (value.trim() && emailError) {
+          updated.email = emailError;
+        } else {
+          delete updated.email;
+        }
       }
+
       // Changing either password can affect both password fields.
       if (name === "password" || name === "confirmPassword") {
         delete updated.password;
         delete updated.confirmPassword;
       }
+
       return updated;
     });
   };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});

@@ -10,6 +10,8 @@ import {
   FaHeart,
   FaCommentDots,
   FaSignOutAlt,
+  FaUserCircle,
+  FaCog,
 } from "react-icons/fa";
 
 // Kept complete so other files that import NAV_ITEMS keep working.
@@ -27,6 +29,12 @@ export const NAV_ITEMS = [
 const HIDDEN_IN_SIDEBAR = ["messages", "bookings"];
 const SIDEBAR_ITEMS = NAV_ITEMS.filter((i) => !HIDDEN_IN_SIDEBAR.includes(i.id));
 
+// Shown above Sign Out on desktop (and at the end of the scrolling nav on small screens)
+const FOOTER_ITEMS = [
+  { id: "profile",  label: "Profile",  icon: FaUserCircle },
+  { id: "settings", label: "Settings", icon: FaCog },
+];
+
 export default function ClientSidebar({ onSignOut }) {
   const { tabUrl, queryMode } = useClientNav();
   const location = useLocation();
@@ -36,7 +44,7 @@ export default function ClientSidebar({ onSignOut }) {
     ? new URLSearchParams(search).get("tab") || "home"
     : pathname.split("/").filter(Boolean).pop() || "home";
 
-  const activeTab = NAV_ITEMS.some((i) => i.id === current) ? current : "home";
+  const activeTab = [...NAV_ITEMS, ...FOOTER_ITEMS].some((i) => i.id === current) ? current : "home";
 
   const navRef = useRef(null);
   const [ind, setInd] = useState({ x: 0, y: 0, w: 0, h: 0, ready: false, animate: false });
@@ -113,9 +121,46 @@ export default function ClientSidebar({ onSignOut }) {
             </Link>
           );
         })}
+        {FOOTER_ITEMS.map(({ id, label, icon: Icon }) => {
+          const on = activeTab === id;
+          return (
+            <Link
+              key={`m-${id}`}
+              to={tabUrl(id)}
+              data-tab={id}
+              aria-current={on ? "page" : undefined}
+              className={`lf-tab relative z-10 flex shrink-0 items-center gap-3 border-l-4 border-transparent px-4 py-3 text-left text-sm font-medium lg:hidden ${
+                on
+                  ? "lf-tab-on text-white"
+                  : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
+              }`}
+            >
+              <Icon className={`text-base ${on ? "text-sky-400" : "text-slate-400"}`} />
+              {label}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="mt-auto hidden border-t border-slate-800 lg:block">
+        {FOOTER_ITEMS.map(({ id, label, icon: Icon }) => {
+          const on = activeTab === id;
+          return (
+            <Link
+              key={id}
+              to={tabUrl(id)}
+              aria-current={on ? "page" : undefined}
+              className={`flex w-full items-center gap-3 border-l-4 px-6 py-3 text-left text-sm font-medium transition ${
+                on
+                  ? "border-sky-500 bg-sky-500/10 text-white"
+                  : "border-transparent text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Icon className={`text-base ${on ? "text-sky-400" : "text-slate-400"}`} />
+              {label}
+            </Link>
+          );
+        })}
         <button
           type="button"
           onClick={onSignOut}

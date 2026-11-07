@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { FaSearch, FaCamera, FaArrowLeft, FaCommentDots } from "react-icons/fa";
+import { FaSearch, FaCamera, FaArrowLeft, FaCommentDots, FaTrash } from "react-icons/fa";
 import Avatar from "../components/ui/Avatar";
 import ChatThread from "../../../components/Chat/ChatThread";
 import { supabase } from "../../../lib/supabaseClient";
@@ -10,6 +10,7 @@ import { getFeaturedPhotoSignedUrl, getProfile } from "../utils/portalUrls";
   Client Messages page (inbox):
   - left: every photographer you are connected to, with the last message and unread count
   - right: the conversation with the selected photographer
+  - delete: either hide the conversation (messages kept) or delete it with all its messages
   Table `messages` (see messages.sql).
 */
 
@@ -48,6 +49,9 @@ export default function MessageTab() {
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [hidden, setHidden] = useState({}); // photographer_id -> timestamp of last msg when hidden
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const didInit = useRef(false);
 
   // Who is the signed-in client?
@@ -63,6 +67,16 @@ export default function MessageTab() {
       cancelled = true;
     };
   }, []);
+
+  // Conversations this client removed from the inbox (messages kept)
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      setHidden(JSON.parse(localStorage.getItem(`hiddenConvos:${userId}`) || "{}"));
+    } catch {
+      setHidden({});
+    }
+  }, [userId]);
 
   // All connected photographers + their names/avatars
   useEffect(() => {
@@ -121,7 +135,7 @@ export default function MessageTab() {
     }
   }, [connections, activeId]);
 
-  // Load every message, then listen for new ones and read receipts
+  // Load every message, then listen for new ones, read receipts and deletions
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
@@ -155,6 +169,12 @@ export default function MessageTab() {
         const row = payload.new;
         setAll((prev) => prev.map((m) => (m.id === row.id ? { ...m, read_at: row.read_at } : m)));
       })
+      // DELETE events can't be filtered by client_id, but we only remove ids we already have
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (payload) => {
+        const id = payload.old?.id;
+        if (!id) return;
+        setAll((prev) => prev.filter((m) => m.id !== id));
+      })
       .subscribe();
 
     return () => {
@@ -181,6 +201,12 @@ export default function MessageTab() {
           last,
           unread,
         };
+      })
+      .filter((c) => {
+        const h = hidden[c.id];
+        if (!h) return true;
+        // show it again only if a newer message arrived after it was hidden
+        return c.last ? new Date(c.last.created_at).getTime() > h : false;
       });
     list.sort((a, b) => {
       const ta = a.last ? new Date(a.last.created_at).getTime() : 0;
@@ -192,7 +218,7 @@ export default function MessageTab() {
       ? list.filter((c) => c.name.toLowerCase().includes(term) || (c.last?.body || "").toLowerCase().includes(term))
       : list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connections, all, profiles, userId, search]);
+  }, [connections, all, profiles, userId, search, hidden]);
 
   const selected = selectedId ? conversations.find((c) => c.id === selectedId) || null : null;
   const threadMessages = useMemo(
@@ -259,6 +285,57 @@ export default function MessageTab() {
       return withoutTemp.some((m) => m.id === data.id) ? withoutTemp : [...withoutTemp, data];
     });
     return true;
+  };
+
+  const persistHidden = (next) => {
+    setHidden(next);
+    try {
+      localStorage.setItem(`hiddenConvos:${userId}`, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Option 1: remove from inbox, keep messages
+  const hideConversation = () => {
+    const last = threadMessages[threadMessages.length - 1];
+    const stamp = last ? new Date(last.created_at).getTime() : 1;
+    persistHidden({ ...hidden, [selectedId]: stamp });
+    setConfirmOpen(false);
+    setSelectedId(null);
+  };
+
+  // Option 2: remove from inbox and permanently delete all messages
+  const deleteConversationAndMessages = async () => {
+    if (!userId || !selectedId) return;
+    setDeleting(true);
+    setError("");
+    const hadMessages = threadMessages.some((m) => !m.pending);
+
+    const { data, error: delError } = await supabase
+      .from("messages")
+      .delete()
+      .eq("client_id", userId)
+      .eq("photographer_id", selectedId)
+      .select("id");
+
+    setDeleting(false);
+    setConfirmOpen(false);
+
+    if (delError || (hadMessages && (!data || data.length === 0))) {
+      console.error("Failed to delete messages:", delError);
+      setError(
+        delError
+          ? `Couldn't delete messages: ${delError.message}`
+          : "Couldn't delete messages (permission denied)."
+      );
+      return;
+    }
+
+    setAll((prev) => prev.filter((m) => m.photographer_id !== selectedId));
+    const { [selectedId]: _removed, ...rest } = hidden;
+    persistHidden(rest);
+    setSelectedId(null);
   };
 
   const card =
@@ -352,13 +429,22 @@ export default function MessageTab() {
       <section className={`${card} ${selectedId ? "flex" : "hidden lg:flex"} min-h-0 flex-col`}>
         {selected ? (
           <>
-            <button
-              type="button"
-              onClick={() => setSelectedId(null)}
-              className="flex items-center gap-2 border-b border-slate-800 px-3 py-2 text-xs text-slate-400 hover:text-white lg:hidden"
-            >
-              <FaArrowLeft /> All conversations
-            </button>
+            <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setSelectedId(null)}
+                className="flex items-center gap-2 text-xs text-slate-400 hover:text-white lg:hidden"
+              >
+                <FaArrowLeft /> All conversations
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(true)}
+                className="ml-auto flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-slate-400 transition hover:bg-red-500/10 hover:text-red-400"
+              >
+                <FaTrash className="text-[11px]" /> Delete
+              </button>
+            </div>
             <div className="min-h-0 flex-1">
               <ChatThread
                 key={selected.id}
@@ -391,6 +477,59 @@ export default function MessageTab() {
           </div>
         )}
       </section>
+
+      {/* Delete confirmation */}
+      {confirmOpen && selected && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => !deleting && setConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-slate-700 bg-[#0B1628] p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-bold text-white">Delete conversation with {selected.name}?</h3>
+            <p className="mt-1 text-xs text-slate-400">Choose what you'd like to delete.</p>
+
+            <div className="mt-4 space-y-2">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={hideConversation}
+                className="w-full rounded-xl border border-slate-700 px-4 py-3 text-left transition hover:bg-white/[0.04] disabled:opacity-50"
+              >
+                <span className="block text-sm font-semibold text-slate-100">Delete conversation</span>
+                <span className="block text-xs text-slate-500">
+                  Removes it from your inbox. Messages are kept and it returns if a new message arrives.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={deleteConversationAndMessages}
+                className="w-full rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-left transition hover:bg-red-500/20 disabled:opacity-50"
+              >
+                <span className="block text-sm font-semibold text-red-300">
+                  {deleting ? "Deleting..." : "Delete conversation and messages"}
+                </span>
+                <span className="block text-xs text-red-300/70">
+                  Permanently deletes all messages. This also removes them for {selected.name} and can't be undone.
+                </span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => setConfirmOpen(false)}
+              className="mt-3 w-full rounded-full py-2 text-xs text-slate-400 hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

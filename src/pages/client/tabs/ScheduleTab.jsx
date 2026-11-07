@@ -18,11 +18,46 @@ const STATUS_LABEL = {
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
+/* ---------------------------------------------------------
+   BOOKING WINDOW
+   Same rule as the photographer's Add Event form: from today
+   up to MAX_YEARS_AHEAD years ahead (a rolling window).
+   "Today" is the date in Manila, not the device's own clock zone.
+   --------------------------------------------------------- */
+const MAX_YEARS_AHEAD = 2;
+
+// "2026-11-06" -> "2026-11-06" in Manila time
+const getManilaDateKey = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+// "2026-11-06" + 2 years -> "2028-11-06"
+const addYearsToKey = (key, years) => {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(Date.UTC(year + years, month - 1, day)).toISOString().slice(0, 10);
+};
+
 export default function ScheduleTab() {
   const { portal, activeId, reload } = /** @type {any} */ (useOutletContext());
   const [bookingDate, setBookingDate] = useState(null);
   const [myRequests, setMyRequests] = useState([]);
   const [selected, setSelected] = useState(null);
+
+  const minimumBookingDate = getManilaDateKey();
+  const maximumBookingDate = addYearsToKey(minimumBookingDate, MAX_YEARS_AHEAD);
 
   /* ---------------------------------------------------------
      THIS CLIENT'S OWN BOOKINGS
@@ -147,43 +182,15 @@ export default function ScheduleTab() {
     return [...others, ...myEvents];
   }, [bookedEvents, myEvents]);
 
-  // Calendar date click -> allow only dates within the booking period.
-  const pad = (n) => String(n).padStart(2, "0");
-
-  const getManilaDate = () => {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Manila",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(new Date());
-
-    const values = Object.fromEntries(
-      parts
-        .filter((p) => p.type !== "literal")
-        .map((p) => [p.type, p.value])
-    );
-
-    return `${values.year}-${values.month}-${values.day}`;
-  };
-
-  const getLastBookableDate = () => {
-    const year = Number(getManilaDate().slice(0, 4)) + 1;
-    return `${year}-12-31`;
-  };
-
-  
+  // Calendar date click -> allow only dates inside the booking window
+  // (today up to MAX_YEARS_AHEAD years ahead).
   const handleSelectSlot = ({ start }) => {
     const key = getManilaDateKey(start);
 
-    if (
-      key >= minimumBookingDate &&
-      key <= maximumBookingDate
-    ) {
+    if (key >= minimumBookingDate && key <= maximumBookingDate) {
       setBookingDate(key);
     }
   };
-
 
   /* Only your own bookings open details. Other dates stay private. */
   const handleEventClick = (event) => {
@@ -196,30 +203,6 @@ export default function ScheduleTab() {
 
   // "2 photographers · 1 videographer", or "" for older requests without it.
   const crewText = selected ? crewSummary(selected.crew_needed) : "";
-
-  
-  const getManilaDateKey = (date = new Date()) => {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Manila",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(date);
-
-    const values = Object.fromEntries(
-      parts
-        .filter((part) => part.type !== "literal")
-        .map((part) => [part.type, part.value])
-    );
-
-    return `${values.year}-${values.month}-${values.day}`;
-  };
-
-  const minimumBookingDate = getManilaDateKey();
-
-  const maximumBookingDate =
-    `${Number(minimumBookingDate.slice(0, 4)) + 1}-12-31`;
-
 
   return (
     <div className="min-w-0 space-y-4">

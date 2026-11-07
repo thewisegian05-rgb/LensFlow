@@ -647,19 +647,19 @@ def detect_defects(
             "severity": "moderate",
             "message": "Possible underexposure",
         })
-    if sharpness is not None:
-        if sharpness < CONFIG["very_low_sharpness"]:
+    if technical_score is not None:
+        if technical_score < CONFIG["very_low_sharpness"]:
             defects.append({
                 "type": "sharpness",
                 "severity": "strong",
                 "message": "Very low sharpness",
             })
-        elif sharpness <= CONFIG["low_sharpness"]:
+        elif technical_score <= CONFIG["low_sharpness"]:
             defects.append({
                 "type": "sharpness",
                 "severity": "moderate",
                 "message": "Low sharpness",
-            })
+        })
     return defects
 def has_severity(defects, severity):
     """Checks whether a defect list contains a specific severity level."""

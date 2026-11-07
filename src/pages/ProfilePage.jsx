@@ -130,7 +130,6 @@ function useAnimatedModalState(initialValue, isOpenValue) {
   return [value, setValue, isClosing];
 }
 
-
 // ========================================
 // ANIMATIONS 
 // ========================================
@@ -202,7 +201,6 @@ const animationStyles = `
     }
   }
 `;
-
 
 // ========================================
 // LOADING SKELETON
@@ -304,7 +302,6 @@ function ProfileSkeleton() {
   );
 }
 
-
 export default function Profile() {
   const { reportPageReady, routeKey } = useOutletContext();
 
@@ -390,7 +387,6 @@ export default function Profile() {
   const titleTimers = useRef({}); // debounce timers for album renames
   const busyRef = useRef(false); // blocks double-clicks while uploading
 
-
   // ========================================
   // FIXED 2s LOADING TIMER
   // ========================================
@@ -404,7 +400,6 @@ export default function Profile() {
       reportPageReady(routeKey);
     }
   }, [minLoadDone, profileLoaded, reportPageReady, routeKey]);
-
 
   // ========================================
   // LOAD PROFILE FROM SUPABASE
@@ -438,18 +433,31 @@ export default function Profile() {
 
         if (cancelled) return;
 
+        // Use the photographer's sign-up email as the initial Personal Email.
+        // Keep a previously saved Personal Email if the photographer set one.
+        const savedInfo = {
+          ...DEFAULT_PROFILE_INFO,
+          ...(bundle.profile?.profileInfo || {}),
+        };
+        const info = {
+          ...savedInfo,
+          personalEmail:
+            String(savedInfo.personalEmail || "").trim() ||
+            user.email?.trim() ||
+            "",
+        };
+
+        // Remember what was actually stored, not the autofilled value.
+        // This allows the existing autosave effect to persist the email.
+        lastSavedInfo.current = JSON.stringify(savedInfo);
+        setProfileInfo(info);
+
         if (bundle.profile) {
           if (bundle.profile.username != null) setUsername(bundle.profile.username);
           if (bundle.profile.bio != null) setBio(bundle.profile.bio);
 
-          const info = { ...DEFAULT_PROFILE_INFO, ...bundle.profile.profileInfo };
-          lastSavedInfo.current = JSON.stringify(info);
-          setProfileInfo(info);
-
           avatarPathRef.current = bundle.profile.avatarPath;
           setProfilePicture(bundle.profile.avatarUrl);
-        } else {
-          lastSavedInfo.current = JSON.stringify(DEFAULT_PROFILE_INFO);
         }
 
         setCarouselAlbums(bundle.albums);
@@ -468,7 +476,6 @@ export default function Profile() {
       cancelled = true;
     };
   }, []);
-
 
   // ========================================
   // LOAD OR CREATE PHOTOGRAPHER CONNECTION CODE
@@ -549,7 +556,6 @@ export default function Profile() {
     loadOrCreateConnectionCode();
     return () => { cancelled = true; };
   }, [userId]);
-
 
   // ========================================
   // LOAD FOLLOWER COUNT (clients who connected with this photographer's code)
@@ -661,7 +667,6 @@ export default function Profile() {
     }
   };
 
-
   // CLOSE PROFILE MENU WHEN CLICKING OUTSIDE
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -681,7 +686,6 @@ export default function Profile() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [profileMenu]);
-
 
   // ========================================
   // AUTO-SAVE PROFILE DETAILS
@@ -703,7 +707,6 @@ export default function Profile() {
 
     return () => clearTimeout(timer);
   }, [profileInfo, profileLoaded, userId]);
-
 
   // OPEN EDIT PROFILE
   const openEditProfile = () => {
@@ -890,7 +893,6 @@ export default function Profile() {
     }
   };
 
-
   // ========================================
   // DELETE PHOTO FROM CAROUSEL ALBUM
   // ========================================
@@ -930,7 +932,6 @@ export default function Profile() {
     });
   };
 
-
   // ========================================
   // DELETE CAROUSEL ALBUM
   // ========================================
@@ -962,7 +963,6 @@ export default function Profile() {
     });
   };
 
-
   // ========================================
   // ADD FEATURED PHOTOS 
   // ========================================
@@ -983,7 +983,6 @@ export default function Profile() {
     e.target.value = "";
   };
 
-
   // ========================================
   // UPDATE PENDING FEATURED PHOTO TITLE
   // ========================================
@@ -1000,7 +999,6 @@ export default function Profile() {
     );
   };
 
-
   // ========================================
   // REMOVE PENDING FEATURED PHOTO
   // ========================================
@@ -1009,7 +1007,6 @@ export default function Profile() {
       photos.filter((photo) => photo.id !== photoId)
     );
   };
-
 
   // ========================================
   // POST FEATURED PHOTOS (uploads and saves)
@@ -1036,7 +1033,6 @@ export default function Profile() {
     }
   };
 
-
   // ========================================
   // UPDATE FEATURED PHOTO TITLE
   // ========================================
@@ -1058,7 +1054,6 @@ export default function Profile() {
       reportError("Could not rename that photo.", err);
     }
   };
-
 
   // ========================================
   // DELETE FEATURED PHOTO
@@ -1091,7 +1086,6 @@ export default function Profile() {
     });
   };
 
-
   // ========================================
   // CAROUSEL PHOTO SCROLL
   // ========================================
@@ -1111,7 +1105,6 @@ export default function Profile() {
     }
   };
 
-
   // ========================================
   // SCROLL TO SELECTED PHOTO
   // ========================================
@@ -1128,7 +1121,6 @@ export default function Profile() {
     setCurrentPhotoIndex(index);
   };
 
-
   // ========================================
   // INFINITE CAROUSEL DATA
   // ========================================
@@ -1138,14 +1130,12 @@ export default function Profile() {
     ...carouselAlbums,
   ];
 
-
   // ========================================
   // AVERAGE RATING
   // ========================================
   const averageRating = reviews.length
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
     : 0;
-
 
   // ========================================
   // LOADING / SIGNED-OUT / ERROR STATES
@@ -1174,7 +1164,6 @@ export default function Profile() {
     );
   }
 
-
   // ========================================
   // PROFILE PAGE UI
   // ========================================
@@ -1185,7 +1174,6 @@ export default function Profile() {
           CAROUSEL + REVEAL + MODAL ANIMATIONS
           ======================================== */}
       <style>{animationStyles}</style>
-
 
       <div className="mx-auto max-w-6xl">
 
@@ -1200,7 +1188,6 @@ export default function Profile() {
             {username}
           </h1>
         </div>
-
 
         {/* ========================================
             PROFILE HEADER & PROFILE PICTURE
@@ -1230,7 +1217,6 @@ export default function Profile() {
                 </span>
               )}
             </button>
-
 
             {/* ========================================
                 PROFILE PICTURE MENU
@@ -1283,7 +1269,6 @@ export default function Profile() {
             />
           </div>
 
-
           {/* ========================================
               PROFILE STATS & BIO
               ======================================== */}
@@ -1309,7 +1294,6 @@ export default function Profile() {
           </div>
         </div>
 
-
         {/* ========================================
             EDIT PROFILE BUTTON
             ======================================== */}
@@ -1320,7 +1304,6 @@ export default function Profile() {
         >
           Edit Profile
         </button>
-
 
         {/* ========================================
             CLIENT CONNECTION CODE
@@ -1394,7 +1377,6 @@ export default function Profile() {
           </p>
         </section>
 
-
         {/* ========================================
             ABOUT SECTION
             ======================================== */}
@@ -1448,7 +1430,6 @@ export default function Profile() {
             />
           </div>
         </section>
-
 
         {/* ========================================
             CAROUSEL SECTION
@@ -1510,7 +1491,6 @@ export default function Profile() {
             </div>
           </div>
 
-
           {/* ========================================
               UPDATE CAROUSEL BUTTON
               ======================================== */}
@@ -1521,7 +1501,6 @@ export default function Profile() {
             Update Carousel
           </button>
         </section>
-
 
         {/* ========================================
             FEATURED PHOTOS SECTION
@@ -1575,7 +1554,6 @@ export default function Profile() {
             />
           </div>
 
-
           {/* ========================================
               FEATURED PHOTO GRID
               ======================================== */}
@@ -1615,7 +1593,6 @@ export default function Profile() {
           </div>
         </section>
 
-        
         {/* ========================================
             CLIENT REVIEWS SECTION
             ======================================== */}
@@ -1820,7 +1797,6 @@ export default function Profile() {
         </section>
       </div>
 
-
       {createPortal(
         <>
       {/* ========================================
@@ -1828,14 +1804,14 @@ export default function Profile() {
           ======================================== */}
       {viewDetails && (
         <div className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${viewDetailsClosing ? "modal-exit" : ""}`}>
-          <div className={`modal-card-pop relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${viewDetailsClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white ${viewDetailsClosing ? "modal-exit" : ""}`}>
 
             {/* ========================================
                 ABOUT MODAL HEADER
                 ======================================== */}
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <div>
-                <h2 className="text-xl font-bold">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                   About
                 </h2>
 
@@ -1847,17 +1823,16 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => setViewDetails(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <FiX />
               </button>
             </div>
 
-
             {/* ========================================
                 ABOUT MODAL CONTENT
                 ======================================== */}
-            <div className="flex-1 space-y-8 overflow-y-auto p-6">
+            <div className="flex-1 space-y-8 overflow-y-auto custom-scrollbar bg-white p-6 text-slate-900 dark:bg-slate-900 dark:text-white">
 
               {/* ========================================
                   PERSONAL DETAILS
@@ -1905,7 +1880,6 @@ export default function Profile() {
                 </div>
               </section>
 
-
               {/* ========================================
                   WORK DETAILS
                   ======================================== */}
@@ -1931,7 +1905,6 @@ export default function Profile() {
                   value={profileInfo.work || "Not set"}
                 />
               </section>
-
 
               {/* ========================================
                   NICHES
@@ -2000,12 +1973,11 @@ export default function Profile() {
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     No niches added yet.
                   </p>
                 )}
               </section>
-
 
               {/* ========================================
                   LOCATION
@@ -2040,7 +2012,6 @@ export default function Profile() {
                   />
                 </div>
               </section>
-
 
               {/* ========================================
                   CONTACT INFORMATION
@@ -2089,11 +2060,10 @@ export default function Profile() {
               </section>
             </div>
 
-
             {/* ========================================
                 ABOUT MODAL SAVE BUTTON
                 ======================================== */}
-            <div className="flex justify-end border-t border-slate-800 bg-slate-900 px-6 py-4">
+            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <button
                 type="button"
                 onClick={() => setViewDetails(false)}
@@ -2105,7 +2075,6 @@ export default function Profile() {
           </div>
         </div>
       )}
-
 
       {/* ========================================
           DETAIL EDITOR MODAL
@@ -2120,7 +2089,6 @@ export default function Profile() {
           isClosing={detailEditorClosing}
         />
       )}
-
 
       {/* ========================================
           PROFILE PICTURE PREVIEW MODAL
@@ -2141,7 +2109,7 @@ export default function Profile() {
 
               <button
                 onClick={() => setProfilePreview(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <FiX />
               </button>
@@ -2157,7 +2125,6 @@ export default function Profile() {
           </div>
         </div>
       )}
-
 
       {/* ========================================
           FEATURED PHOTO PREVIEW MODAL
@@ -2196,40 +2163,39 @@ export default function Profile() {
         </div>
       )}
 
-
       {/* ========================================
           EDIT PROFILE MODAL
           ======================================== */}
       {editProfile && (
         <div className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${editProfileClosing ? "modal-exit" : ""}`}>
-          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${editProfileClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ${editProfileClosing ? "modal-exit" : ""}`}>
 
             {/* EDIT PROFILE MODAL HEADER */}
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <div>
-                <h2 className="text-xl font-bold text-white">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                   Edit Profile
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   Update your account information.
                 </p>
               </div>
 
               <button
                 onClick={() => setEditProfile(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <FiX />
               </button>
             </div>
 
             {/* EDIT PROFILE FORM */}
-            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-900 p-6">
+            <div className="flex-1 space-y-4 overflow-y-auto bg-white p-6 dark:bg-slate-900">
 
               {/* Username */}
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Username
                 </label>
 
@@ -2237,13 +2203,13 @@ export default function Profile() {
                   type="text"
                   value={tempUsername}
                   onChange={(e) => setTempUsername(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white focus:outline-none"
                 />
               </div>
 
               {/* Bio */}
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Bio
                 </label>
 
@@ -2251,16 +2217,16 @@ export default function Profile() {
                   rows={4}
                   value={tempBio}
                   onChange={(e) => setTempBio(e.target.value)}
-                  className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+                  className="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white focus:outline-none"
                 />
               </div>
             </div>
 
             {/* EDIT PROFILE ACTION BUTTONS */}
-            <div className="flex justify-end gap-3 border-t border-slate-800 bg-slate-900 px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <button
                 onClick={() => setEditProfile(false)}
-                className="rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
@@ -2275,7 +2241,6 @@ export default function Profile() {
           </div>
         </div>
       )}
-
 
       {/* ========================================
           CAROUSEL SETUP MODAL
@@ -2303,7 +2268,6 @@ export default function Profile() {
                 <FiX />
               </button>
             </div>
-
 
             {/* Carousel Setup Content */}
             <div className="flex-1 space-y-5 overflow-y-auto p-6">
@@ -2342,7 +2306,6 @@ export default function Profile() {
               </div>
             </div>
 
-
             {/* Carousel Setup Buttons */}
             <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <button
@@ -2362,7 +2325,6 @@ export default function Profile() {
           </div>
         </div>
       )}
-
 
       {/* ========================================
           FEATURED PHOTO SETUP MODAL
@@ -2385,12 +2347,11 @@ export default function Profile() {
 
               <button
                 onClick={() => setFeaturedSetup([])}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <FiX />
               </button>
             </div>
-
 
             {/* Featured Setup Content */}
             <div className="flex-1 space-y-4 overflow-y-auto p-6">
@@ -2438,7 +2399,6 @@ export default function Profile() {
               ))}
             </div>
 
-
             {/* Featured Setup Buttons */}
             <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
               <button
@@ -2458,7 +2418,6 @@ export default function Profile() {
           </div>
         </div>
       )}
-
 
       {/* ========================================
           ACTIVE ALBUM / CAROUSEL PHOTO VIEWER
@@ -2486,7 +2445,6 @@ export default function Profile() {
                 <FiX />
               </button>
             </div>
-
 
             {/* Album Photos */}
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-black sm:aspect-[16/10]">
@@ -2517,7 +2475,6 @@ export default function Profile() {
                 ))}
               </div>
 
-
               {/* Previous Photo Button */}
               {currentPhotoIndex > 0 && (
                 <button
@@ -2529,7 +2486,6 @@ export default function Profile() {
                   ‹
                 </button>
               )}
-
 
               {/* Next Photo Button */}
               {currentPhotoIndex <
@@ -2544,7 +2500,6 @@ export default function Profile() {
                 </button>
               )}
             </div>
-
 
             {/* Album Photo Indicators */}
             <div className="flex justify-center border-t border-slate-800 bg-slate-950 py-3">
@@ -2566,18 +2521,17 @@ export default function Profile() {
         </div>
       )}
 
-
       {/* ========================================
           CAROUSEL MANAGER MODAL
           ======================================== */}
       {carouselManager && (
         <div className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${carouselManagerClosing ? "modal-exit" : ""}`}>
-          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${carouselManagerClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ${carouselManagerClosing ? "modal-exit" : ""}`}>
 
             {/* Carousel Manager Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <div>
-                <h2 className="text-xl font-bold text-white">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                   Carousel Manager
                 </h2>
 
@@ -2588,15 +2542,14 @@ export default function Profile() {
 
               <button
                 onClick={() => setCarouselManager(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <FiX />
               </button>
             </div>
 
-
             {/* Carousel Manager Content */}
-            <div className="flex-1 space-y-6 overflow-y-auto p-6">
+            <div className="flex-1 space-y-6 overflow-y-auto bg-white p-6 dark:bg-slate-900">
               {carouselAlbums.map((album, idx) => (
                 <div
                   key={album.id}
@@ -2643,7 +2596,6 @@ export default function Profile() {
                         />
                       </label>
 
-
                       {/* Delete Album */}
                       <button
                         onClick={() =>
@@ -2658,7 +2610,6 @@ export default function Profile() {
                       </button>
                     </div>
                   </div>
-
 
                   {/* Album Photos Grid */}
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6">
@@ -2690,11 +2641,10 @@ export default function Profile() {
                 </div>
               ))}
 
-
               {/* ========================================
                   CREATE NEW ALBUM SLOT
                   ======================================== */}
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 py-6 text-center transition hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950/40 dark:hover:bg-slate-950">
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 py-6 text-center transition hover:border-sky-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:hover:bg-slate-800">
                 <span className="mb-1 flex h-8 w-8 items-center justify-center rounded-full border border-slate-400 text-slate-600 dark:border-slate-600 dark:text-slate-300">
                   <FaPlus className="text-xs" />
                 </span>
@@ -2713,7 +2663,6 @@ export default function Profile() {
               </label>
             </div>
 
-
             {/* Carousel Manager Done Button */}
             <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <button
@@ -2727,16 +2676,15 @@ export default function Profile() {
         </div>
       )}
 
-
       {/* ========================================
           FEATURED PHOTOS MANAGER MODAL
           ======================================== */}
       {featuredManager && (
         <div className={`modal-overlay-anim fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${featuredManagerClosing ? "modal-exit" : ""}`}>
-          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${featuredManagerClosing ? "modal-exit" : ""}`}>
+          <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ${featuredManagerClosing ? "modal-exit" : ""}`}>
 
             {/* Featured Manager Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                   Featured Photos Manager
@@ -2749,15 +2697,14 @@ export default function Profile() {
 
               <button
                 onClick={() => setFeaturedManager(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <FiX />
               </button>
             </div>
 
-
             {/* Featured Manager Content */}
-            <div className="flex-1 space-y-4 overflow-y-auto p-6">
+            <div className="flex-1 space-y-4 overflow-y-auto bg-white p-6 dark:bg-slate-900">
               {featuredPhotos.map((photo) => (
                 <FeaturedManagerItem
                   key={photo.id}
@@ -2768,9 +2715,8 @@ export default function Profile() {
               ))}
             </div>
 
-
             {/* Featured Manager Done Button */}
-            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
               <button
                 onClick={() => setFeaturedManager(false)}
                 className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-400"
@@ -2781,7 +2727,6 @@ export default function Profile() {
           </div>
         </div>
       )}
-
 
       {/* ========================================
           DELETE CONFIRMATION MODAL
@@ -2827,7 +2772,6 @@ export default function Profile() {
   );
 }
 
-
 // ========================================
 // DETAIL ROW COMPONENT
 // ========================================
@@ -2851,7 +2795,6 @@ function DetailRow({ icon, label, value }) {
   );
 }
 
-
 // ========================================
 // DETAIL EDITOR COMPONENT
 // ========================================
@@ -2873,7 +2816,6 @@ function DetailEditor({
     location: "Edit Location",
     contact: "Edit Contact Info",
   };
-
 
   // ========================================
   // DETAIL EDITOR OPTIONS
@@ -2905,7 +2847,6 @@ function DetailEditor({
     "Prefer not to say",
   ];
 
-
   // ========================================
   // TOGGLE NICHE
   // ========================================
@@ -2926,7 +2867,6 @@ function DetailEditor({
       });
     }
   };
-
 
   // ========================================
   // DETAIL EDITOR UI
@@ -2951,12 +2891,11 @@ function DetailEditor({
 
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
           >
             <FiX />
           </button>
         </div>
-
 
         {/* ========================================
             DETAIL EDITOR CONTENT
@@ -3048,7 +2987,6 @@ function DetailEditor({
             </>
           )}
 
-
           {/* ========================================
               WORK EDITOR
               ======================================== */}
@@ -3087,7 +3025,6 @@ function DetailEditor({
               </div>
             </div>
           )}
-
 
           {/* ========================================
               NICHES EDITOR
@@ -3141,7 +3078,6 @@ function DetailEditor({
             </>
           )}
 
-
           {/* ========================================
               LOCATION EDITOR
               ======================================== */}
@@ -3172,7 +3108,6 @@ function DetailEditor({
               />
             </>
           )}
-
 
           {/* ========================================
               CONTACT INFORMATION EDITOR
@@ -3232,7 +3167,6 @@ function DetailEditor({
           )}
         </div>
 
-
         {/* ========================================
             DETAIL EDITOR BUTTONS
             ======================================== */}
@@ -3255,7 +3189,6 @@ function DetailEditor({
     </div>
   );
 }
-
 
 // ========================================
 // EDIT FIELD COMPONENT
@@ -3286,7 +3219,6 @@ function EditField({
   );
 }
 
-
 // ========================================
 // FEATURED MANAGER ITEM COMPONENT
 // ========================================
@@ -3305,7 +3237,6 @@ function FeaturedManagerItem({
   const isChanged =
     titleInput !== photo.title;
 
-
   // ========================================
   // FEATURED MANAGER ITEM UI
   // ========================================
@@ -3322,7 +3253,6 @@ function FeaturedManagerItem({
           />
         </div>
 
-
         {/* Featured Photo Title */}
         <input
           type="text"
@@ -3333,7 +3263,6 @@ function FeaturedManagerItem({
           className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
         />
       </div>
-
 
       {/* ========================================
           FEATURED PHOTO ACTION BUTTONS

@@ -18,13 +18,14 @@ import {
   FaTimes,
   FaChevronLeft,
   FaChevronRight,
+  FaChevronDown,
 } from "react-icons/fa";
 import Section from "../components/ui/Section";
 import TabHeader from "../components/ui/TabHeader";
 import Stars from "../components/ui/Stars";
 import Avatar from "../components/ui/Avatar";
 import Lightbox from "../components/Lightbox";
-import { getFeatured, getProfile, publicUrl } from "../utils/portalUrls";
+import { getFeatured, getProfile, getReviews, publicUrl } from "../utils/portalUrls";
 
 function StatusTile({ icon: Icon, label, tone, children }) {
   return (
@@ -95,14 +96,16 @@ function AlbumViewer({ album, onClose }) {
 
         <div className="relative flex aspect-[4/3] items-center justify-center bg-black sm:aspect-[16/10]">
           <span className="absolute right-3 top-3 z-10 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
-            {index + 1}/{photos.length}
+            {photos.length ? index + 1 : 0}/{photos.length}
           </span>
-          {photos[index] && (
+          {photos[index] && photoSrc(photos[index]) ? (
             <img
               src={photoSrc(photos[index])}
               alt={photos[index].title || album.title}
               className="max-h-full max-w-full select-none object-contain"
             />
+          ) : (
+            <p className="text-sm text-slate-500">This photo isn't available.</p>
           )}
           {index > 0 && (
             <button
@@ -172,13 +175,18 @@ function CarouselSection({ albums }) {
                 onClick={() => setActive(album)}
                 className="group relative h-32 w-44 shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 text-left transition hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
-                {cover && (
+                {cover ? (
                   <img
                     src={cover}
                     alt={album.title}
                     loading="lazy"
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                   />
+                ) : (
+                  // No photo in this album yet (or it couldn't load): show an icon, not a blank tile.
+                  <span className="flex h-full w-full items-center justify-center text-2xl text-slate-600">
+                    <FaRegImages />
+                  </span>
                 )}
                 <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                 {album.photos?.length > 1 && (
@@ -200,14 +208,18 @@ function CarouselSection({ albums }) {
 }
 
 export default function PortfolioTab() {
-  const { portal, goTo } = /** @type {any} */ (useOutletContext());
+  const { portal } = /** @type {any} */ (useOutletContext());
   const featured = getFeatured(portal);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  // The photographer's contact details stay tucked away until asked for.
+  const [showDetails, setShowDetails] = useState(false);
 
   const profile = getProfile(portal);
   const name = profile.display_name || profile.username || profile.name || "Photographer";
-  // ASSUMPTION: photographer-wide counts. Adjust to your real field names.
-  const pStats = portal.photographer_stats || portal.stats || {};
+
+  // Real numbers and profile info come from get_portal_extras (see usePortal).
+  const overview = portal.overview || {};
+  const pStats = overview.stats || portal.photographer_stats || portal.stats || {};
   const eventsCompleted = Number(pStats.events_completed ?? portal.events_completed) || 0;
   const eventsUpcoming = Number(pStats.events_upcoming ?? portal.events_upcoming) || 0;
   const eventsTotal =
@@ -215,13 +227,29 @@ export default function PortfolioTab() {
     eventsCompleted + eventsUpcoming;
   const ongoingClients =
     Number(pStats.clients_ongoing ?? portal.ongoing_clients ?? portal.active_clients) || 0;
+
+  // Rating: use the value from get_portal_extras first, then get_portal, and
+  // as a last resort work it out from the reviews the portal already loaded.
+  const reviewRatings = getReviews(portal)
+    .map((r) => Number(r.rating ?? r.stars ?? r.score))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const ratingCount =
+    Number(overview.rating_count) || Number(portal.rating_count) || reviewRatings.length;
+  const ratingAvg =
+    Number(overview.rating_avg) ||
+    Number(portal.rating_avg) ||
+    (reviewRatings.length
+      ? reviewRatings.reduce((sum, n) => sum + n, 0) / reviewRatings.length
+      : 0);
+
+  // Facebook / Instagram: the Profile page has no fields for these yet, so they
+  // only show up once those fields exist.
   const socials = [
     { href: profile.facebook || profile.facebook_url, icon: FaFacebook, label: "Facebook" },
     { href: profile.instagram || profile.instagram_url, icon: FaInstagram, label: "Instagram" },
   ].filter((x) => x.href);
-  // ASSUMPTION: the profile page saves these in profile_info and in albums, so
-  // the portal is expected to expose them the same way. Adjust names if needed.
-  const info = profile.profile_info || profile.profileInfo || {};
+
+  const info = overview.info || profile.profile_info || profile.profileInfo || {};
   const albums = portal.albums || portal.carousel_albums || portal.carouselAlbums || [];
   const niches = [...(info.niches || []), info.customNiche].filter(Boolean);
   const chips = niches.length ? niches : profile.specialties || [];
@@ -234,6 +262,16 @@ export default function PortfolioTab() {
     { icon: FaEnvelope, label: "Studio email", value: info.studioEmail },
     { icon: FaMobileAlt, label: "Studio phone", value: info.studioNumber },
   ].filter((d) => d.value);
+
+  // Contact button: studio email first, then personal email, then phone.
+  const contactEmail = info.studioEmail || info.personalEmail;
+  const contactPhone = info.studioNumber || info.personalNumber;
+  const contactHref = contactEmail
+    ? `mailto:${contactEmail}`
+    : contactPhone
+    ? `tel:${String(contactPhone).replace(/[^\d+]/g, "")}`
+    : null;
+
   const bio =
     profile.bio ||
     profile.tagline ||
@@ -258,27 +296,28 @@ export default function PortfolioTab() {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 <h3 className="text-xl font-bold text-white">{name}</h3>
                 <span className="flex items-center gap-2 text-sm">
-                  <Stars value={portal.rating_avg} />
+                  <Stars value={ratingAvg} />
                   <span className="font-semibold tabular-nums text-white">
-                    {portal.rating_count > 0 ? Number(portal.rating_avg).toFixed(1) : "No ratings"}
+                    {ratingCount > 0 ? ratingAvg.toFixed(1) : "No ratings"}
                   </span>
-                  {portal.rating_count > 0 && (
+                  {ratingCount > 0 && (
                     <span className="text-xs text-slate-500">
-                      ({portal.rating_count} review{portal.rating_count !== 1 ? "s" : ""})
+                      ({ratingCount} review{ratingCount !== 1 ? "s" : ""})
                     </span>
                   )}
                 </span>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => goTo("messages")}
-                  className="inline-flex h-10 items-center gap-2 rounded-full bg-sky-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0B1628]"
-                >
-                  <FaCommentDots />
-                  <span className="hidden sm:inline">Message</span>
-                </button>
-              </div>
+              {contactHref && (
+                <div className="flex shrink-0 items-center gap-2">
+                  <a
+                    href={contactHref}
+                    className="inline-flex h-10 items-center gap-2 rounded-full bg-sky-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0B1628]"
+                  >
+                    <FaCommentDots />
+                    <span className="hidden sm:inline">Contact</span>
+                  </a>
+                </div>
+              )}
             </div>
 
             {(profile.tagline || profile.bio_title) && (
@@ -324,30 +363,52 @@ export default function PortfolioTab() {
               </StatusTile>
             </div>
 
-            {/* Photographer details + socials */}
+            {/* Photographer details + socials (hidden until "Show more details") */}
             {(details.length > 0 || socials.length > 0) && (
-              <div className="mt-4 flex flex-col gap-4 border-t border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                {details.length > 0 && (
-                  <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
-                    {details.map((d) => (
-                      <Detail key={d.label} {...d} />
-                    ))}
-                  </dl>
-                )}
-                {socials.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    {socials.map(({ href, icon: Icon, label }) => (
-                      <a
-                        key={label}
-                        href={href}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label={label}
-                        className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 text-slate-300 transition hover:border-sky-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-400"
-                      >
-                        <Icon />
-                      </a>
-                    ))}
+              <div className="mt-4 border-t border-slate-800 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDetails((prev) => !prev)}
+                  aria-expanded={showDetails}
+                  aria-controls="photographer-details"
+                  className="flex items-center gap-2 rounded text-xs font-semibold text-sky-300 transition hover:text-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                >
+                  {showDetails ? "Hide details" : "Show more details"}
+                  <FaChevronDown
+                    className={`text-[10px] transition-transform duration-200 ${
+                      showDetails ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {showDetails && (
+                  <div
+                    id="photographer-details"
+                    className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    {details.length > 0 && (
+                      <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
+                        {details.map((d) => (
+                          <Detail key={d.label} {...d} />
+                        ))}
+                      </dl>
+                    )}
+                    {socials.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        {socials.map(({ href, icon: Icon, label }) => (
+                          <a
+                            key={label}
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={label}
+                            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 text-slate-300 transition hover:border-sky-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+                          >
+                            <Icon />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

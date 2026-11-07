@@ -846,3 +846,12 @@
     min-width: 700px;
   }
 }
+
+.calendar-day-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calendar-day-disabled:hover {
+  cursor: not-allowed;
+}

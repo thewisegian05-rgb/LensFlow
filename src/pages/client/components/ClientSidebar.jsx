@@ -1,3 +1,4 @@
+
 import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useClientNav } from "../utils/clientRoutes";
@@ -16,12 +17,12 @@ import {
 
 // Kept complete so other files that import NAV_ITEMS keep working.
 export const NAV_ITEMS = [
-  { id: "home",      label: "Home",        icon: FaHome },
-  { id: "portfolio", label: "Portfolio",   icon: FaRegImage },
-  { id: "schedule",  label: "Schedule",    icon: FaCalendarAlt },
-  { id: "bookings",  label: "My Bookings", icon: FaFileAlt },
-  { id: "reviews",   label: "Reviews",     icon: FaHeart },
-  { id: "messages",  label: "Messages",    icon: FaCommentDots },
+  { id: "home", label: "Home", icon: FaHome },
+  { id: "portfolio", label: "Portfolio", icon: FaRegImage },
+  { id: "schedule", label: "Schedule", icon: FaCalendarAlt },
+  { id: "bookings", label: "My Bookings", icon: FaFileAlt },
+  { id: "reviews", label: "Reviews", icon: FaHeart },
+  { id: "messages", label: "Messages", icon: FaCommentDots },
 ];
 
 // Messages lives in the right panel and My Bookings is shown on the Home page,
@@ -47,18 +48,27 @@ export default function ClientSidebar({ onSignOut }) {
   const activeTab = [...NAV_ITEMS, ...FOOTER_ITEMS].some((i) => i.id === current) ? current : "home";
 
   const navRef = useRef(null);
-  const [ind, setInd] = useState({ x: 0, y: 0, w: 0, h: 0, ready: false, animate: false });
+  const [ind, setInd] = useState({
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0,
+    ready: false,
+    animate: false,
+  });
 
   // Re-run whenever location changes (covers both path and query-string changes)
   useLayoutEffect(() => {
     const measure = () => {
       const nav = navRef.current;
       const el = nav?.querySelector(`[data-tab="${activeTab}"]`);
+
       if (!el) {
-        // current page has no sidebar item (e.g. Messages): hide the highlight
+        // Current page has no sidebar item (e.g. Messages): hide the highlight
         setInd((p) => ({ ...p, ready: false }));
         return;
       }
+
       setInd((p) => ({
         x: el.offsetLeft,
         y: el.offsetTop,
@@ -67,24 +77,42 @@ export default function ClientSidebar({ onSignOut }) {
         ready: true,
         animate: p.ready,
       }));
+
       if (nav.scrollWidth > nav.clientWidth + 4) {
-        nav.scrollTo({ left: Math.max(0, el.offsetLeft - 16), behavior: "smooth" });
+        nav.scrollTo({
+          left: Math.max(0, el.offsetLeft - 16),
+          behavior: "smooth",
+        });
       }
     };
+
     measure();
     window.addEventListener("resize", measure);
+
     return () => window.removeEventListener("resize", measure);
-  // KEY FIX: depend on the full location object, not just activeTab
   }, [activeTab, location]);
 
   return (
     <aside className="border-b border-slate-800 bg-[#0B1120] lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:h-screen lg:w-64 lg:flex-col lg:border-b-0 lg:border-r lg:border-slate-800 lg:bg-slate-900/90 lg:backdrop-blur-lg">
-      <div className="flex items-center gap-3 border-b border-slate-800 px-5 py-6">
-        <FaCameraRetro className="lf-lens text-2xl text-sky-500" />
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-white">LensFlow</h1>
-          <p className="text-xs text-slate-300">Client Portal</p>
-        </div>
+      {/* Clickable Logo / Home */}
+      <div className="border-b border-slate-800 px-5 py-6">
+        <Link
+          to={tabUrl("home")}
+          aria-label="Go to Client Portal home"
+          className="group flex items-center gap-3 rounded-lg outline-none transition-colors"
+        >
+          <FaCameraRetro className="lf-lens text-2xl text-sky-500" />
+
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white transition-colors group-hover:text-sky-400">
+              LensFlow
+            </h1>
+
+            <p className="text-xs text-slate-300 transition-colors group-hover:text-sky-400">
+              Client Portal
+            </p>
+          </div>
+        </Link>
       </div>
 
       <nav
@@ -102,8 +130,10 @@ export default function ClientSidebar({ onSignOut }) {
             transform: `translate(${ind.x}px, ${ind.y}px)`,
           }}
         />
+
         {SIDEBAR_ITEMS.map(({ id, label, icon: Icon }) => {
           const on = activeTab === id;
+
           return (
             <Link
               key={id}
@@ -116,7 +146,11 @@ export default function ClientSidebar({ onSignOut }) {
                   : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
               }`}
             >
-              <Icon className={`text-base ${on ? "text-sky-400" : "text-slate-400"}`} />
+              <Icon
+                className={`text-base ${
+                  on ? "text-sky-400" : "text-slate-400"
+                }`}
+              />
               {label}
             </Link>
           );

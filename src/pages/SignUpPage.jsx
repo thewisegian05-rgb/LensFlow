@@ -1,7 +1,9 @@
-import { useState } from "react";
+
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import "../components/Auth/Login.css";
+
 import {
   FaCameraRetro,
   FaUser,
@@ -16,10 +18,120 @@ import {
   FaArrowLeft,
 } from "react-icons/fa";
 
-// Convert Supabase errors into user-friendly messages.
+// ==============================
+// EMAIL VALIDATION
+// ==============================
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  "10minutemail.com",
+  "dispostable.com",
+  "emailondeck.com",
+  "fakeinbox.com",
+  "getnada.com",
+  "guerrillamail.com",
+  "maildrop.cc",
+  "mailinator.com",
+  "mohmal.com",
+  "sharklasers.com",
+  "temp-mail.org",
+  "tempmail.com",
+  "throwawaymail.com",
+  "trashmail.com",
+  "yopmail.com",
+  "10minutemail.net",
+  "burnermail.io",
+  "discard.email",
+  "emailfake.com",
+  "getairmail.com",
+  "inboxkitten.com",
+  "mail.tm",
+  "mail7.io",
+  "mailcatch.com",
+  "mailnesia.com",
+  "mailsac.com",
+  "mintemail.com",
+  "moakt.com",
+  "mytemp.email",
+  "tempmailo.com",
+  "tmpmail.org",
+  "tmpmail.net",
+  "tmailor.com",
+]);
 
+const validateEmailAddress = (value) => {
+  const email = value.trim().toLowerCase();
+
+  if (!email) {
+    return "Please enter your email address.";
+  }
+
+  const parts = email.split("@");
+
+  if (parts.length !== 2) {
+    return "Please enter a valid email address.";
+  }
+
+  const [localPart, domain] = parts;
+
+  if (localPart.length < 2) {
+    return "Email address must have at least 2 characters before the @ symbol.";
+  }
+
+  if (
+    localPart.length > 64 ||
+    localPart.startsWith(".") ||
+    localPart.endsWith(".") ||
+    localPart.includes("..") ||
+    !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(localPart)
+  ) {
+    return "Please enter a valid email address.";
+  }
+
+  if (!domain || domain.length > 253 || domain.includes("..")) {
+    return "Please enter a valid email domain.";
+  }
+
+  const labels = domain.split(".");
+
+  if (labels.length < 2) {
+    return "Email domain must include a valid root domain.";
+  }
+
+  const tld = labels[labels.length - 1];
+
+  if (!/^(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$/i.test(tld)) {
+    return "Please enter a valid root domain.";
+  }
+
+  const validDomain = labels.every(
+    (label) =>
+      label.length >= 1 &&
+      label.length <= 63 &&
+      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label)
+  );
+
+  if (!validDomain) {
+    return "Please enter a valid email domain.";
+  }
+
+  const disposable = [...DISPOSABLE_EMAIL_DOMAINS].some(
+    (blocked) =>
+      domain === blocked ||
+      domain.endsWith(`.${blocked}`)
+  );
+
+  if (disposable) {
+    return "Temporary email addresses are not allowed. Please use a personal or business email.";
+  }
+
+  return "";
+};
+
+// ==============================
+// SIGN-UP ERRORS
+// ==============================
 const getSignUpErrorMessage = (error) => {
   const message = error?.message?.toLowerCase() || "";
+
   if (
     message.includes("already registered") ||
     message.includes("already exists") ||
@@ -27,156 +139,187 @@ const getSignUpErrorMessage = (error) => {
   ) {
     return "Email is already registered";
   }
+
   if (message.includes("invalid email")) {
     return "Please enter a valid email address.";
   }
-  if (
-    message.includes("password") &&
-    (message.includes("weak") ||
-      message.includes("characters") ||
-      message.includes("short"))
-  ) {
-    return "Your password doesn't meet the security requirements. Please choose a stronger password.";
+
+  if (message.includes("password")) {
+    return "Your password doesn't meet the security requirements.";
   }
+
   if (
     message.includes("rate limit") ||
     message.includes("too many requests")
   ) {
-    return "Too many attempts. Please wait a moment before trying again.";
+    return "Too many attempts. Please try again later.";
   }
-  if (message.includes("network") || message.includes("fetch")) {
-    return "Unable to connect to LensFlow. Check your internet connection and try again.";
-  }
-  return "We couldn't create your account right now. Please check your details and try again.";
-};
 
-// Determine which field should display a Supabase error.
+  if (
+    message.includes("network") ||
+    message.includes("fetch")
+  ) {
+    return "Unable to connect to LensFlow. Check your internet connection.";
+  }
+
+  return "We couldn't create your account. Please check your details and try again.";
+};
 
 const getSignUpErrorField = (error) => {
   const message = error?.message?.toLowerCase() || "";
+
   if (
     message.includes("email") ||
     message.includes("registered")
   ) {
     return "email";
   }
+
   if (message.includes("password")) {
     return "password";
   }
+
   return "form";
 };
 
-// Frontend email checks. This catches common disposable providers,
-// but the list is not exhaustive or continuously updated.
+const hasTripleRepeatedLetters = (value) =>
+  /([a-z])\1{2}/i.test(value);
 
-const DISPOSABLE_EMAIL_DOMAINS = new Set([
-  "10minutemail.com", "dispostable.com", "emailondeck.com",
-  "fakeinbox.com", "getnada.com", "guerrillamail.com",
-  "maildrop.cc", "mailinator.com", "mohmal.com",
-  "sharklasers.com", "temp-mail.org", "tempmail.com",
-  "throwawaymail.com", "trashmail.com", "yopmail.com",
-  "10minutemail.net", "burnermail.io", "discard.email",
-  "emailfake.com", "getairmail.com", "inboxkitten.com",
-  "mail.tm", "mail7.io", "mailcatch.com", "mailnesia.com",
-  "mailsac.com", "mintemail.com", "moakt.com",
-  "mytemp.email", "tempmailo.com", "tmpmail.org",
-  "tmpmail.net", "tmailor.com",
-]);
-
-const validateEmailAddress = (value) => {
-  const email = value.trim().toLowerCase();
-  if (!email) return "Please enter your email address.";
-  const parts = email.split("@");
-  if (parts.length !== 2) return "Please enter a valid email address.";
-  const [localPart, domain] = parts;
-  if (localPart.length < 2) {
-    return "Email address must have at least 2 characters before the @ symbol.";
-  }
-  if (
-    localPart.length > 64 ||
-    localPart.startsWith(".") ||
-    localPart.endsWith(".") ||
-    localPart.includes("..") ||
-    !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(localPart)
-  ) return "Please enter a valid email address.";
-  if (!domain || domain.length > 253 || domain.includes("..")) {
-    return "Please enter a valid email domain.";
-  }
-  const labels = domain.split(".");
-  if (labels.length < 2) {
-    return "Email domain must include a valid root domain (for example, .com or .org).";
-  }
-  const tld = labels[labels.length - 1];
-  if (!/^(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$/i.test(tld)) {
-    return "Please enter a valid root domain.";
-  }
-  const validDomain = labels.every((label) =>
-    label.length >= 1 &&
-    label.length <= 63 &&
-    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label)
-  );
-  if (!validDomain) return "Please enter a valid email domain.";
-  const isDisposableDomain = [...DISPOSABLE_EMAIL_DOMAINS].some(
-    (blockedDomain) =>
-      domain === blockedDomain || domain.endsWith(`.${blockedDomain}`)
-  );
-  if (isDisposableDomain) {
-    return "Temporary email addresses are not allowed. Please use a personal or business email.";
-  }
-  return "";
-};
-
-// Reject three consecutive identical letters, regardless of capitalization.
-const hasTripleRepeatedLetters = (value) => /([a-z])\1{2}/i.test(value);
-
-// Validate fields individually.
-
+// ==============================
+// FORM VALIDATION
+// ==============================
 const validateSignUpForm = (form, passwordIsValid) => {
   const errors = {};
-  if (!["photographer", "customer", "both"].includes(form.accountType)) {
+
+  if (
+    !["photographer", "customer", "both"].includes(
+      form.accountType
+    )
+  ) {
     errors.accountType = "Please select a valid account type.";
   }
+
   const nameFields = [
     ["firstName", "First name", true],
     ["middleName", "Middle name", false],
     ["lastName", "Last name", true],
   ];
+
   nameFields.forEach(([field, label, required]) => {
     const value = form[field].trim();
+
     if (required && !value) {
       errors[field] = `${label} is required.`;
-    } else if (value && (value.length < 2 || value.length > 50)) {
-      errors[field] = `${label} must be between 2 and 50 characters.`;
-    } else if (value && hasTripleRepeatedLetters(value)) {
-      errors[field] = `${label} cannot contain three consecutive identical letters.`;
+    } else if (
+      value &&
+      (value.length < 2 || value.length > 50)
+    ) {
+      errors[field] =
+        `${label} must be between 2 and 50 characters.`;
+    } else if (
+      value &&
+      hasTripleRepeatedLetters(value)
+    ) {
+      errors[field] =
+        `${label} cannot contain three consecutive identical letters.`;
     }
   });
+
   const emailError = validateEmailAddress(form.email);
+
   if (emailError) errors.email = emailError;
-  if (form.accountType !== "customer" && form.studioName.trim()) {
+
+  if (
+    form.accountType !== "customer" &&
+    form.studioName.trim()
+  ) {
     const studioName = form.studioName.trim();
+
     if (studioName.length > 50) {
-      errors.studioName = "Studio / Business Name must not exceed 50 characters.";
+      errors.studioName =
+        "Studio / Business Name must not exceed 50 characters.";
     } else if (hasTripleRepeatedLetters(studioName)) {
-      errors.studioName = "Studio / Business Name cannot contain three consecutive identical letters.";
+      errors.studioName =
+        "Studio / Business Name cannot contain three consecutive identical letters.";
     }
   }
+
   if (!form.password) {
     errors.password = "Please enter a password.";
   } else if (!passwordIsValid) {
     errors.password =
-      "Your password does not meet all the requirements below.";
+      "Your password does not meet all the requirements.";
   }
+
   if (!form.confirmPassword) {
-    errors.confirmPassword = "Please confirm your password.";
+    errors.confirmPassword =
+      "Please confirm your password.";
   } else if (form.password !== form.confirmPassword) {
     errors.confirmPassword = "Passwords do not match.";
   }
+
   return errors;
 };
 
+// ==============================
+// SIGN-UP COMPONENT
+// ==============================
 function SignUpPage() {
   const navigate = useNavigate();
+
+  // ==============================
+  // ANIMATION
+  // ==============================
+  const [isLeaving, setIsLeaving] = useState(false);
+  const exitTimer = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (exitTimer.current !== null) {
+        clearTimeout(exitTimer.current);
+      }
+    };
+  }, []);
+
+  const navigateWithExit = (to, options = {}) => {
+    if (exitTimer.current !== null) return;
+
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    if (reducedMotion) {
+      navigate(to, options);
+      return;
+    }
+
+    setIsLeaving(true);
+
+    exitTimer.current = setTimeout(() => {
+      exitTimer.current = null;
+      navigate(to, options);
+    }, 280);
+  };
+
+  const handleAnimatedLink = (e, destination) => {
+    if (
+      e.defaultPrevented ||
+      e.button !== 0 ||
+      e.ctrlKey ||
+      e.metaKey ||
+      e.shiftKey ||
+      e.altKey
+    ) {
+      return;
+    }
+
+    e.preventDefault();
+    navigateWithExit(destination);
+  };
+
+  // ==============================
+  // FORM STATES
+  // ==============================
   const [form, setForm] = useState({
     accountType: "photographer",
     firstName: "",
@@ -187,11 +330,19 @@ function SignUpPage() {
     password: "",
     confirmPassword: "",
   });
+
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
-  const [checkEmailMessage, setCheckEmailMessage] = useState("");
+  const [checkEmailMessage, setCheckEmailMessage] =
+    useState("");
+
+  // ==============================
+  // PASSWORD REQUIREMENTS
+  // ==============================
   const passwordRequirements = [
     {
       label: "At least 8 characters",
@@ -212,66 +363,153 @@ function SignUpPage() {
       met: /[^A-Za-z0-9]/.test(form.password),
     },
   ];
+
   const passwordIsValid = passwordRequirements.every(
     (requirement) => requirement.met
   );
-  const hasConfirmPassword = form.confirmPassword.length > 0;
+
+  const hasConfirmPassword =
+    form.confirmPassword.length > 0;
+
   const passwordsMatch =
-    hasConfirmPassword && form.password === form.confirmPassword;
-  const passwordsDoNotMatch =
-    hasConfirmPassword && form.password !== form.confirmPassword;
+    hasConfirmPassword &&
+    form.password === form.confirmPassword;
+
+  // ==============================
+  // PASSWORD CHECKLIST
+  // ==============================
+  const passwordChecklist = (
+    <div
+      className="signup-password-requirements"
+      aria-live="polite"
+    >
+      <p className="signup-password-requirements-title">
+        Password must contain:
+      </p>
+
+      <ul>
+        {passwordRequirements.map((requirement) => (
+          <li
+            key={requirement.label}
+            className={
+              requirement.met
+                ? "requirement-met"
+                : "requirement-unmet"
+            }
+          >
+            <span
+              className="signup-requirement-icon"
+              aria-hidden="true"
+            >
+              {requirement.met ? "✓" : "×"}
+            </span>
+
+            <span>{requirement.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
+  // ==============================
+  // HANDLE INPUT
+  // ==============================
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    const repeatedLetterFields = {
+      firstName: "First name",
+      middleName: "Middle name",
+      lastName: "Last name",
+      studioName: "Studio / Business Name",
+    };
+
+    if (
+      repeatedLetterFields[name] &&
+      hasTripleRepeatedLetters(value)
+    ) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]:
+          `${repeatedLetterFields[name]} cannot contain three consecutive identical letters.`,
+      }));
+      return;
+    }
+
     setForm((prev) => ({
       ...prev,
       [name]: value,
     }));
+
     setErrors((prev) => {
       const updated = { ...prev };
+
       delete updated[name];
       delete updated.form;
+
       if (name === "email") {
         const emailError = validateEmailAddress(value);
-        if (value.trim() && emailError) updated.email = emailError;
-        else delete updated.email;
+
+        if (value.trim() && emailError) {
+          updated.email = emailError;
+        } else {
+          delete updated.email;
+        }
       }
-      // Changing either password can affect both password fields.
-      if (name === "password" || name === "confirmPassword") {
+
+      if (
+        name === "password" ||
+        name === "confirmPassword"
+      ) {
         delete updated.password;
         delete updated.confirmPassword;
       }
+
       return updated;
     });
   };
+
+  // ==============================
+  // CREATE ACCOUNT
+  // ==============================
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setErrors({});
     setCheckEmailMessage("");
+
     const validationErrors = validateSignUpForm(
       form,
       passwordIsValid
     );
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
+
     setSubmitting(true);
+
     try {
       const { data, error: signUpError } =
         await supabase.auth.signUp({
           email: form.email.trim().toLowerCase(),
           password: form.password,
           options: {
-            emailRedirectTo: `${window.location.origin}/email-verified`,
+            emailRedirectTo:
+              `${window.location.origin}/email-verified`,
             data: {
               account_type: form.accountType,
               full_name: [
                 form.firstName.trim(),
                 form.middleName.trim(),
                 form.lastName.trim(),
-              ].filter(Boolean).join(" "),
+              ]
+                .filter(Boolean)
+                .join(" "),
               first_name: form.firstName.trim(),
-              middle_name: form.middleName.trim() || null,
+              middle_name:
+                form.middleName.trim() || null,
               last_name: form.lastName.trim(),
               studio_name:
                 form.accountType !== "customer"
@@ -280,41 +518,66 @@ function SignUpPage() {
             },
           },
         });
+
       if (signUpError) {
-        console.error("Sign-up failed:", signUpError.message);
         const field = getSignUpErrorField(signUpError);
         const message = getSignUpErrorMessage(signUpError);
+
         setErrors({ [field]: message });
         return;
       }
+
       if (data.user?.identities?.length === 0) {
-        setErrors({ email: "Email is already registered" });
+        setErrors({
+          email: "Email is already registered",
+        });
         return;
       }
+
       if (data.session) {
-        navigate(
+        navigateWithExit(
           form.accountType === "photographer"
             ? "/dashboard"
             : "/customer-dashboard"
         );
         return;
       }
+
       setCheckEmailMessage(
         `Almost there! We've sent a confirmation link to ${form.email.trim()}. Verify your email to activate your account.`
       );
     } catch (err) {
-      console.error("Unexpected sign-up error:", err);
+      console.error("Sign-up failed:", err);
+
       setErrors({
-        form: "Something went wrong while creating your account. Please try again.",
+        form:
+          "Something went wrong while creating your account. Please try again.",
       });
     } finally {
       setSubmitting(false);
     }
   };
+
+  // ==============================
+  // ANIMATION CLASSES
+  // ==============================
+  const pageAnimation = isLeaving
+    ? "animate-[lf-auth-exit_280ms_ease-in_both]"
+    : "animate-[lf-auth-enter_520ms_ease-out_both]";
+
+  const staggerAnimation =
+    "animate-[lf-auth-rise_480ms_ease-out_both]";
+
+  // ==============================
+  // INTERFACE
+  // ==============================
   return (
     <div className="login-page">
+
+      {/* Back to Home */}
       <Link
         to="/"
+        onClick={(e) => handleAnimatedLink(e, "/")}
         className="
           fixed left-5 top-5 z-[100]
           inline-flex items-center gap-2
@@ -324,59 +587,89 @@ function SignUpPage() {
           hover:-translate-x-1
           hover:!text-sky-500
           focus-visible:outline-none
-          focus-visible:!text-sky-500
         "
       >
         <FaArrowLeft aria-hidden="true" />
         Back to Home
       </Link>
-      <div className="login-container !w-full !max-w-2xl px-4">
-        <div className="login-header">
+
+      {/* Animated Container */}
+      <div
+        className={`login-container !w-full !max-w-2xl px-4
+          ${pageAnimation} motion-reduce:animate-none`}
+      >
+        {/* Header */}
+        <div
+          className={`login-header ${staggerAnimation}
+            [animation-delay:40ms] motion-reduce:animate-none`}
+        >
           <div className="login-brand">
             <FaCameraRetro className="login-icon" />
             <h1>LensFlow Studio</h1>
           </div>
+
           <p>Create your account to get started</p>
         </div>
-        <div className="login-card">
+
+        {/* Sign Up Card */}
+        <div
+          className={`login-card ${staggerAnimation}
+            [animation-delay:95ms] motion-reduce:animate-none`}
+        >
           {checkEmailMessage ? (
             <div
-              className="signup-confirmation"
-              style={{ textAlign: "center", padding: "12px 0" }}
+              className="signup-confirmation py-3 text-center"
               role="status"
               aria-live="polite"
             >
               <p>{checkEmailMessage}</p>
+
               <p className="signup-confirmation-spam-note">
-                Didn't receive the email? Please check your spam or junk folder.
-                If you find it there, mark it as "Not Spam" so future LensFlow
-                emails arrive in your inbox.
+                Didn't receive the email? Please check your
+                spam or junk folder.
               </p>
-              <Link to="/login" className="signup-link">
+
+              <Link
+                to="/login"
+                className="signup-link"
+                onClick={(e) =>
+                  handleAnimatedLink(e, "/login")
+                }
+              >
                 Back to Sign In
               </Link>
             </div>
           ) : (
             <>
-              <form onSubmit={handleSubmit} noValidate className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+              <form
+                onSubmit={handleSubmit}
+                noValidate
+                className="
+                  grid grid-cols-1
+                  gap-x-5 gap-y-4
+                  sm:grid-cols-2
+                "
+              >
                 {errors.form && (
-                  <div className="login-error sm:col-span-2" role="alert">
-                    <span
-                      className="login-error-icon"
-                      aria-hidden="true"
-                    >
-                      !
-                    </span>
-                    <span>{errors.form}</span>
+                  <div
+                    className="login-error sm:col-span-2"
+                    role="alert"
+                  >
+                    {errors.form}
                   </div>
                 )}
 
-                {/* Account type */}
+                {/* Account Type */}
                 <div className="input-group sm:col-span-2">
-                  <label htmlFor="accountType">Account Type</label>
+                  <label htmlFor="accountType">
+                    Account Type
+                  </label>
+
                   <div
                     className={`input-box signup-account-type-box ${
-                      errors.accountType ? "input-box-invalid" : ""
+                      errors.accountType
+                        ? "input-box-invalid"
+                        : ""
                     }`}
                   >
                     {form.accountType === "photographer" ? (
@@ -384,101 +677,185 @@ function SignUpPage() {
                     ) : (
                       <FaUsers aria-hidden="true" />
                     )}
+
                     <select
                       id="accountType"
                       name="accountType"
                       value={form.accountType}
                       onChange={handleChange}
-                      required
-                      aria-invalid={Boolean(errors.accountType)}
-                      aria-describedby={
-                        errors.accountType
-                          ? "account-type-error"
-                          : "account-type-help"
-                      }
                       className="signup-account-type-select"
+                      required
                     >
                       <option value="photographer">
                         Photographer
                       </option>
-                      <option value="customer">Customer</option>
-                      <option value="both">Both (Photographer & Customer)</option>
+
+                      <option value="customer">
+                        Customer
+                      </option>
+
+                      <option value="both">
+                        Both (Photographer & Customer)
+                      </option>
                     </select>
                   </div>
+
                   {errors.accountType && (
-                    <small
-                      id="account-type-error"
-                      className="field-error"
-                      role="alert"
-                    >
+                    <small className="field-error">
                       {errors.accountType}
                     </small>
                   )}
-                  <small
-                    id="account-type-help"
-                    className="signup-field-help"
-                  >
+
+                  <small className="signup-field-help">
                     Choose the type of account you want to create.
                   </small>
                 </div>
 
-                {/* Full name - split into separate fields */}
+                {/* Full Name */}
                 <div className="input-group sm:col-span-2">
                   <label>Full Name</label>
+
                   <p className="signup-field-help mb-2">
-                    Enter your first, middle (optional), and last name.
-                    Each field must contain 2–50 characters.
+                    Enter your first, middle (optional), and
+                    last name. Each field must contain 2–50
+                    characters.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+
+                  <div
+                    className="
+                      grid grid-cols-1
+                      gap-x-4 gap-y-3
+                      sm:grid-cols-2
+                    "
+                  >
+                    {/* First Name */}
                     <div className="min-w-0">
-                      <label htmlFor="firstName" className="mb-1 block text-sm">First Name</label>
-                      <div className={`input-box ${errors.firstName ? "input-box-invalid" : ""}`}>
-                        <FaUser aria-hidden="true" />
-                        <input id="firstName" type="text" name="firstName" placeholder="Juan"
-                          value={form.firstName} onChange={handleChange} autoComplete="given-name"
-                          minLength={2} maxLength={50} required
-                          aria-invalid={Boolean(errors.firstName)}
-                          aria-describedby={errors.firstName ? "firstName-error" : undefined} />
-                      </div>
-                      {errors.firstName && <small id="firstName-error" className="field-error" role="alert">{errors.firstName}</small>}
-                    </div>
-                    <div className="min-w-0">
-                      <label htmlFor="middleName" className="mb-1 block text-sm">
-                        Middle Name <span className="font-normal text-slate-400">(Optional)</span>
+                      <label
+                        htmlFor="firstName"
+                        className="mb-1 block text-sm"
+                      >
+                        First Name
                       </label>
-                      <div className={`input-box ${errors.middleName ? "input-box-invalid" : ""}`}>
-                        <FaUser aria-hidden="true" />
-                        <input id="middleName" type="text" name="middleName" placeholder="Santos"
-                          value={form.middleName} onChange={handleChange} autoComplete="additional-name"
-                          minLength={2} maxLength={50}
-                          aria-invalid={Boolean(errors.middleName)}
-                          aria-describedby={errors.middleName ? "middleName-error" : undefined} />
+
+                      <div
+                        className={`input-box ${
+                          errors.firstName
+                            ? "input-box-invalid"
+                            : ""
+                        }`}
+                      >
+                        <FaUser />
+
+                        <input
+                          id="firstName"
+                          type="text"
+                          name="firstName"
+                          placeholder="Juan"
+                          value={form.firstName}
+                          onChange={handleChange}
+                          autoComplete="given-name"
+                          minLength={2}
+                          maxLength={50}
+                          required
+                        />
                       </div>
-                      {errors.middleName && <small id="middleName-error" className="field-error" role="alert">{errors.middleName}</small>}
+
+                      {errors.firstName && (
+                        <small className="field-error">
+                          {errors.firstName}
+                        </small>
+                      )}
                     </div>
+
+                    {/* Middle Name */}
                     <div className="min-w-0">
-                      <label htmlFor="lastName" className="mb-1 block text-sm">Last Name</label>
-                      <div className={`input-box ${errors.lastName ? "input-box-invalid" : ""}`}>
-                        <FaUser aria-hidden="true" />
-                        <input id="lastName" type="text" name="lastName" placeholder="Dela Cruz"
-                          value={form.lastName} onChange={handleChange} autoComplete="family-name"
-                          minLength={2} maxLength={50} required
-                          aria-invalid={Boolean(errors.lastName)}
-                          aria-describedby={errors.lastName ? "lastName-error" : undefined} />
+                      <label
+                        htmlFor="middleName"
+                        className="mb-1 block text-sm"
+                      >
+                        Middle Name (Optional)
+                      </label>
+
+                      <div
+                        className={`input-box ${
+                          errors.middleName
+                            ? "input-box-invalid"
+                            : ""
+                        }`}
+                      >
+                        <FaUser />
+
+                        <input
+                          id="middleName"
+                          type="text"
+                          name="middleName"
+                          placeholder="Santos"
+                          value={form.middleName}
+                          onChange={handleChange}
+                          autoComplete="additional-name"
+                          minLength={2}
+                          maxLength={50}
+                        />
                       </div>
-                      {errors.lastName && <small id="lastName-error" className="field-error" role="alert">{errors.lastName}</small>}
+
+                      {errors.middleName && (
+                        <small className="field-error">
+                          {errors.middleName}
+                        </small>
+                      )}
+                    </div>
+
+                    {/* Last Name */}
+                    <div className="min-w-0">
+                      <label
+                        htmlFor="lastName"
+                        className="mb-1 block text-sm"
+                      >
+                        Last Name
+                      </label>
+
+                      <div
+                        className={`input-box ${
+                          errors.lastName
+                            ? "input-box-invalid"
+                            : ""
+                        }`}
+                      >
+                        <FaUser />
+
+                        <input
+                          id="lastName"
+                          type="text"
+                          name="lastName"
+                          placeholder="Dela Cruz"
+                          value={form.lastName}
+                          onChange={handleChange}
+                          autoComplete="family-name"
+                          minLength={2}
+                          maxLength={50}
+                          required
+                        />
+                      </div>
+
+                      {errors.lastName && (
+                        <small className="field-error">
+                          {errors.lastName}
+                        </small>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Studio name */}
+                {/* Studio Name */}
                 {form.accountType !== "customer" && (
                   <div className="input-group">
                     <label htmlFor="studioName">
                       Studio / Business Name (optional)
                     </label>
+
                     <div className="input-box">
-                      <FaBuilding aria-hidden="true" />
+                      <FaBuilding />
+
                       <input
                         id="studioName"
                         type="text"
@@ -488,36 +865,46 @@ function SignUpPage() {
                         onChange={handleChange}
                         autoComplete="organization"
                         maxLength={50}
-                        aria-invalid={Boolean(errors.studioName)}
-                        aria-describedby="studioName-counter"
                       />
                     </div>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      {errors.studioName ? (
-                        <small className="field-error" role="alert">
-                          {errors.studioName}
-                        </small>
-                      ) : (
-                        <small className="signup-field-help">
-                          Maximum of 50 characters.
-                        </small>
-                      )}
-                      <small id="studioName-counter" className="signup-field-help ml-auto whitespace-nowrap">
-                        {form.studioName.length}/50
+
+                    {errors.studioName ? (
+                      <small className="field-error">
+                        {errors.studioName}
                       </small>
-                    </div>
+                    ) : (
+                      <small className="signup-field-help">
+                        Maximum of 50 characters.
+                      </small>
+                    )}
+
+                    <small className="signup-field-help text-right">
+                      {form.studioName.length}/50
+                    </small>
                   </div>
                 )}
 
                 {/* Email */}
-                <div className="input-group">
-                  <label htmlFor="email">Email Address</label>
+                <div
+                  className={`input-group ${
+                    form.accountType === "customer"
+                      ? "sm:col-span-2"
+                      : ""
+                  }`}
+                >
+                  <label htmlFor="email">
+                    Email Address
+                  </label>
+
                   <div
                     className={`input-box ${
-                      errors.email ? "input-box-invalid" : ""
+                      errors.email
+                        ? "input-box-invalid"
+                        : ""
                     }`}
                   >
-                    <FaEnvelope aria-hidden="true" />
+                    <FaEnvelope />
+
                     <input
                       id="email"
                       type="email"
@@ -526,29 +913,22 @@ function SignUpPage() {
                       value={form.email}
                       onChange={handleChange}
                       onBlur={() => {
-                        const emailError = validateEmailAddress(form.email);
-                        setErrors((prev) => {
-                          const next = { ...prev };
-                          if (emailError) next.email = emailError;
-                          else delete next.email;
-                          return next;
-                        });
+                        const emailError =
+                          validateEmailAddress(form.email);
+
+                        setErrors((prev) => ({
+                          ...prev,
+                          email: emailError,
+                        }));
                       }}
                       autoComplete="email"
                       maxLength={254}
                       required
-                      aria-invalid={Boolean(errors.email)}
-                      aria-describedby={
-                        errors.email ? "email-error" : undefined
-                      }
                     />
                   </div>
+
                   {errors.email && (
-                    <small
-                      id="email-error"
-                      className="field-error"
-                      role="alert"
-                    >
+                    <small className="field-error">
                       {errors.email}
                     </small>
                   )}
@@ -556,16 +936,26 @@ function SignUpPage() {
 
                 {/* Password */}
                 <div className="input-group">
-                  <label htmlFor="password">Password</label>
+                  <label htmlFor="password">
+                    Password
+                  </label>
+
                   <div
                     className={`input-box ${
-                      errors.password ? "input-box-invalid" : ""
+                      errors.password
+                        ? "input-box-invalid"
+                        : ""
                     }`}
                   >
-                    <FaLock aria-hidden="true" />
+                    <FaLock />
+
                     <input
                       id="password"
-                      type={showPassword ? "text" : "password"}
+                      type={
+                        showPassword
+                          ? "text"
+                          : "password"
+                      }
                       name="password"
                       placeholder="At least 8 characters"
                       value={form.password}
@@ -573,76 +963,44 @@ function SignUpPage() {
                       autoComplete="new-password"
                       minLength={8}
                       required
-                      aria-invalid={Boolean(errors.password)}
-                      aria-describedby={
-                        errors.password ? "password-error" : undefined
-                      }
                     />
+
                     <button
                       type="button"
+                      className="signup-password-toggle"
                       onClick={() =>
                         setShowPassword((prev) => !prev)
                       }
-                      className="signup-password-toggle"
                       aria-label={
-                        showPassword ? "Hide password" : "Show password"
-                      }
-                      aria-pressed={showPassword}
-                      title={
-                        showPassword ? "Hide password" : "Show password"
+                        showPassword
+                          ? "Hide password"
+                          : "Show password"
                       }
                     >
                       {showPassword ? (
-                        <FaEyeSlash aria-hidden="true" />
+                        <FaEyeSlash />
                       ) : (
-                        <FaEye aria-hidden="true" />
+                        <FaEye />
                       )}
                     </button>
                   </div>
-                  <div
-                    className="signup-password-requirements"
-                    aria-live="polite"
-                  >
-                    <p className="signup-password-requirements-title">
-                      Password must contain:
-                    </p>
-                    <ul>
-                      {passwordRequirements.map((requirement) => (
-                        <li
-                          key={requirement.label}
-                          className={
-                            requirement.met
-                              ? "requirement-met"
-                              : "requirement-unmet"
-                          }
-                        >
-                          <span
-                            className="signup-requirement-icon"
-                            aria-hidden="true"
-                          >
-                            {requirement.met ? "✓" : "×"}
-                          </span>
-                          <span>{requirement.label}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+
+                  {form.accountType !== "customer" &&
+                    passwordChecklist}
+
                   {errors.password && (
-                    <small
-                      id="password-error"
-                      className="field-error"
-                      role="alert"
-                    >
+                    <small className="field-error">
                       {errors.password}
                     </small>
                   )}
                 </div>
 
-                {/* Confirm password */}
+                {/* Confirm Password */}
                 <div className="input-group">
                   <label htmlFor="confirmPassword">
                     Confirm Password
                   </label>
+
                   <div
                     className={`input-box ${
                       errors.confirmPassword
@@ -650,11 +1008,14 @@ function SignUpPage() {
                         : ""
                     }`}
                   >
-                    <FaLock aria-hidden="true" />
+                    <FaLock />
+
                     <input
                       id="confirmPassword"
                       type={
-                        showConfirmPassword ? "text" : "password"
+                        showConfirmPassword
+                          ? "text"
+                          : "password"
                       }
                       name="confirmPassword"
                       placeholder="Re-enter your password"
@@ -663,89 +1024,95 @@ function SignUpPage() {
                       autoComplete="new-password"
                       minLength={8}
                       required
-                      aria-invalid={Boolean(errors.confirmPassword)}
-                      aria-describedby={
-                        errors.confirmPassword
-                          ? "confirmPassword-error"
-                          : undefined
-                      }
                     />
+
                     <button
                       type="button"
-                      onClick={() =>
-                        setShowConfirmPassword((prev) => !prev)
-                      }
                       className="signup-password-toggle"
+                      onClick={() =>
+                        setShowConfirmPassword(
+                          (prev) => !prev
+                        )
+                      }
                       aria-label={
                         showConfirmPassword
                           ? "Hide confirm password"
                           : "Show confirm password"
                       }
-                      aria-pressed={showConfirmPassword}
-                      title={
-                        showConfirmPassword
-                          ? "Hide password"
-                          : "Show password"
-                      }
                     >
                       {showConfirmPassword ? (
-                        <FaEyeSlash aria-hidden="true" />
+                        <FaEyeSlash />
                       ) : (
-                        <FaEye aria-hidden="true" />
+                        <FaEye />
                       )}
                     </button>
                   </div>
+
                   {hasConfirmPassword && (
                     <small
-                      className={`mt-2 flex items-center gap-1.5 text-xs font-medium ${
-                        passwordsMatch
-                          ? "text-emerald-500"
-                          : "text-rose-500"
-                      }`}
+                      className={`mt-2 flex items-center
+                        gap-1.5 text-xs font-medium ${
+                          passwordsMatch
+                            ? "text-emerald-500"
+                            : "text-rose-500"
+                        }`}
                       role="status"
-                      aria-live="polite"
                     >
-                      <span aria-hidden="true">
-                        {passwordsMatch ? "✓" : "×"}
-                      </span>
                       {passwordsMatch
-                        ? "Passwords match."
-                        : "Passwords do not match."}
+                        ? "✓ Passwords match."
+                        : "× Passwords do not match."}
                     </small>
                   )}
+
                   {errors.confirmPassword && (
-                    <small
-                      id="confirmPassword-error"
-                      className="field-error"
-                      role="alert"
-                    >
+                    <small className="field-error">
                       {errors.confirmPassword}
                     </small>
                   )}
                 </div>
 
+                {/* Customer Password Checklist */}
+                {form.accountType === "customer" && (
+                  <div className="sm:col-span-2">
+                    {passwordChecklist}
+                  </div>
+                )}
+
                 {/* Submit */}
                 <button
                   type="submit"
                   className="login-btn sm:col-span-2"
-                  disabled={submitting}
+                  disabled={submitting || isLeaving}
                 >
-                  <FaUserPlus aria-hidden="true" />
+                  <FaUserPlus />
+
                   {submitting
                     ? "Creating account..."
                     : "Create Account"}
                 </button>
               </form>
+
               <p className="signup-prompt">
                 Already have an account?{" "}
-                <Link to="/login" className="signup-link">
+                <Link
+                  to="/login"
+                  className="signup-link"
+                  onClick={(e) =>
+                    handleAnimatedLink(e, "/login")
+                  }
+                >
                   Sign in
                 </Link>
               </p>
             </>
           )}
         </div>
-        <div className="login-footer">
+
+        {/* Footer */}
+        <div
+          className={`login-footer ${staggerAnimation}
+            [animation-delay:160ms] motion-reduce:animate-none`}
+        >
           © 2026 LensFlow Studio Management
         </div>
       </div>

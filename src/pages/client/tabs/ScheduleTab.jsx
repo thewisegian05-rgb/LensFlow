@@ -18,11 +18,46 @@ const STATUS_LABEL = {
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
+/* ---------------------------------------------------------
+   BOOKING WINDOW
+   Same rule as the photographer's Add Event form: from today
+   up to MAX_YEARS_AHEAD years ahead (a rolling window).
+   "Today" is the date in Manila, not the device's own clock zone.
+   --------------------------------------------------------- */
+const MAX_YEARS_AHEAD = 2;
+
+// "2026-11-06" -> "2026-11-06" in Manila time
+const getManilaDateKey = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+// "2026-11-06" + 2 years -> "2028-11-06"
+const addYearsToKey = (key, years) => {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(Date.UTC(year + years, month - 1, day)).toISOString().slice(0, 10);
+};
+
 export default function ScheduleTab() {
   const { portal, activeId, reload } = /** @type {any} */ (useOutletContext());
   const [bookingDate, setBookingDate] = useState(null);
   const [myRequests, setMyRequests] = useState([]);
   const [selected, setSelected] = useState(null);
+
+  const minimumBookingDate = getManilaDateKey();
+  const maximumBookingDate = addYearsToKey(minimumBookingDate, MAX_YEARS_AHEAD);
 
   /* ---------------------------------------------------------
      THIS CLIENT'S OWN BOOKINGS
@@ -147,14 +182,14 @@ export default function ScheduleTab() {
     return [...others, ...myEvents];
   }, [bookedEvents, myEvents]);
 
-  /* calendar date click -> open the booking form (today or later only) */
+  // Calendar date click -> allow only dates inside the booking window
+  // (today up to MAX_YEARS_AHEAD years ahead).
   const handleSelectSlot = ({ start }) => {
-    const d = new Date(start);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-      d.getDate()
-    ).padStart(2, "0")}`;
-    const todayKey = new Date().toLocaleDateString("en-CA");
-    if (key >= todayKey) setBookingDate(key);
+    const key = getManilaDateKey(start);
+
+    if (key >= minimumBookingDate && key <= maximumBookingDate) {
+      setBookingDate(key);
+    }
   };
 
   /* Only your own bookings open details. Other dates stay private. */
@@ -183,6 +218,8 @@ export default function ScheduleTab() {
             events={calendarEvents}
             onSelectSlot={handleSelectSlot}
             onEventClick={handleEventClick}
+            minSelectableDate={minimumBookingDate}
+            maxSelectableDate={maximumBookingDate}
           />
         </div>
       </Section>
@@ -256,6 +293,21 @@ export default function ScheduleTab() {
                     {selected.start_time.slice(0, 5)}–{selected.end_time.slice(0, 5)}
                   </dd>
                 </div>
+
+                {/* Photographer Call Time */}
+                {selected.call_time && (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-slate-400">Photographer Call Time</dt>
+                    <dd className="text-right font-medium text-sky-400">
+                      {new Date(
+                        `2000-01-01T${selected.call_time.slice(0, 5)}:00`
+                      ).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </dd>
+                  </div>
+                )}
 
                 {selected.location && (
                   <div className="flex justify-between gap-4">

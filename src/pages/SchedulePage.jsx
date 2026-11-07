@@ -387,6 +387,7 @@ function SchedulePage() {
         location: row.location,
         gears: row.gears || [],
         notes: row.notes,
+        call_time: row.call_time || null,
         start,
         end,
         date: start.toLocaleDateString(undefined, {
@@ -651,6 +652,7 @@ function SchedulePage() {
       location: form.location,
       gears: form.gears,
       notes: form.notes,
+      call_time: form.callTime || null,
       start_time: new Date(`${form.date}T${form.start}`).toISOString(),
       end_time: new Date(`${form.date}T${form.end}`).toISOString(),
       project_id: form.projectId || null,
@@ -712,6 +714,7 @@ function SchedulePage() {
           title: form.title,
           category: form.category,
           event_date: form.date,
+          call_time: form.callTime || null,
           start_time: form.start,
           end_time: form.end,
           location: form.location || null,

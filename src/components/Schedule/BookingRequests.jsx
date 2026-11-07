@@ -23,6 +23,25 @@ const shortDate = (iso) =>
 
 const todayString = () => new Date().toLocaleDateString("en-CA");
 
+const formatCallTime = (value) => {
+  if (!value) return null;
+
+  const [hours, minutes] = String(value).slice(0, 5).split(":").map(Number);
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 || hours > 23 ||
+    minutes < 0 || minutes > 59
+  ) return value;
+
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const callTimeOf = (request) =>
+  request?.call_time || request?.manual_details?.call_time || null;
+
 // The transaction date the OCR read from a receipt, shown as a readable date.
 // If your table names this column differently, add it to the list below.
 const displayOcrTransactionDate = (submission) => {
@@ -110,7 +129,7 @@ const QUICK_REASONS = [
 ];
 
 const field =
-  "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500";
 
 // ---------- production team ----------
 // The assigned team is saved on the request as [{ name, position }] and shown
@@ -596,7 +615,12 @@ export default function BookingRequests({
   // so it's added right after. A failure never undoes the booking.
   async function applyTeamToEvent(request, eventId) {
     const text = teamToText(request.team_members);
-    if (!text) return;
+    const callTime = callTimeOf(request);
+    const eventUpdates = {};
+
+    if (text) eventUpdates.photographer = text;
+    if (callTime) eventUpdates.call_time = callTime;
+    if (Object.keys(eventUpdates).length === 0) return;
 
     let updatedId = null;
 
@@ -604,7 +628,7 @@ export default function BookingRequests({
     if (typeof eventId === "string" && eventId) {
       const { data } = await supabase
         .from("schedule_events")
-        .update({ photographer: text })
+        .update(eventUpdates)
         .eq("id", eventId)
         .select("id");
       updatedId = data?.[0]?.id || null;
@@ -630,7 +654,7 @@ export default function BookingRequests({
       if (foundId) {
         const { data } = await supabase
           .from("schedule_events")
-          .update({ photographer: text })
+          .update(eventUpdates)
           .eq("id", foundId)
           .select("id");
         updatedId = data?.[0]?.id || null;
@@ -895,6 +919,7 @@ export default function BookingRequests({
                       </p>
                       <p className="text-xs text-slate-500">
                         {r.event_date} · {r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)}
+                        {callTimeOf(r) ? ` · Call time: ${formatCallTime(callTimeOf(r))}` : ""}
                         {r.location ? ` · ${r.location}` : ""}
                       </p>
                       {requestedCrew && (
@@ -979,37 +1004,56 @@ export default function BookingRequests({
                         </button>
                       </div>
 
+                      
                       {/* ---- fee, downpayment, message ---- */}
-                      <div className="grid gap-2 sm:grid-cols-[9rem_9rem_1fr]">
+                      <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-[8rem_8rem_minmax(0,1fr)]">
+                        {/* Talent Fee */}
                         <input
-                          className={field}
+                          className={`${field} h-10 min-w-0 text-sm`}
                           type="text"
                           inputMode="numeric"
                           autoComplete="off"
                           maxLength={MAX_MONEY_DIGITS}
                           placeholder="Talent fee (₱)"
+                          aria-label="Talent fee"
                           value={d.fee}
-                          onChange={(e) => setDraft(r, { fee: moneyDigits(e.target.value) })}
+                          onChange={(e) =>
+                            setDraft(r, { fee: moneyDigits(e.target.value) })
+                          }
                         />
+
+                        {/* Downpayment */}
                         <input
-                          className={field}
+                          className={`${field} h-10 min-w-0 text-sm`}
                           type="text"
                           inputMode="numeric"
                           autoComplete="off"
                           maxLength={MAX_MONEY_DIGITS}
                           placeholder="Downpayment (₱)"
+                          aria-label="Downpayment"
                           value={d.downpayment}
-                          onChange={(e) => setDraft(r, { downpayment: moneyDigits(e.target.value) })}
+                          onChange={(e) =>
+                            setDraft(r, {
+                              downpayment: moneyDigits(e.target.value),
+                            })
+                          }
                         />
+
+                        {/* Message */}
                         <div className="min-w-0">
                           <input
-                            className={field}
+                            className={`${field} h-10 w-full min-w-0 text-sm`}
                             placeholder="Message to client (optional)"
                             aria-label="Message to client"
                             value={d.message}
-                            onChange={(e) => setDraft(r, { message: cleanMessage(e.target.value) })}
+                            onChange={(e) =>
+                              setDraft(r, {
+                                message: cleanMessage(e.target.value),
+                              })
+                            }
                             maxLength={MAX_TEXT_LENGTH}
                           />
+
                           <p
                             className={`mt-1 text-right text-[11px] tabular-nums ${
                               d.message.length >= MAX_TEXT_LENGTH
@@ -1022,6 +1066,7 @@ export default function BookingRequests({
                           </p>
                         </div>
                       </div>
+
 
                       {feeNum > 0 && d.downpayment !== "" && (
                         <p className="text-xs text-slate-400">
@@ -1159,6 +1204,7 @@ export default function BookingRequests({
                       </p>
                       <p className="text-xs text-slate-500">
                         {r.event_date} · {r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)}
+                        {callTimeOf(r) ? ` · Call time: ${formatCallTime(callTimeOf(r))}` : ""}
                         {r.location ? ` · ${r.location}` : ""}
                       </p>
                     </div>
@@ -1224,7 +1270,7 @@ export default function BookingRequests({
       {declineTarget &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm"
+            className="custom-scrollbar fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget) closeDecline();
             }}
@@ -1233,7 +1279,7 @@ export default function BookingRequests({
               role="dialog"
               aria-modal="true"
               aria-labelledby="booking-decline-title"
-              className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+              className="custom-scrollbar my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
               onMouseDown={(e) => e.stopPropagation()}
             >
               <h3 id="booking-decline-title" className="text-lg font-bold text-white">
@@ -1341,7 +1387,7 @@ export default function BookingRequests({
       {modal &&
         createPortal(
           <div
-            className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm transition-opacity duration-200 ease-out motion-reduce:transition-none ${
+            className={`custom-scrollbar fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4 backdrop-blur-sm transition-opacity duration-200 ease-out motion-reduce:transition-none ${
               modalVisible ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
             onMouseDown={(e) => {
@@ -1353,47 +1399,52 @@ export default function BookingRequests({
               role="dialog"
               aria-modal="true"
               aria-labelledby="booking-downpayment-title"
-              className={`my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl transition-all duration-300 ease-out motion-reduce:transform-none motion-reduce:transition-none ${
+              className={`my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white sm:p-6 transition-all duration-300 ease-out motion-reduce:transform-none motion-reduce:transition-none ${
                 modalVisible
                   ? "translate-y-0 scale-100 opacity-100"
                   : "translate-y-2 scale-[0.97] opacity-0"
               }`}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <h3 id="booking-downpayment-title" className="text-lg font-bold text-white">
+              <h3 id="booking-downpayment-title" className="text-lg font-bold text-slate-900 dark:text-white">
                 Downpayment
               </h3>
-              <p className="mt-1 text-sm text-slate-400">
+              <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 {modal.manual_details
                   ? "You added this event manually. The date is added to your schedule once you confirm the downpayment."
                   : "The client accepted the quote. The date is added to your schedule once you confirm the downpayment."}
               </p>
 
-              <div className="mt-4 space-y-1 rounded-lg bg-slate-500/10 p-3 text-sm">
-                <p className="font-semibold text-white">{modal.title}</p>
-                <p className="text-slate-400">
+              <div className="mt-4 space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="font-semibold text-slate-900 dark:text-white">{modal.title}</p>
+                <p className="text-slate-600 dark:text-slate-400">
                   {modal.client_name} · {modal.event_date} · {modal.start_time.slice(0, 5)}–
                   {modal.end_time.slice(0, 5)}
                 </p>
-                {modalTeam && <p className="text-xs text-slate-400">Team: {modalTeam}</p>}
+                {callTimeOf(modal) && (
+                  <p className="mt-1 text-xs text-sky-400">
+                    Photographer Call Time: {formatCallTime(callTimeOf(modal))}
+                  </p>
+                )}
+                {modalTeam && <p className="text-xs text-slate-600 dark:text-slate-400">Team: {modalTeam}</p>}
                 <div className="flex justify-between pt-2">
-                  <span className="text-slate-400">Talent fee</span>
+                  <span className="text-slate-600 dark:text-slate-400">Talent fee</span>
                   <span className="font-semibold">{peso(modalFee)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Downpayment to receive</span>
-                  <span className="font-semibold text-amber-600">{peso(modalDown)}</span>
+                  <span className="text-slate-600 dark:text-slate-400">Downpayment to receive</span>
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">{peso(modalDown)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Balance after the event</span>
+                  <span className="text-slate-600 dark:text-slate-400">Balance after the event</span>
                   <span className="font-semibold">{peso(Math.max(modalFee - modalDown, 0))}</span>
                 </div>
               </div>
 
               {!modal.manual_details && (
-                <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800/60 p-3">
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <h4 className="text-sm font-semibold text-white">Client payment receipt</h4>
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Client payment receipt</h4>
                     {modalPayment && (
                       <span
                         className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
@@ -1414,7 +1465,7 @@ export default function BookingRequests({
                   </div>
 
                   {!modalPayment ? (
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
                       The client has not submitted a payment receipt yet.
                     </p>
                   ) : (
@@ -1424,7 +1475,7 @@ export default function BookingRequests({
                           <img
                             src={modalReceiptUrl}
                             alt="Client's uploaded payment receipt"
-                            className="max-h-64 w-full rounded-lg border border-slate-700 bg-slate-900 object-contain"
+                            className="max-h-64 w-full rounded-lg border border-slate-200 bg-white object-contain dark:border-slate-700 dark:bg-slate-900"
                           />
                           <span className="mt-1 block text-center text-xs text-sky-400 hover:underline">
                             Open receipt in a new tab
@@ -1437,32 +1488,32 @@ export default function BookingRequests({
                       )}
 
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-md bg-slate-900/70 p-2">
+                        <div className="rounded-md bg-slate-100 p-2 dark:bg-slate-900/70">
                           <p className="text-slate-500">Submitted amount</p>
-                          <p className="mt-1 font-semibold text-white">{peso(modalPayment.amount)}</p>
+                          <p className="mt-1 font-semibold text-slate-900 dark:text-white">{peso(modalPayment.amount)}</p>
                         </div>
-                        <div className="rounded-md bg-slate-900/70 p-2">
+                        <div className="rounded-md bg-slate-100 p-2 dark:bg-slate-900/70">
                           <p className="text-slate-500">OCR amount</p>
-                          <p className="mt-1 font-semibold text-white">
+                          <p className="mt-1 font-semibold text-slate-900 dark:text-white">
                             {modalPayment.ocr_amount != null ? peso(modalPayment.ocr_amount) : "Not detected"}
                           </p>
                         </div>
-                        <div className="rounded-md bg-slate-900/70 p-2">
+                        <div className="rounded-md bg-slate-100 p-2 dark:bg-slate-900/70">
                           <p className="text-slate-500">Reference number</p>
                           <p className="mt-1 break-all font-semibold text-white">
                             {modalPayment.ocr_reference_number || "Not detected"}
                           </p>
                         </div>
-                        <div className="rounded-md bg-slate-900/70 p-2">
+                        <div className="rounded-md bg-slate-100 p-2 dark:bg-slate-900/70">
                           <p className="text-slate-500">Transaction date</p>
-                          <p className="mt-1 font-semibold text-white">
+                          <p className="mt-1 font-semibold text-slate-900 dark:text-white">
                             {displayOcrTransactionDate(modalPayment)}
                           </p>
                         </div>
                       </div>
 
                       {modalPayment.review_note && (
-                        <p className="mt-2 rounded-md bg-slate-900/70 p-2 text-xs text-slate-300">
+                        <p className="mt-2 rounded-md bg-slate-100 p-2 dark:bg-slate-900/70 text-xs text-slate-300">
                           Review note: {modalPayment.review_note}
                         </p>
                       )}
@@ -1472,7 +1523,7 @@ export default function BookingRequests({
                           <summary className="cursor-pointer text-xs font-medium text-sky-400">
                             View extracted OCR text
                           </summary>
-                          <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-950 p-2 text-[10px] text-slate-400">
+                          <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-100 p-2 text-[10px] text-slate-600 dark:bg-slate-950 dark:text-slate-400">
                             {modalPayment.ocr_extracted_text}
                           </pre>
                         </details>
@@ -1524,10 +1575,10 @@ export default function BookingRequests({
                 </div>
               )}
 
-              <label className="mt-4 block text-xs text-slate-400">Date received</label>
+              <label className="mt-4 block text-xs font-medium text-slate-600 dark:text-slate-400">Date received</label>
               <input
                 type="date"
-                className={`${field} mt-1`}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 value={paidDate}
                 onChange={(e) => setPaidDate(e.target.value)}
               />
@@ -1554,7 +1605,7 @@ export default function BookingRequests({
                   type="button"
                   onClick={closeModal}
                   disabled={!!modalBusy}
-                  className="text-xs text-slate-500 transition-colors duration-200 hover:text-white disabled:opacity-50"
+                  className="text-xs text-slate-500 transition-colors duration-200 hover:text-slate-900 disabled:opacity-50 dark:hover:text-white"
                 >
                   Close
                 </button>

@@ -1,8 +1,8 @@
+
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import "./Login.css";
-
 import ForgotPasswordModal from "./ForgotPasswordModal";
 
 import {
@@ -22,54 +22,60 @@ import {
 function Login() {
   const navigate = useNavigate();
 
-  const isSigningIn = useRef(false);
+  // ==============================
+  // PAGE TRANSITION ANIMATION
+  // ==============================
+  const [isLeaving, setIsLeaving] = useState(false);
+  const exitTimer = useRef(null);
 
-  const routeAuthenticatedUser = (session) => {
-    const accountType = session?.user?.user_metadata?.account_type;
-
-    if (accountType === "photographer") {
-      localStorage.setItem("lensflow_active_role", "photographer");
-      prepareAuthTransition();
-      navigate("/dashboard", { replace: true });
-      return;
-    }
-
-    if (accountType === "customer") {
-      localStorage.setItem("lensflow_active_role", "customer");
-      navigate("/customer", { replace: true });
-      return;
-    }
-
-    if (accountType === "both") {
-      const activeRole = localStorage.getItem("lensflow_active_role");
-
-      if (activeRole === "photographer") {
-        prepareAuthTransition();
-        navigate("/dashboard", { replace: true });
-      } else if (activeRole === "customer") {
-        navigate("/customer", { replace: true });
-      } else {
-        setShowRoleModal(true);
+  useEffect(() => {
+    return () => {
+      if (exitTimer.current !== null) {
+        clearTimeout(exitTimer.current);
       }
+    };
+  }, []);
 
+  const navigateWithExit = (to, options = {}) => {
+    if (exitTimer.current !== null) return;
+
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    if (reducedMotion) {
+      navigate(to, options);
       return;
     }
 
-    setError(
-      "This account has an invalid account type. Please contact the administrator."
-    );
+    setIsLeaving(true);
+
+    exitTimer.current = setTimeout(() => {
+      exitTimer.current = null;
+      navigate(to, options);
+    }, 280);
   };
 
-  const prepareAuthTransition = () => {
-    try {
-      sessionStorage.setItem(
-        "lensflow_auth_transition",
-        "true"
-      );
-    } catch {
-      // Continue even if session storage is unavailable.
+  const handleAnimatedLink = (e, destination) => {
+    if (
+      e.defaultPrevented ||
+      e.button !== 0 ||
+      e.ctrlKey ||
+      e.metaKey ||
+      e.shiftKey ||
+      e.altKey
+    ) {
+      return;
     }
+
+    e.preventDefault();
+    navigateWithExit(destination);
   };
+
+  // ==============================
+  // LOGIN STATES
+  // ==============================
+  const isSigningIn = useRef(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -83,17 +89,86 @@ function Login() {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [selectedRole, setSelectedRole] = useState("");
 
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] =
+    useState(false);
   const [sendingReset, setSendingReset] = useState(false);
 
+  // ==============================
+  // AUTHENTICATION TRANSITION
+  // ==============================
+  const prepareAuthTransition = () => {
+    try {
+      sessionStorage.setItem(
+        "lensflow_auth_transition",
+        "true"
+      );
+    } catch {
+      // Continue if storage is unavailable.
+    }
+  };
+
+  const routeAuthenticatedUser = (session) => {
+    const accountType =
+      session?.user?.user_metadata?.account_type;
+
+    if (accountType === "photographer") {
+      localStorage.setItem(
+        "lensflow_active_role",
+        "photographer"
+      );
+
+      prepareAuthTransition();
+      navigateWithExit("/dashboard", { replace: true });
+      return;
+    }
+
+    if (accountType === "customer") {
+      localStorage.setItem(
+        "lensflow_active_role",
+        "customer"
+      );
+
+      navigateWithExit("/customer", { replace: true });
+      return;
+    }
+
+    if (accountType === "both") {
+      const activeRole = localStorage.getItem(
+        "lensflow_active_role"
+      );
+
+      if (activeRole === "photographer") {
+        prepareAuthTransition();
+        navigateWithExit("/dashboard", { replace: true });
+      } else if (activeRole === "customer") {
+        navigateWithExit("/customer", { replace: true });
+      } else {
+        setShowRoleModal(true);
+      }
+
+      return;
+    }
+
+    setError(
+      "This account has an invalid account type. Please contact the administrator."
+    );
+  };
+
+  // ==============================
+  // EXISTING SESSION
+  // ==============================
   useEffect(() => {
     let cancelled = false;
 
     const checkExistingSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error: sessionError } =
+        await supabase.auth.getSession();
 
-      if (error) {
-        console.error("Session check failed:", error);
+      if (sessionError) {
+        console.error(
+          "Session check failed:",
+          sessionError
+        );
         return;
       }
 
@@ -104,27 +179,32 @@ function Login() {
 
     checkExistingSession();
 
-    // Also detect logins performed in another browser tab.
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (
-          !cancelled &&
-          !isSigningIn.current &&
-          session &&
-          event === "SIGNED_IN"
-        ) {
-          routeAuthenticatedUser(session);
+    const { data: authListener } =
+      supabase.auth.onAuthStateChange(
+        (event, session) => {
+          if (
+            !cancelled &&
+            !isSigningIn.current &&
+            session &&
+            event === "SIGNED_IN"
+          ) {
+            routeAuthenticatedUser(session);
+          }
         }
-      }
-    );
+      );
 
     return () => {
       cancelled = true;
       authListener.subscription.unsubscribe();
     };
+
+    // Runs on mount to check the current session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Validate the fields before opening the role-selection modal.
+  // ==============================
+  // LOGIN SUBMISSION
+  // ==============================
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -136,7 +216,9 @@ function Login() {
 
     if (!normalizedEmail) {
       errors.email = "Please enter your email address.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    } else if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
+    ) {
       errors.email = "Please enter a valid email address.";
     }
 
@@ -152,27 +234,27 @@ function Login() {
     setLoading(true);
 
     try {
-      // Check whether another account is already authenticated.
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
+      const {
+        data: sessionData,
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (sessionError) {
-        throw sessionError;
-      }
+      if (sessionError) throw sessionError;
 
       if (sessionData.session) {
         routeAuthenticatedUser(sessionData.session);
         return;
       }
 
-      // Only authenticate if there is no existing session.
       isSigningIn.current = true;
 
-      const { data, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
+      const {
+        data,
+        error: signInError,
+      } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
       if (signInError) {
         setError(
@@ -183,28 +265,36 @@ function Login() {
         return;
       }
 
-      const accountType = data.user?.user_metadata?.account_type;
+      const accountType =
+        data.user?.user_metadata?.account_type;
 
-      // Single-role accounts go directly to their dashboard.
       if (accountType === "photographer") {
+        localStorage.setItem(
+          "lensflow_active_role",
+          "photographer"
+        );
+
         prepareAuthTransition();
-        navigate("/dashboard");
+        navigateWithExit("/dashboard");
         return;
       }
 
       if (accountType === "customer") {
-        navigate("/customer");
+        localStorage.setItem(
+          "lensflow_active_role",
+          "customer"
+        );
+
+        navigateWithExit("/customer");
         return;
       }
 
-      // Dual-role accounts choose which side to enter.
       if (accountType === "both") {
         setSelectedRole("");
         setShowRoleModal(true);
         return;
       }
 
-      // Reject accounts with missing or unsupported account types.
       await supabase.auth.signOut();
 
       setError(
@@ -212,39 +302,63 @@ function Login() {
       );
     } catch (err) {
       console.error("Login failed:", err);
-      setError("Something went wrong while signing in. Please try again.");
+      setError(
+        "Something went wrong while signing in. Please try again."
+      );
     } finally {
       isSigningIn.current = false;
       setLoading(false);
     }
   };
 
-  // Authenticate and verify that the selected role matches the account.
+  // ==============================
+  // ROLE SELECTION
+  // ==============================
   const handleRoleLogin = () => {
     if (!selectedRole) {
-      setError("Please choose Photographer or Customer to continue.");
+      setError(
+        "Please choose Photographer or Customer to continue."
+      );
       return;
     }
 
     if (selectedRole === "photographer") {
-      localStorage.setItem("lensflow_active_role", "photographer");
+      localStorage.setItem(
+        "lensflow_active_role",
+        "photographer"
+      );
+
       setShowRoleModal(false);
       prepareAuthTransition();
-      navigate("/dashboard");
+      navigateWithExit("/dashboard");
       return;
     }
 
     if (selectedRole === "customer") {
-      localStorage.setItem("lensflow_active_role", "customer");
+      localStorage.setItem(
+        "lensflow_active_role",
+        "customer"
+      );
+
       setShowRoleModal(false);
-      navigate("/customer");
+      navigateWithExit("/customer");
       return;
     }
 
     setError("Please select a valid account type.");
   };
 
-  // Forgot-password flow.
+  const closeRoleModal = () => {
+    if (!loading) {
+      setShowRoleModal(false);
+      setSelectedRole("");
+      setError("");
+    }
+  };
+
+  // ==============================
+  // FORGOT PASSWORD
+  // ==============================
   const handleForgotPassword = async (resetEmail) => {
     setSendingReset(true);
 
@@ -253,16 +367,16 @@ function Login() {
         await supabase.auth.resetPasswordForEmail(
           resetEmail,
           {
-            redirectTo: `${window.location.origin}/reset-password`,
+            redirectTo:
+              `${window.location.origin}/reset-password`,
           }
         );
 
       if (resetError) {
-        console.error("Password reset failed:", resetError);
-
         return {
           success: false,
-          error: "Unable to send password reset email. Please try again.",
+          error:
+            "Unable to send password reset email. Please try again.",
         };
       }
 
@@ -279,14 +393,6 @@ function Login() {
     }
   };
 
-  const closeRoleModal = () => {
-    if (!loading) {
-      setShowRoleModal(false);
-      setSelectedRole("");
-      setError("");
-    }
-  };
-
   const clearFieldError = (field) => {
     setFieldErrors((prev) => ({
       ...prev,
@@ -294,11 +400,26 @@ function Login() {
     }));
   };
 
+  // ==============================
+  // ANIMATION CLASSES
+  // ==============================
+  const pageAnimation = isLeaving
+    ? "animate-[lf-auth-exit_280ms_ease-in_both]"
+    : "animate-[lf-auth-enter_520ms_ease-out_both]";
+
+  const staggerAnimation =
+    "animate-[lf-auth-rise_480ms_ease-out_both]";
+
+  // ==============================
+  // LOGIN INTERFACE
+  // ==============================
   return (
     <div className="login-page">
-      {/* Back to Landing Page */}
+
+      {/* Back to Home */}
       <Link
         to="/"
+        onClick={(e) => handleAnimatedLink(e, "/")}
         className="
           fixed left-5 top-5 z-[100]
           inline-flex items-center gap-2
@@ -314,10 +435,16 @@ function Login() {
         <FaArrowLeft />
         Back to Home
       </Link>
-      <div className="login-container">
 
-        {/* Login heading */}
-        <div className="login-header">
+      {/* Animated Login Container */}
+      <div
+        className={`login-container ${pageAnimation} motion-reduce:animate-none`}
+      >
+        {/* Header */}
+        <div
+          className={`login-header ${staggerAnimation}
+            [animation-delay:40ms] motion-reduce:animate-none`}
+        >
           <div className="login-brand">
             <FaCameraRetro className="login-icon" />
             <h1>LensFlow Studio</h1>
@@ -326,9 +453,13 @@ function Login() {
           <p>Sign in to manage your studio</p>
         </div>
 
-        {/* Login form */}
-        <div className="login-card">
+        {/* Login Form */}
+        <div
+          className={`login-card ${staggerAnimation}
+            [animation-delay:95ms] motion-reduce:animate-none`}
+        >
           <form onSubmit={handleSubmit} noValidate>
+
             {error && !showRoleModal && (
               <div className="login-error" role="alert">
                 {error}
@@ -343,7 +474,9 @@ function Login() {
 
               <div
                 className={`input-box ${
-                  fieldErrors.email ? "input-box-invalid" : ""
+                  fieldErrors.email
+                    ? "input-box-invalid"
+                    : ""
                 }`}
               >
                 <FaEnvelope aria-hidden="true" />
@@ -360,20 +493,11 @@ function Login() {
                   }}
                   autoComplete="email"
                   aria-invalid={Boolean(fieldErrors.email)}
-                  aria-describedby={
-                    fieldErrors.email
-                      ? "login-email-error"
-                      : undefined
-                  }
                 />
               </div>
 
               {fieldErrors.email && (
-                <p
-                  className="field-error"
-                  id="login-email-error"
-                  role="alert"
-                >
+                <p className="field-error" role="alert">
                   {fieldErrors.email}
                 </p>
               )}
@@ -387,7 +511,9 @@ function Login() {
 
               <div
                 className={`input-box login-password-input-box ${
-                  fieldErrors.password ? "input-box-invalid" : ""
+                  fieldErrors.password
+                    ? "input-box-invalid"
+                    : ""
                 }`}
               >
                 <FaLock aria-hidden="true" />
@@ -404,11 +530,6 @@ function Login() {
                   }}
                   autoComplete="current-password"
                   aria-invalid={Boolean(fieldErrors.password)}
-                  aria-describedby={
-                    fieldErrors.password
-                      ? "login-password-error"
-                      : undefined
-                  }
                 />
 
                 <button
@@ -418,39 +539,31 @@ function Login() {
                     setShowPassword((prev) => !prev)
                   }
                   aria-label={
-                    showPassword ? "Hide password" : "Show password"
-                  }
-                  aria-pressed={showPassword}
-                  title={
-                    showPassword ? "Hide password" : "Show password"
+                    showPassword
+                      ? "Hide password"
+                      : "Show password"
                   }
                 >
-                  {showPassword ? (
-                    <FaEyeSlash aria-hidden="true" />
-                  ) : (
-                    <FaEye aria-hidden="true" />
-                  )}
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
 
               {fieldErrors.password && (
-                <p
-                  className="field-error"
-                  id="login-password-error"
-                  role="alert"
-                >
+                <p className="field-error" role="alert">
                   {fieldErrors.password}
                 </p>
               )}
             </div>
 
-            {/* Remember me and forgot password */}
+            {/* Remember and Forgot */}
             <div className="login-options">
               <label className="remember-label">
                 <input
                   type="checkbox"
                   checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
+                  onChange={(e) =>
+                    setRemember(e.target.checked)
+                  }
                 />
                 Remember Me
               </label>
@@ -458,37 +571,47 @@ function Login() {
               <button
                 type="button"
                 onClick={() => setShowForgotPassword(true)}
-                className="forgot-btn bg-transparent hover:!bg-transparent focus:!bg-transparent active:!bg-transparent"
+                className="forgot-btn bg-transparent hover:!bg-transparent"
               >
                 Forgot Password?
               </button>
             </div>
 
-            {/* Submit */}
+            {/* Login Button */}
             <button
               type="submit"
               className="login-btn"
-              disabled={loading}
+              disabled={loading || isLeaving}
             >
               <FaSignInAlt aria-hidden="true" />
-              Sign In
+              {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
 
           <p className="signup-prompt">
             Don't have an account?{" "}
-            <Link to="/signup" className="signup-link">
+            <Link
+              to="/signup"
+              className="signup-link"
+              onClick={(e) =>
+                handleAnimatedLink(e, "/signup")
+              }
+            >
               Create one
             </Link>
           </p>
         </div>
 
-        <div className="login-footer">
+        {/* Footer */}
+        <div
+          className={`login-footer ${staggerAnimation}
+            [animation-delay:160ms] motion-reduce:animate-none`}
+        >
           © 2026 LensFlow Studio Management
         </div>
       </div>
 
-      {/* Role selection modal */}
+      {/* Role Selection Modal */}
       {showRoleModal && (
         <div
           className="role-modal-backdrop"
@@ -503,7 +626,6 @@ function Login() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="role-modal-title"
-            aria-describedby="role-modal-description"
           >
             <button
               type="button"
@@ -516,33 +638,34 @@ function Login() {
             </button>
 
             <div className="role-modal-heading-icon">
-              <FaCameraRetro aria-hidden="true" />
+              <FaCameraRetro />
             </div>
 
             <h2 id="role-modal-title">
               Welcome to LensFlow
             </h2>
 
-            <p id="role-modal-description">
-              How would you like to sign in?
-            </p>
+            <p>How would you like to sign in?</p>
 
             <div className="role-options">
-              {/* Photographer */}
+
               <button
                 type="button"
                 className={`role-option ${
-                  selectedRole === "photographer" ? "selected" : ""
+                  selectedRole === "photographer"
+                    ? "selected"
+                    : ""
                 }`}
                 onClick={() => {
                   setSelectedRole("photographer");
                   setError("");
                 }}
-                aria-pressed={selectedRole === "photographer"}
-                disabled={loading}
+                aria-pressed={
+                  selectedRole === "photographer"
+                }
               >
                 <span className="role-option-icon">
-                  <FaCamera aria-hidden="true" />
+                  <FaCamera />
                 </span>
 
                 <span className="role-option-copy">
@@ -558,21 +681,23 @@ function Login() {
                 />
               </button>
 
-              {/* Customer */}
               <button
                 type="button"
                 className={`role-option ${
-                  selectedRole === "customer" ? "selected" : ""
+                  selectedRole === "customer"
+                    ? "selected"
+                    : ""
                 }`}
                 onClick={() => {
                   setSelectedRole("customer");
                   setError("");
                 }}
-                aria-pressed={selectedRole === "customer"}
-                disabled={loading}
+                aria-pressed={
+                  selectedRole === "customer"
+                }
               >
                 <span className="role-option-icon">
-                  <FaUser aria-hidden="true" />
+                  <FaUser />
                 </span>
 
                 <span className="role-option-copy">
@@ -603,9 +728,7 @@ function Login() {
             >
               {loading ? "Signing in..." : "Continue"}
 
-              {!loading && (
-                <FaArrowRight aria-hidden="true" />
-              )}
+              {!loading && <FaArrowRight />}
             </button>
 
             <p className="role-modal-footnote">
@@ -615,7 +738,7 @@ function Login() {
         </div>
       )}
 
-      {/* Forgot password modal */}
+      {/* Forgot Password Modal */}
       {showForgotPassword && (
         <ForgotPasswordModal
           onClose={() => {

@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { FaRegCommentDots, FaSearch } from "react-icons/fa";
+import { FaRegCommentDots, FaSearch, FaTrash } from "react-icons/fa";
 import { supabase } from "../lib/supabaseClient";
 import ChatThread, { ChatAvatar, ReadTick, timeLabel } from "../components/Chat/ChatThread";
 
 /*
   Photographer inbox: conversation list on the left, chat on the right.
   Uses the `messages` table from messages.sql.
-  Client names come from the `profiles` table (any of full_name, name,
-  display_name, username or email). Unknown clients show as "Client".
+  Client full names come from their registration metadata through a
+  restricted Supabase RPC. Falls back to email, then "Client".
+  Delete: either hide the conversation (messages kept) or delete it with all its messages.
 */
 
 const listTime = (iso) => {
@@ -18,9 +19,6 @@ const listTime = (iso) => {
     : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
-const pickName = (row) =>
-  row.full_name || row.name || row.display_name || row.username || row.email || "Client";
-
 export default function PhotographersInbox() {
   // The dashboard layout keeps its loading screen up until the page says it's ready.
   const outlet = useOutletContext() || {};
@@ -28,25 +26,53 @@ export default function PhotographersInbox() {
 
   const [userId, setUserId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [names, setNames] = useState({});
+  const [clientIdentities, setClientIdentities] = useState({});
   const [activeId, setActiveId] = useState(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [hidden, setHidden] = useState({}); // client_id -> timestamp of last msg when hidden
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!loading && typeof reportPageReady === "function") reportPageReady(routeKey);
   }, [loading, reportPageReady, routeKey]);
 
-  const loadNames = useCallback(async (ids) => {
-    if (!ids.length) return;
-    const { data, error: nameError } = await supabase.from("profiles").select("*").in("id", ids);
-    if (nameError) return console.warn("Couldn't load client names:", nameError.message);
-    setNames((prev) => ({
+  // Look up registered names and emails for participants in this
+  // photographer's conversations. The server verifies auth.uid().
+  const loadClientIdentities = useCallback(async (ids) => {
+    const clientIds = [...new Set(ids.filter(Boolean))];
+    if (!clientIds.length) return;
+
+    const { data, error: identityError } = await supabase.rpc(
+      "inbox_client_identities",
+      { p_client_ids: clientIds }
+    );
+
+    if (identityError) {
+      console.warn("Couldn't load client names:", identityError.message);
+      return;
+    }
+
+    setClientIdentities((prev) => ({
       ...prev,
-      ...Object.fromEntries((data || []).map((p) => [p.id, pickName(p)])),
+      ...Object.fromEntries(
+        (data || [])
+          .filter((row) => row.client_id)
+          .map((row) => [
+            row.client_id,
+            {
+              name: row.display_name || row.email || "Client",
+              email: row.email || "",
+            },
+          ])
+      ),
     }));
   }, []);
+
+  const clientName = (id) => clientIdentities[id]?.name || "Client";
+  const clientEmail = (id) => clientIdentities[id]?.email || "";
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -56,7 +82,17 @@ export default function PhotographersInbox() {
     });
   }, []);
 
-  // Load everything once, then listen for new messages and read receipts.
+  // Conversations this photographer removed from the inbox (messages kept)
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      setHidden(JSON.parse(localStorage.getItem(`hiddenConvos:${userId}`) || "{}"));
+    } catch {
+      setHidden({});
+    }
+  }, [userId]);
+
+  // Load everything once, then listen for new messages, read receipts and deletions.
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
@@ -78,7 +114,7 @@ export default function PhotographersInbox() {
         setError("Couldn't load your inbox. Check your connection and try again.");
       } else {
         setMessages((data || []).reverse());
-        loadNames([...new Set((data || []).map((m) => m.client_id))]);
+        loadClientIdentities([...new Set((data || []).map((m) => m.client_id))]);
       }
       setLoading(false);
     })();
@@ -89,11 +125,17 @@ export default function PhotographersInbox() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter }, (payload) => {
         const row = payload.new;
         setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
-        loadNames([row.client_id]);
+        loadClientIdentities([row.client_id]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter }, (payload) => {
         const row = payload.new;
         setMessages((prev) => prev.map((m) => (m.id === row.id ? { ...m, read_at: row.read_at } : m)));
+      })
+      // DELETE events can't be filtered by photographer_id, but we only remove ids we already have
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (payload) => {
+        const id = payload.old?.id;
+        if (!id) return;
+        setMessages((prev) => prev.filter((m) => m.id !== id));
       })
       .subscribe();
 
@@ -101,7 +143,7 @@ export default function PhotographersInbox() {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [userId, loadNames]);
+  }, [userId, loadClientIdentities]);
 
   // One row per client: latest message and unread count, newest first.
   const conversations = useMemo(() => {
@@ -112,18 +154,26 @@ export default function PhotographersInbox() {
       if (m.sender_id !== userId && !m.read_at) c.unread += 1;
       map.set(m.client_id, c);
     }
-    return [...map.values()].sort((a, b) => new Date(b.last.created_at) - new Date(a.last.created_at));
-  }, [messages, userId]);
+    return [...map.values()]
+      .filter((c) => {
+        const h = hidden[c.clientId];
+        if (!h) return true;
+        // show it again only if a newer message arrived after it was hidden
+        return new Date(c.last.created_at).getTime() > h;
+      })
+      .sort((a, b) => new Date(b.last.created_at) - new Date(a.last.created_at));
+  }, [messages, userId, hidden]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return conversations;
     return conversations.filter(
       (c) =>
-        (names[c.clientId] || "client").toLowerCase().includes(q) ||
+        (clientIdentities[c.clientId]?.name || "Client").toLowerCase().includes(q) ||
+        (clientIdentities[c.clientId]?.email || "").toLowerCase().includes(q) ||
         c.last.body.toLowerCase().includes(q)
     );
-  }, [conversations, names, query]);
+  }, [conversations, clientIdentities, query]);
 
   const thread = useMemo(() => messages.filter((m) => m.client_id === activeId), [messages, activeId]);
 
@@ -160,7 +210,59 @@ export default function PhotographersInbox() {
     return true;
   };
 
-  const activeName = names[activeId] || "Client";
+  const persistHidden = (next) => {
+    setHidden(next);
+    try {
+      localStorage.setItem(`hiddenConvos:${userId}`, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Option 1: remove from inbox, keep messages
+  const hideConversation = () => {
+    const last = thread[thread.length - 1];
+    const stamp = last ? new Date(last.created_at).getTime() : 1;
+    persistHidden({ ...hidden, [activeId]: stamp });
+    setConfirmOpen(false);
+    setActiveId(null);
+  };
+
+  // Option 2: remove from inbox and permanently delete all messages
+  const deleteConversationAndMessages = async () => {
+    if (!userId || !activeId) return;
+    setDeleting(true);
+    setError("");
+    const hadMessages = thread.length > 0;
+
+    const { data, error: delError } = await supabase
+      .from("messages")
+      .delete()
+      .eq("photographer_id", userId)
+      .eq("client_id", activeId)
+      .select("id");
+
+    setDeleting(false);
+    setConfirmOpen(false);
+
+    if (delError || (hadMessages && (!data || data.length === 0))) {
+      console.error("Failed to delete messages:", delError);
+      setError(
+        delError
+          ? `Couldn't delete messages: ${delError.message}`
+          : "Couldn't delete messages (permission denied)."
+      );
+      return;
+    }
+
+    setMessages((prev) => prev.filter((m) => m.client_id !== activeId));
+    const { [activeId]: _removed, ...rest } = hidden;
+    persistHidden(rest);
+    setActiveId(null);
+  };
+
+  const activeName = clientName(activeId);
+  const activeEmail = clientEmail(activeId);
   const panel =
     "min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50 dark:border-slate-700/80 dark:bg-[#0B1628] dark:shadow-black/10";
 
@@ -223,7 +325,10 @@ export default function PhotographersInbox() {
                   <li key={c.clientId}>
                     <button
                       type="button"
-                      onClick={() => setActiveId(c.clientId)}
+                      onClick={() => {
+                        setError("");
+                        setActiveId(c.clientId);
+                      }}
                       aria-current={active}
                       className={`flex w-full items-center gap-3 border-l-[3px] px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400 dark:hover:bg-slate-800/60 ${
                         active
@@ -231,11 +336,14 @@ export default function PhotographersInbox() {
                           : "border-transparent"
                       }`}
                     >
-                      <ChatAvatar name={names[c.clientId]} className="h-11 w-11" />
+                      <ChatAvatar name={clientName(c.clientId)} className="h-11 w-11" />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-                            {names[c.clientId] || "Client"}
+                          <span
+                            className="truncate text-sm font-semibold text-slate-900 dark:text-white"
+                            title={clientName(c.clientId)}
+                          >
+                            {clientName(c.clientId)}
                           </span>
                           <span className="shrink-0 text-[11px] text-slate-500">
                           {listTime(c.last.created_at)}
@@ -269,25 +377,95 @@ export default function PhotographersInbox() {
       </aside>
 
       {/* Chat */}
-      <section className={`${activeId ? "block" : "hidden md:block"} ${panel}`}>
+      <section className={`${activeId ? "flex flex-col" : "hidden md:block"} ${panel}`}>
         {!activeId ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-slate-500">
             <FaRegCommentDots className="text-3xl text-slate-400 dark:text-slate-600" />
             Select a conversation to start chatting.
           </div>
         ) : (
-          <ChatThread
-            key={activeId}
-            name={activeName}
-            subtitle="Client"
-            messages={thread}
-            myId={userId}
-            onSend={send}
-            onBack={() => setActiveId(null)}
-            error={error}
-          />
+          <>
+            <div className="flex items-center justify-end border-b border-slate-200 px-3 py-1.5 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(true)}
+                className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-slate-500 transition hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+              >
+                <FaTrash className="text-[11px]" /> Delete
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ChatThread
+                key={activeId}
+                name={activeName}
+                subtitle={activeEmail && activeEmail !== activeName ? activeEmail : "Client"}
+                messages={thread}
+                myId={userId}
+                onSend={send}
+                onBack={() => setActiveId(null)}
+                error={error}
+              />
+            </div>
+          </>
         )}
       </section>
+
+      {/* Delete confirmation */}
+      {confirmOpen && activeId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => !deleting && setConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-[#0B1628]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Delete conversation with {activeName}?
+            </h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Choose what you'd like to delete.</p>
+
+            <div className="mt-4 space-y-2">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={hideConversation}
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-white/[0.04]"
+              >
+                <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Delete conversation
+                </span>
+                <span className="block text-xs text-slate-500">
+                  Removes it from your inbox. Messages are kept and it returns if a new message arrives.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={deleteConversationAndMessages}
+                className="w-full rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-left transition hover:bg-red-100 disabled:opacity-50 dark:border-red-500/40 dark:bg-red-500/10 dark:hover:bg-red-500/20"
+              >
+                <span className="block text-sm font-semibold text-red-700 dark:text-red-300">
+                  {deleting ? "Deleting..." : "Delete conversation and messages"}
+                </span>
+                <span className="block text-xs text-red-600/80 dark:text-red-300/70">
+                  Permanently deletes all messages. This also removes them for {activeName} and can't be undone.
+                </span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => setConfirmOpen(false)}
+              className="mt-3 w-full rounded-full py-2 text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

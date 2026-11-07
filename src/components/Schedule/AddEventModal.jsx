@@ -424,6 +424,7 @@ function AddEventModal({
     location: emptyLocation(),
     gears: [],
     date: "",
+    callTime: "",
     start: "",
     end: "",
     notes: "",
@@ -650,6 +651,7 @@ function AddEventModal({
           (startDate
             ? startDate.toISOString().split("T")[0]
             : ""),
+        callTime: editingEvent.call_time || "",
         start: startDate
           ? startDate.toTimeString().slice(0, 5)
           : "",
@@ -1721,7 +1723,7 @@ function AddEventModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm text-slate-600 dark:text-slate-400">
                   Date <Req />
@@ -1735,6 +1737,19 @@ function AddEventModal({
                   max={maxDate}
                   className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-600 dark:text-slate-400">
+                  Photographer Call Time <span className="text-xs text-slate-400">(Optional)</span>
+                </label>
+                <input
+                  type="time"
+                  name="callTime"
+                  value={form.callTime}
+                  onChange={handleChange}
+                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 outline-none transition focus:border-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
 

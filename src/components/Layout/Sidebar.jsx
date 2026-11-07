@@ -280,15 +280,8 @@ function Sidebar({ isOpen, onToggle, onClose }) {
             </button>
           </div>
 
-          {/* Main navigation. Keep scrolling, but don't reserve a scrollbar strip. */}
-          <AnimatedNavLinks
-            links={mainLinks}
-            onNavigate={handleNavClick}
-            className="sidebar-nav-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-4"
-          />
-
-          {/* Bottom account area */}
-          <div className="shrink-0 border-t border-slate-200 dark:border-slate-800">
+          {/* Account shortcut below the LensFlow header. */}
+          <div className="shrink-0 border-b border-slate-200 py-3 dark:border-slate-800">
             {/* Profile account row: uses registration full_name, not Profile.username */}
             <NavLink
               to="/dashboard/profile"
@@ -313,6 +306,18 @@ function Sidebar({ isOpen, onToggle, onClose }) {
                 </span>
               </span>
             </NavLink>
+
+          </div>
+
+          {/* Main navigation. Keep scrolling, but don't reserve a scrollbar strip. */}
+          <AnimatedNavLinks
+            links={mainLinks}
+            onNavigate={handleNavClick}
+            className="sidebar-nav-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-4"
+          />
+
+          {/* Bottom actions */}
+          <div className="shrink-0 border-t border-slate-200 dark:border-slate-800">
 
             <AnimatedNavLinks
               links={bottomLinks}

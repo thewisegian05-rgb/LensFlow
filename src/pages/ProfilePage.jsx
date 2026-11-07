@@ -433,18 +433,31 @@ export default function Profile() {
 
         if (cancelled) return;
 
+        // Use the photographer's sign-up email as the initial Personal Email.
+        // Keep a previously saved Personal Email if the photographer set one.
+        const savedInfo = {
+          ...DEFAULT_PROFILE_INFO,
+          ...(bundle.profile?.profileInfo || {}),
+        };
+        const info = {
+          ...savedInfo,
+          personalEmail:
+            String(savedInfo.personalEmail || "").trim() ||
+            user.email?.trim() ||
+            "",
+        };
+
+        // Remember what was actually stored, not the autofilled value.
+        // This allows the existing autosave effect to persist the email.
+        lastSavedInfo.current = JSON.stringify(savedInfo);
+        setProfileInfo(info);
+
         if (bundle.profile) {
           if (bundle.profile.username != null) setUsername(bundle.profile.username);
           if (bundle.profile.bio != null) setBio(bundle.profile.bio);
 
-          const info = { ...DEFAULT_PROFILE_INFO, ...bundle.profile.profileInfo };
-          lastSavedInfo.current = JSON.stringify(info);
-          setProfileInfo(info);
-
           avatarPathRef.current = bundle.profile.avatarPath;
           setProfilePicture(bundle.profile.avatarUrl);
-        } else {
-          lastSavedInfo.current = JSON.stringify(DEFAULT_PROFILE_INFO);
         }
 
         setCarouselAlbums(bundle.albums);

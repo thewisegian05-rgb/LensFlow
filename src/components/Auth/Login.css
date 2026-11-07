@@ -1109,3 +1109,86 @@ body {
   line-height: 1.6;
   color: #64748b;
 }
+
+/* ==========================================
+   LENSFLOW LOGIN & SIGN UP ANIMATIONS
+   ========================================== */
+
+/* Smooth entrance for the whole form */
+@keyframes lf-auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+
+to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Gentle stagger for header, card and footer */
+@keyframes lf-auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth exit before navigation */
+@keyframes lf-auth-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.985);
+  }
+}
+
+/* Smooth interaction for the input boxes */
+.login-page .input-box {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.login-page .input-box:not(.input-box-invalid):focus-within {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+
+/* Smooth button hover */
+.login-page .login-btn {
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.login-page .login-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 18px rgba(14, 165, 233, 0.16);
+}
+
+/* Smooth interactive links */
+.login-page .signup-link {
+  transition: color 180ms ease;
+}
+
+/* Respect the user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .login-page .input-box,
+  .login-page .login-btn,
+  .login-page .signup-link {
+    transition: none !important;
+  }
+}

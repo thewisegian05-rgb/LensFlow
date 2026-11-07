@@ -220,6 +220,38 @@ function SignUpPage() {
     hasConfirmPassword && form.password === form.confirmPassword;
   const passwordsDoNotMatch =
     hasConfirmPassword && form.password !== form.confirmPassword;
+  // Shared checklist: repositioned for Customer accounts, without changing validation.
+  const passwordChecklist = (
+    <div
+      className="signup-password-requirements"
+      aria-live="polite"
+    >
+      <p className="signup-password-requirements-title">
+        Password must contain:
+      </p>
+      <ul>
+        {passwordRequirements.map((requirement) => (
+          <li
+            key={requirement.label}
+            className={
+              requirement.met
+                ? "requirement-met"
+                : "requirement-unmet"
+            }
+          >
+            <span
+              className="signup-requirement-icon"
+              aria-hidden="true"
+            >
+              {requirement.met ? "✓" : "×"}
+            </span>
+            <span>{requirement.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -540,8 +572,8 @@ function SignUpPage() {
                   </div>
                 )}
 
-                {/* Email */}
-                <div className="input-group">
+                {/* Email - full-width for Customer accounts */}
+                <div className={`input-group ${form.accountType === "customer" ? "sm:col-span-2" : ""}`}>
                   <label htmlFor="email">Email Address</label>
                   <div
                     className={`input-box ${
@@ -630,34 +662,7 @@ function SignUpPage() {
                       )}
                     </button>
                   </div>
-                  <div
-                    className="signup-password-requirements"
-                    aria-live="polite"
-                  >
-                    <p className="signup-password-requirements-title">
-                      Password must contain:
-                    </p>
-                    <ul>
-                      {passwordRequirements.map((requirement) => (
-                        <li
-                          key={requirement.label}
-                          className={
-                            requirement.met
-                              ? "requirement-met"
-                              : "requirement-unmet"
-                          }
-                        >
-                          <span
-                            className="signup-requirement-icon"
-                            aria-hidden="true"
-                          >
-                            {requirement.met ? "✓" : "×"}
-                          </span>
-                          <span>{requirement.label}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {form.accountType !== "customer" && passwordChecklist}
                   {errors.password && (
                     <small
                       id="password-error"
@@ -754,6 +759,13 @@ function SignUpPage() {
                     </small>
                   )}
                 </div>
+
+                {/* Customer: checklist below both password fields. */}
+                {form.accountType === "customer" && (
+                  <div className="sm:col-span-2">
+                    {passwordChecklist}
+                  </div>
+                )}
 
                 {/* Submit */}
                 <button

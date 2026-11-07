@@ -175,7 +175,7 @@ export default function ReviewsTab() {
 
       {/* Rating overview */}
       <section className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-4 sm:p-5">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-[125px_1fr] sm:items-center sm:gap-5">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-[125px_minmax(0,1fr)] sm:items-center sm:gap-5">
 
           {/* Average rating */}
           <div className="flex flex-col items-center justify-center border-b border-slate-700/60 pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-5">
@@ -192,8 +192,9 @@ export default function ReviewsTab() {
             </p>
           </div>
 
-          {/* Rating distribution */}
-          <div className="space-y-2">
+          {/* Rating distribution: fixed columns keep the stars and counts
+              separate from the progress bars on desktop and mobile. */}
+          <div className="min-w-0 space-y-3">
             {ratingCounts.map(({ rating, count }) => {
               const percentage = reviews.length
                 ? (count / reviews.length) * 100
@@ -202,13 +203,18 @@ export default function ReviewsTab() {
               return (
                 <div
                   key={rating}
-                  className="flex items-center gap-2"
+                  className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)_36px] items-center gap-2 sm:gap-3"
                 >
-                  <div className="flex w-[65px] shrink-0 items-center gap-1">
-                    <div className="flex items-center gap-px text-[15px]">
+                  {/* Stars and count have enough reserved width. */}
+                  <div className="flex items-center gap-1 whitespace-nowrap">
+                    <div
+                      className="flex shrink-0 items-center gap-px text-[15px] leading-none"
+                      aria-label={`${rating} out of 5 stars`}
+                    >
                       {Array.from({ length: 5 }, (_, i) => (
                         <span
                           key={i}
+                          aria-hidden="true"
                           className={
                             i < rating
                               ? "text-amber-400"
@@ -219,20 +225,27 @@ export default function ReviewsTab() {
                         </span>
                       ))}
                     </div>
-
-                    <span className="text-[10px] text-slate-400">
+                    <span className="shrink-0 text-[11px] text-slate-400 tabular-nums">
                       ({count})
                     </span>
                   </div>
 
-                  <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-800">
+                  {/* Bar can shrink without sliding beneath the stars. */}
+                  <div
+                    className="h-2 min-w-0 overflow-hidden rounded-full bg-slate-800"
+                    role="progressbar"
+                    aria-label={`${rating}-star reviews`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(percentage)}
+                  >
                     <div
                       className="h-full rounded-full bg-sky-400 transition-all duration-500"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
 
-                  <span className="w-7 shrink-0 text-right text-[10px] text-slate-400 tabular-nums">
+                  <span className="text-right text-[11px] text-slate-400 tabular-nums">
                     {Math.round(percentage)}%
                   </span>
                 </div>

@@ -7,8 +7,8 @@ import ChatThread, { ChatAvatar, ReadTick, timeLabel } from "../components/Chat/
 /*
   Photographer inbox: conversation list on the left, chat on the right.
   Uses the `messages` table from messages.sql.
-  Client names come from the `profiles` table (any of full_name, name,
-  display_name, username or email). Unknown clients show as "Client".
+  Client full names come from their registration metadata through a
+  restricted Supabase RPC. Falls back to email, then "Client".
   Delete: either hide the conversation (messages kept) or delete it with all its messages.
 */
 
@@ -19,9 +19,6 @@ const listTime = (iso) => {
     : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
-const pickName = (row) =>
-  row.full_name || row.name || row.display_name || row.username || row.email || "Client";
-
 export default function PhotographersInbox() {
   // The dashboard layout keeps its loading screen up until the page says it's ready.
   const outlet = useOutletContext() || {};
@@ -29,7 +26,7 @@ export default function PhotographersInbox() {
 
   const [userId, setUserId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [names, setNames] = useState({});
+  const [clientIdentities, setClientIdentities] = useState({});
   const [activeId, setActiveId] = useState(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -42,15 +39,40 @@ export default function PhotographersInbox() {
     if (!loading && typeof reportPageReady === "function") reportPageReady(routeKey);
   }, [loading, reportPageReady, routeKey]);
 
-  const loadNames = useCallback(async (ids) => {
-    if (!ids.length) return;
-    const { data, error: nameError } = await supabase.from("profiles").select("*").in("id", ids);
-    if (nameError) return console.warn("Couldn't load client names:", nameError.message);
-    setNames((prev) => ({
+  // Look up registered names and emails for participants in this
+  // photographer's conversations. The server verifies auth.uid().
+  const loadClientIdentities = useCallback(async (ids) => {
+    const clientIds = [...new Set(ids.filter(Boolean))];
+    if (!clientIds.length) return;
+
+    const { data, error: identityError } = await supabase.rpc(
+      "inbox_client_identities",
+      { p_client_ids: clientIds }
+    );
+
+    if (identityError) {
+      console.warn("Couldn't load client names:", identityError.message);
+      return;
+    }
+
+    setClientIdentities((prev) => ({
       ...prev,
-      ...Object.fromEntries((data || []).map((p) => [p.id, pickName(p)])),
+      ...Object.fromEntries(
+        (data || [])
+          .filter((row) => row.client_id)
+          .map((row) => [
+            row.client_id,
+            {
+              name: row.display_name || row.email || "Client",
+              email: row.email || "",
+            },
+          ])
+      ),
     }));
   }, []);
+
+  const clientName = (id) => clientIdentities[id]?.name || "Client";
+  const clientEmail = (id) => clientIdentities[id]?.email || "";
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -92,7 +114,7 @@ export default function PhotographersInbox() {
         setError("Couldn't load your inbox. Check your connection and try again.");
       } else {
         setMessages((data || []).reverse());
-        loadNames([...new Set((data || []).map((m) => m.client_id))]);
+        loadClientIdentities([...new Set((data || []).map((m) => m.client_id))]);
       }
       setLoading(false);
     })();
@@ -103,7 +125,7 @@ export default function PhotographersInbox() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter }, (payload) => {
         const row = payload.new;
         setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
-        loadNames([row.client_id]);
+        loadClientIdentities([row.client_id]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter }, (payload) => {
         const row = payload.new;
@@ -121,7 +143,7 @@ export default function PhotographersInbox() {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [userId, loadNames]);
+  }, [userId, loadClientIdentities]);
 
   // One row per client: latest message and unread count, newest first.
   const conversations = useMemo(() => {
@@ -147,10 +169,11 @@ export default function PhotographersInbox() {
     if (!q) return conversations;
     return conversations.filter(
       (c) =>
-        (names[c.clientId] || "client").toLowerCase().includes(q) ||
+        (clientIdentities[c.clientId]?.name || "Client").toLowerCase().includes(q) ||
+        (clientIdentities[c.clientId]?.email || "").toLowerCase().includes(q) ||
         c.last.body.toLowerCase().includes(q)
     );
-  }, [conversations, names, query]);
+  }, [conversations, clientIdentities, query]);
 
   const thread = useMemo(() => messages.filter((m) => m.client_id === activeId), [messages, activeId]);
 
@@ -238,7 +261,8 @@ export default function PhotographersInbox() {
     setActiveId(null);
   };
 
-  const activeName = names[activeId] || "Client";
+  const activeName = clientName(activeId);
+  const activeEmail = clientEmail(activeId);
   const panel =
     "min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50 dark:border-slate-700/80 dark:bg-[#0B1628] dark:shadow-black/10";
 
@@ -312,11 +336,14 @@ export default function PhotographersInbox() {
                           : "border-transparent"
                       }`}
                     >
-                      <ChatAvatar name={names[c.clientId]} className="h-11 w-11" />
+                      <ChatAvatar name={clientName(c.clientId)} className="h-11 w-11" />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-                            {names[c.clientId] || "Client"}
+                          <span
+                            className="truncate text-sm font-semibold text-slate-900 dark:text-white"
+                            title={clientName(c.clientId)}
+                          >
+                            {clientName(c.clientId)}
                           </span>
                           <span className="shrink-0 text-[11px] text-slate-500">
                           {listTime(c.last.created_at)}
@@ -371,7 +398,7 @@ export default function PhotographersInbox() {
               <ChatThread
                 key={activeId}
                 name={activeName}
-                subtitle="Client"
+                subtitle={activeEmail && activeEmail !== activeName ? activeEmail : "Client"}
                 messages={thread}
                 myId={userId}
                 onSend={send}

@@ -65,14 +65,15 @@ const displayOcrTransactionDate = (submission) => {
 const MAX_MONEY_DIGITS = 6;
 const moneyDigits = (value) => String(value).replace(/\D/g, "").slice(0, MAX_MONEY_DIGITS);
 
-// No text box accepts more than this many characters.
-const MAX_TEXT_LENGTH = 500;
+// Messages sent to clients: max 200 characters and no three consecutive
+// identical letters (case-insensitive). Only the first two letters are kept.
+const MAX_TEXT_LENGTH = 200;
+const TRIPLE_LETTER_RULE = /([a-z])\1{2}/i;
+const MESSAGE_REPEAT_ERROR = "Three consecutive identical letters are not allowed.";
 
-// Message to the client: at most 500 characters, and "www" is cut down to "ww"
-// (so "wwww" becomes "ww" too).
 const cleanMessage = (value) =>
   String(value)
-    .replace(/w{3,}/gi, (run) => run.slice(0, 2))
+    .replace(/([a-z])\1{2,}/gi, (run) => run.slice(0, 2))
     .slice(0, MAX_TEXT_LENGTH);
 
 // Quick reasons for declining. Picking one fills the message box, and it can
@@ -238,6 +239,7 @@ export default function BookingRequests({
 }) {
   const [rows, setRows] = useState([]);
   const [drafts, setDrafts] = useState({}); // { [id]: { fee, downpayment, message, team } }
+  const [messageRepeatErrors, setMessageRepeatErrors] = useState({});
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
   const [errorId, setErrorId] = useState(null); // which request the error belongs to
@@ -253,6 +255,7 @@ export default function BookingRequests({
   // "Why are you declining?" popup
   const [declineTarget, setDeclineTarget] = useState(null); // the request being declined
   const [declineText, setDeclineText] = useState("");
+  const [declineRepeatError, setDeclineRepeatError] = useState(false);
   const [declineBusy, setDeclineBusy] = useState(false);
   const [declineError, setDeclineError] = useState("");
   const [declineQuick, setDeclineQuick] = useState(""); // index of the chosen quick reason
@@ -262,6 +265,7 @@ export default function BookingRequests({
   const [receiptUrls, setReceiptUrls] = useState({}); // { [requestId]: signed preview url }
   const receiptCache = useRef({}); // { [storagePath]: { url, at } } so previews don't reload every refresh
   const [reviewNote, setReviewNote] = useState("");
+  const [reviewRepeatError, setReviewRepeatError] = useState(false);
   const [modalSuccess, setModalSuccess] = useState("");
 
   const load = useCallback(async () => {
@@ -371,6 +375,25 @@ export default function BookingRequests({
   const setDraft = (r, patch) =>
     setDrafts((d) => ({ ...d, [r.id]: { ...getDraft(r), ...patch } }));
 
+  // The third matching letter is discarded, with feedback underneath the box.
+  const updateOfferMessage = (r, rawValue) => {
+    setMessageRepeatErrors((previous) => ({
+      ...previous,
+      [r.id]: TRIPLE_LETTER_RULE.test(rawValue),
+    }));
+    setDraft(r, { message: cleanMessage(rawValue) });
+  };
+
+  const updateDeclineMessage = (rawValue) => {
+    setDeclineRepeatError(TRIPLE_LETTER_RULE.test(rawValue));
+    setDeclineText(cleanMessage(rawValue));
+  };
+
+  const updateReviewMessage = (rawValue) => {
+    setReviewRepeatError(TRIPLE_LETTER_RULE.test(rawValue));
+    setReviewNote(cleanMessage(rawValue));
+  };
+
   const updateMember = (r, index, value) => {
     const clean = cleanName(value);
 
@@ -445,7 +468,7 @@ export default function BookingRequests({
         offered_fee: amount,
         downpayment_amount: down,
         team_members: members.length ? members : null,
-        admin_message: message.trim() || null,
+        admin_message: cleanMessage(message).trim() || null,
         responded_at: new Date().toISOString(),
       })
       .eq("id", r.id)
@@ -461,6 +484,7 @@ export default function BookingRequests({
   function openDecline(r) {
     setDeclineTarget(r);
     setDeclineText(cleanMessage(getDraft(r).message || ""));
+    setDeclineRepeatError(false);
     setDeclineQuick("");
     setDeclineError("");
   }
@@ -474,7 +498,7 @@ export default function BookingRequests({
   async function submitDecline() {
     if (!declineTarget) return;
 
-    const reason = declineText.trim();
+    const reason = cleanMessage(declineText).trim();
 
     if (reason.length < 5) {
       setDeclineError("Please tell the client why (at least 5 characters).");
@@ -559,6 +583,7 @@ export default function BookingRequests({
     setModalError("");
     setModalSuccess("");
     setReviewNote("");
+    setReviewRepeatError(false);
     setModalBusy(null);
 
     // Let the browser render the hidden state before starting the transition.
@@ -695,7 +720,7 @@ export default function BookingRequests({
     const { error: reviewError } = await supabase.rpc("review_booking_payment", {
       p_submission_id: submission.id,
       p_status: status,
-      p_review_note: reviewNote.trim() || null,
+      p_review_note: cleanMessage(reviewNote).trim() || null,
     });
 
     if (reviewError) {
@@ -721,6 +746,7 @@ export default function BookingRequests({
 
     setModalBusy(null);
     setReviewNote("");
+    setReviewRepeatError(false);
     await load();
 
     setModalSuccess(
@@ -738,6 +764,7 @@ export default function BookingRequests({
     }
 
     setReviewNote("");
+    setReviewRepeatError(false);
     await load();
     setModalSuccess(
       status === "verified"
@@ -868,6 +895,85 @@ export default function BookingRequests({
 
   return (
     <>
+      {/* Scoped overrides prevent global button styles from adding white backgrounds. */}
+      <style>{`
+        /* Keep Withdraw offer as text only in every interaction state. */
+        #root button.lf-withdraw-offer,
+        #root button.lf-withdraw-offer:hover,
+        #root button.lf-withdraw-offer:focus,
+        #root button.lf-withdraw-offer:active {
+          -webkit-appearance: none !important;
+          appearance: none !important;
+          display: inline !important;
+          width: auto !important;
+          min-width: 0 !important;
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: transparent !important;
+          background-color: transparent !important;
+          background-image: none !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          color: #64748b !important;
+          font-size: 12px !important;
+          font-weight: 500 !important;
+          line-height: 1.5 !important;
+          text-decoration: none !important;
+          text-shadow: none !important;
+          cursor: pointer !important;
+        }
+        #root button.lf-withdraw-offer::before,
+        #root button.lf-withdraw-offer::after {
+          display: none !important;
+          content: none !important;
+        }
+        #root button.lf-withdraw-offer:hover {
+          color: #0369a1 !important;
+        }
+        html.dark #root button.lf-withdraw-offer {
+          color: #94a3b8 !important;
+        }
+        html.dark #root button.lf-withdraw-offer:hover {
+          color: #ffffff !important;
+        }
+        #root button.lf-withdraw-offer:focus-visible {
+          outline: 2px solid #0ea5e9 !important;
+          outline-offset: 3px !important;
+        }
+        #root button.lf-withdraw-offer:disabled {
+          opacity: .5 !important;
+          cursor: not-allowed !important;
+        }
+
+        #root button.lf-review-downpayment {
+          -webkit-appearance: none !important;
+          appearance: none !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background: #f59e0b !important;
+          background-image: none !important;
+          border: 0 !important;
+          border-radius: 8px !important;
+          box-shadow: none !important;
+          color: #020617 !important;
+          padding: 6px 12px !important;
+          font-size: 12px !important;
+          font-weight: 600 !important;
+          line-height: 1.5 !important;
+          cursor: pointer !important;
+          transition: background-color .2s ease !important;
+        }
+        #root button.lf-review-downpayment:hover {
+          background: #fbbf24 !important;
+        }
+        #root button.lf-review-downpayment:focus-visible {
+          outline: 2px solid #f59e0b !important;
+          outline-offset: 3px !important;
+        }
+      `}</style>
       {/* ---------- Box 1: new booking requests ---------- */}
       {requestRows.length > 0 ? (
         <section
@@ -1043,16 +1149,13 @@ export default function BookingRequests({
                         {/* Message */}
                         <div className="min-w-0">
                           <input
-                            className={`${field} h-10 w-full min-w-0 text-sm`}
+                            className={`${field} h-10 w-full min-w-0 text-sm ${messageRepeatErrors[r.id] ? "!border-rose-500 focus:!border-rose-500" : ""}`}
                             placeholder="Message to client (optional)"
                             aria-label="Message to client"
                             value={d.message}
-                            onChange={(e) =>
-                              setDraft(r, {
-                                message: cleanMessage(e.target.value),
-                              })
-                            }
+                            onChange={(e) => updateOfferMessage(r, e.target.value)}
                             maxLength={MAX_TEXT_LENGTH}
+                            aria-invalid={Boolean(messageRepeatErrors[r.id])}
                           />
 
                           <p
@@ -1065,6 +1168,11 @@ export default function BookingRequests({
                           >
                             {d.message.length}/{MAX_TEXT_LENGTH}
                           </p>
+                          {messageRepeatErrors[r.id] && (
+                            <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">
+                              {MESSAGE_REPEAT_ERROR}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -1120,7 +1228,7 @@ export default function BookingRequests({
                           type="button"
                           disabled={busy}
                           onClick={() => openDecline(r)}
-                          className="text-xs text-slate-500 hover:text-white disabled:opacity-50"
+                          className="lf-withdraw-offer"
                         >
                           Withdraw offer
                         </button>
@@ -1142,7 +1250,7 @@ export default function BookingRequests({
                         <button
                           type="button"
                           onClick={() => openModal(r)}
-                          className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-amber-400"
+                          className="lf-review-downpayment"
                         >
                           Review downpayment
                         </button>
@@ -1313,6 +1421,7 @@ export default function BookingRequests({
                   const value = e.target.value;
                   setDeclineQuick(value);
                   setDeclineError("");
+                  setDeclineRepeatError(false);
                   setDeclineText(cleanMessage(QUICK_REASONS[Number(value)]?.text || ""));
                 }}
               >
@@ -1334,12 +1443,13 @@ export default function BookingRequests({
               </label>
               <textarea
                 id="booking-decline-reason"
-                className={`${field} mt-1 resize-none`}
+                className={`${field} mt-1 resize-none ${declineRepeatError ? "!border-rose-500 focus:!border-rose-500" : ""}`}
                 rows={4}
                 maxLength={MAX_TEXT_LENGTH}
                 placeholder="e.g. I'm already booked on that date. Feel free to request another day."
                 value={declineText}
-                onChange={(e) => setDeclineText(cleanMessage(e.target.value))}
+                onChange={(e) => updateDeclineMessage(e.target.value)}
+                aria-invalid={declineRepeatError}
                 autoFocus
               />
               <p
@@ -1350,6 +1460,11 @@ export default function BookingRequests({
               >
                 {declineText.length}/{MAX_TEXT_LENGTH}
               </p>
+              {declineRepeatError && (
+                <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">
+                  {MESSAGE_REPEAT_ERROR}
+                </p>
+              )}
 
               {declineError && (
                 <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
@@ -1537,11 +1652,12 @@ export default function BookingRequests({
                           </label>
                           <textarea
                             value={reviewNote}
-                            onChange={(e) => setReviewNote(cleanMessage(e.target.value))}
+                            onChange={(e) => updateReviewMessage(e.target.value)}
+                            aria-invalid={reviewRepeatError}
                             rows={2}
                             maxLength={MAX_TEXT_LENGTH}
                             placeholder="Add a note for the client..."
-                            className={`${field} mt-1 resize-y`}
+                            className={`${field} mt-1 resize-y ${reviewRepeatError ? "!border-rose-500 focus:!border-rose-500" : ""}`}
                           />
                           <p
                             className={`mt-1 text-right text-[11px] tabular-nums ${
@@ -1550,6 +1666,11 @@ export default function BookingRequests({
                           >
                             {reviewNote.length}/{MAX_TEXT_LENGTH}
                           </p>
+                          {reviewRepeatError && (
+                            <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">
+                              {MESSAGE_REPEAT_ERROR}
+                            </p>
+                          )}
 
                           <div className="mt-2 flex flex-wrap justify-end gap-2">
                             <button

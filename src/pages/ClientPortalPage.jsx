@@ -22,6 +22,7 @@ import MyBookingsTab from "./client/tabs/MyBookingsTab";
 import ReviewsTab from "./client/tabs/ReviewsTab";
 import MessageTab from "./client/tabs/MessageTab";
 import Profiletab from "./client/tabs/Profiletab";
+import Settingstab from "./client/tabs/Settingstab";
 
 /* If one tab crashes, show the message here instead of taking the whole site down
    (which is what sent you back to the landing page). */
@@ -109,9 +110,28 @@ function ClientLayout() {
   const errorText = portalError || conn.error;
 
   let content;
-  if (conn.loading && conn.connections.length === 0) {
+
+  // Profile and Settings belong to the customer's account.
+  // They should work even without a connected photographer.
+  if (current === "profile" || current === "settings") {
+    content = (
+      <div key={current} className="lf-page">
+        <TabErrorBoundary key={current}>
+          <Outlet
+            context={{
+              portal,
+              activeId: conn.activeId,
+              reload,
+              goTo,
+            }}
+          />
+        </TabErrorBoundary>
+      </div>
+    );
+  } else if (conn.loading && conn.connections.length === 0) {
     content = <PortalSkeleton />;
   } else if (showCodeForm) {
+
     content = (
       <div className="py-3 sm:py-6">
         <CodeForm
@@ -151,7 +171,17 @@ function ClientLayout() {
   }
 
   return (
-    <div className="client-portal dark custom-scrollbar relative isolate min-h-screen w-full overflow-x-hidden bg-[#070D1D] text-slate-100">
+    
+    <div
+      className="
+        client-portal custom-scrollbar
+        relative isolate min-h-screen w-full
+        overflow-x-hidden
+        bg-slate-50 text-slate-900
+        dark:bg-[#070D1D]
+        dark:text-slate-100
+      "
+    >
     <ClientPortalStyles />
       {/* Aurora background */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
@@ -163,7 +193,7 @@ function ClientLayout() {
       <div className="relative z-10 mx-auto min-h-screen w-full max-w-[1600px] lg:flex">
         <ClientSidebar onSignOut={handleSignOut} />
 
-        <div className="min-w-0 flex-1 lg:ml-[248px]">
+        <div className="min-w-0 flex-1 lg:ml-64">
           <ClientHeader
             connections={conn.connections}
             activeId={conn.activeId}
@@ -182,6 +212,7 @@ function ClientLayout() {
           <ClientRightPanel
             connections={conn.connections}
             activeId={conn.activeId}
+            portal={portal}
             onSelect={conn.setActiveId}
             onOpenCode={conn.openCodeForm}
           />
@@ -216,6 +247,7 @@ function ClientPortalPage() {
           <Route path="reviews" element={<TabBridge component={ReviewsTab} />} />
           <Route path="messages" element={<TabBridge component={MessageTab} />} />
           <Route path="profile" element={<TabBridge component={Profiletab} />} />
+          <Route path="settings" element={<TabBridge component={Settingstab} />} />
           <Route path="*" element={home} />
         </Route>
       </Routes>

@@ -1,7 +1,8 @@
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useClientNav } from "../utils/clientRoutes";
+
 import {
   FaCameraRetro,
   FaHome,
@@ -15,192 +16,405 @@ import {
   FaCog,
 } from "react-icons/fa";
 
-// Kept complete so other files that import NAV_ITEMS keep working.
+// Keep exported for other components.
 export const NAV_ITEMS = [
   { id: "home", label: "Home", icon: FaHome },
-  { id: "portfolio", label: "Portfolio", icon: FaRegImage },
-  { id: "schedule", label: "Schedule", icon: FaCalendarAlt },
-  { id: "bookings", label: "My Bookings", icon: FaFileAlt },
-  { id: "reviews", label: "Reviews", icon: FaHeart },
-  { id: "messages", label: "Messages", icon: FaCommentDots },
+  {
+    id: "portfolio",
+    label: "Portfolio",
+    icon: FaRegImage,
+  },
+  {
+    id: "schedule",
+    label: "Schedule",
+    icon: FaCalendarAlt,
+  },
+  {
+    id: "bookings",
+    label: "My Bookings",
+    icon: FaFileAlt,
+  },
+  {
+    id: "reviews",
+    label: "Reviews",
+    icon: FaHeart,
+  },
+  {
+    id: "messages",
+    label: "Messages",
+    icon: FaCommentDots,
+  },
 ];
 
-// Messages lives in the right panel and My Bookings is shown on the Home page,
-// so neither is listed in this sidebar. Their routes still work.
-const HIDDEN_IN_SIDEBAR = ["messages", "bookings"];
-const SIDEBAR_ITEMS = NAV_ITEMS.filter((i) => !HIDDEN_IN_SIDEBAR.includes(i.id));
+const HIDDEN_IN_SIDEBAR = [
+  "messages",
+  "bookings",
+];
 
-// Shown above Sign Out on desktop (and at the end of the scrolling nav on small screens)
+const SIDEBAR_ITEMS = NAV_ITEMS.filter(
+  (item) => !HIDDEN_IN_SIDEBAR.includes(item.id)
+);
+
 const FOOTER_ITEMS = [
-  { id: "profile",  label: "Profile",  icon: FaUserCircle },
-  { id: "settings", label: "Settings", icon: FaCog },
+  {
+    id: "profile",
+    label: "Profile",
+    icon: FaUserCircle,
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    icon: FaCog,
+  },
 ];
 
-export default function ClientSidebar({ onSignOut }) {
+// ==========================================
+// NAVIGATION LINK
+// ==========================================
+
+function SidebarLink({
+  id,
+  label,
+  icon: Icon,
+  active,
+  to,
+  mobileOnly = false,
+  footer = false,
+}) {
+  return (
+    <Link
+      to={to}
+      data-tab={id}
+      aria-current={active ? "page" : undefined}
+      className={`
+        group relative flex w-full
+        shrink-0 items-center gap-3
+
+        border-l-4
+        px-5 py-3
+        text-left text-sm font-medium
+
+        transition-all duration-200
+        ease-out
+
+        focus-visible:outline-none
+        focus-visible:ring-2
+        focus-visible:ring-inset
+        focus-visible:ring-sky-500
+
+        ${mobileOnly ? "lg:hidden" : ""}
+
+        ${footer ? "lg:px-6" : ""}
+
+        ${
+          active
+            ? `
+              border-sky-500
+              bg-sky-50
+              text-sky-700
+
+              dark:border-sky-500
+              dark:bg-sky-500/15
+              dark:text-white
+            `
+            : `
+              border-transparent
+              text-slate-600
+
+              hover:bg-slate-100
+              hover:text-slate-900
+
+              dark:text-slate-300
+              dark:hover:bg-slate-800/70
+              dark:hover:text-white
+            `
+        }
+      `}
+    >
+      <Icon
+        className={`
+          shrink-0 text-base
+          transition-colors duration-200
+
+          ${
+            active
+              ? "text-sky-500"
+              : `
+                text-slate-500
+                group-hover:text-sky-500
+
+                dark:text-slate-400
+                dark:group-hover:text-sky-400
+              `
+          }
+        `}
+        aria-hidden="true"
+      />
+
+      <span className="whitespace-nowrap">
+        {label}
+      </span>
+    </Link>
+  );
+}
+
+// ==========================================
+// CLIENT SIDEBAR
+// ==========================================
+
+export default function ClientSidebar({
+  onSignOut,
+}) {
   const { tabUrl, queryMode } = useClientNav();
+
   const location = useLocation();
   const { pathname, search } = location;
 
   const current = queryMode
-    ? new URLSearchParams(search).get("tab") || "home"
-    : pathname.split("/").filter(Boolean).pop() || "home";
+    ? new URLSearchParams(search).get("tab") ||
+      "home"
+    : pathname.split("/").filter(Boolean).pop() ||
+      "home";
 
-  const activeTab = [...NAV_ITEMS, ...FOOTER_ITEMS].some((i) => i.id === current) ? current : "home";
+  const allTabs = [
+    ...NAV_ITEMS,
+    ...FOOTER_ITEMS,
+  ];
+
+  const activeTab = allTabs.some(
+    (item) => item.id === current
+  )
+    ? current
+    : "home";
 
   const navRef = useRef(null);
-  const [ind, setInd] = useState({
-    x: 0,
-    y: 0,
-    w: 0,
-    h: 0,
-    ready: false,
-    animate: false,
-  });
 
-  // Re-run whenever location changes (covers both path and query-string changes)
-  useLayoutEffect(() => {
-    const measure = () => {
-      const nav = navRef.current;
-      const el = nav?.querySelector(`[data-tab="${activeTab}"]`);
+  // Keep the selected mobile tab in view.
+  useEffect(() => {
+    const nav = navRef.current;
 
-      if (!el) {
-        // Current page has no sidebar item (e.g. Messages): hide the highlight
-        setInd((p) => ({ ...p, ready: false }));
-        return;
-      }
+    if (!nav) return;
 
-      setInd((p) => ({
-        x: el.offsetLeft,
-        y: el.offsetTop,
-        w: el.offsetWidth,
-        h: el.offsetHeight,
-        ready: true,
-        animate: p.ready,
-      }));
+    const item = nav.querySelector(
+      `[data-tab="${activeTab}"]`
+    );
 
-      if (nav.scrollWidth > nav.clientWidth + 4) {
-        nav.scrollTo({
-          left: Math.max(0, el.offsetLeft - 16),
-          behavior: "smooth",
-        });
-      }
-    };
+    if (!item || item.offsetWidth === 0) {
+      return;
+    }
 
-    measure();
-    window.addEventListener("resize", measure);
-
-    return () => window.removeEventListener("resize", measure);
-  }, [activeTab, location]);
+    if (nav.scrollWidth > nav.clientWidth + 4) {
+      nav.scrollTo({
+        left: Math.max(
+          0,
+          item.offsetLeft -
+            nav.clientWidth / 2 +
+            item.offsetWidth / 2
+        ),
+        behavior: "smooth",
+      });
+    }
+  }, [activeTab]);
 
   return (
-    <aside className="border-b border-slate-800 bg-[#0B1120] lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:h-screen lg:w-64 lg:flex-col lg:border-b-0 lg:border-r lg:border-slate-800 lg:bg-slate-900/90 lg:backdrop-blur-lg">
-      {/* Clickable Logo / Home */}
-      <div className="border-b border-slate-800 px-5 py-6">
+    <aside
+      className="
+        relative z-20 flex
+        w-full flex-col
+
+        border-b border-slate-200
+        bg-white text-slate-900
+
+        transition-colors duration-300
+
+        lg:fixed lg:inset-y-0
+        lg:left-0 lg:h-screen
+        lg:w-64 lg:border-b-0
+        lg:border-r lg:shadow-sm
+
+        dark:border-slate-800
+        dark:bg-[#0B1120]
+        dark:text-slate-100
+        dark:lg:shadow-none
+      "
+    >
+      {/* ======================================
+          LOGO HEADER
+         ====================================== */}
+
+      <div
+        className="
+          border-b border-slate-200
+          px-5 py-6
+
+          dark:border-slate-800
+        "
+      >
         <Link
           to={tabUrl("home")}
           aria-label="Go to Client Portal home"
-          className="group flex items-center gap-3 rounded-lg outline-none transition-colors"
-        >
-          <FaCameraRetro className="lf-lens text-2xl text-sky-500" />
+          className="
+            group flex items-center gap-3
+            rounded-lg outline-none
 
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white transition-colors group-hover:text-sky-400">
+            focus-visible:ring-2
+            focus-visible:ring-sky-500
+          "
+        >
+          <FaCameraRetro
+            className="
+              lf-lens shrink-0
+              text-2xl text-sky-500
+            "
+          />
+
+          <div className="min-w-0">
+            <h1
+              className="
+                text-xl font-bold
+                tracking-tight
+                text-slate-900
+
+                transition-colors
+                group-hover:text-sky-600
+
+                dark:text-white
+                dark:group-hover:text-sky-400
+              "
+            >
               LensFlow
             </h1>
 
-            <p className="text-xs text-slate-300 transition-colors group-hover:text-sky-400">
+            <p
+              className="
+                text-xs text-slate-500
+
+                transition-colors
+                group-hover:text-sky-600
+
+                dark:text-slate-400
+                dark:group-hover:text-sky-400
+              "
+            >
               Client Portal
             </p>
           </div>
         </Link>
       </div>
 
+      {/* ======================================
+          MAIN NAVIGATION
+         ====================================== */}
+
       <nav
         ref={navRef}
-        className="relative flex gap-1 overflow-x-auto py-4 lg:flex-col lg:gap-2"
         aria-label="Client portal navigation"
+        className="
+          flex min-w-0 gap-1
+          overflow-x-auto py-4
+
+          lg:flex-1 lg:flex-col
+          lg:gap-2 lg:overflow-y-auto
+          lg:overflow-x-hidden
+        "
       >
-        <span
-          aria-hidden="true"
-          className={`lf-nav-indicator ${ind.animate ? "" : "no-anim"}`}
-          style={{
-            width: ind.w,
-            height: ind.h,
-            opacity: ind.ready ? 1 : 0,
-            transform: `translate(${ind.x}px, ${ind.y}px)`,
-          }}
-        />
-
-        {SIDEBAR_ITEMS.map(({ id, label, icon: Icon }) => {
-          const on = activeTab === id;
-
-          return (
-            <Link
+        {SIDEBAR_ITEMS.map(
+          ({ id, label, icon }) => (
+            <SidebarLink
               key={id}
+              id={id}
+              label={label}
+              icon={icon}
               to={tabUrl(id)}
-              data-tab={id}
-              aria-current={on ? "page" : undefined}
-              className={`lf-tab relative z-10 flex shrink-0 items-center gap-3 border-l-4 border-transparent px-4 py-3 text-left text-sm font-medium ${
-                on
-                  ? "lf-tab-on text-white"
-                  : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
-              }`}
-            >
-              <Icon
-                className={`text-base ${
-                  on ? "text-sky-400" : "text-slate-400"
-                }`}
-              />
-              {label}
-            </Link>
-          );
-        })}
-        {FOOTER_ITEMS.map(({ id, label, icon: Icon }) => {
-          const on = activeTab === id;
-          return (
-            <Link
-              key={`m-${id}`}
+              active={activeTab === id}
+            />
+          )
+        )}
+
+        {/* Profile + Settings on mobile */}
+        {FOOTER_ITEMS.map(
+          ({ id, label, icon }) => (
+            <SidebarLink
+              key={`mobile-${id}`}
+              id={id}
+              label={label}
+              icon={icon}
               to={tabUrl(id)}
-              data-tab={id}
-              aria-current={on ? "page" : undefined}
-              className={`lf-tab relative z-10 flex shrink-0 items-center gap-3 border-l-4 border-transparent px-4 py-3 text-left text-sm font-medium lg:hidden ${
-                on
-                  ? "lf-tab-on text-white"
-                  : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
-              }`}
-            >
-              <Icon className={`text-base ${on ? "text-sky-400" : "text-slate-400"}`} />
-              {label}
-            </Link>
-          );
-        })}
+              active={activeTab === id}
+              mobileOnly
+            />
+          )
+        )}
       </nav>
 
-      <div className="mt-auto hidden border-t border-slate-800 lg:block">
-        {FOOTER_ITEMS.map(({ id, label, icon: Icon }) => {
-          const on = activeTab === id;
-          return (
-            <Link
+      {/* ======================================
+          DESKTOP FOOTER
+         ====================================== */}
+
+      <div
+        className="
+          mt-auto hidden
+          border-t border-slate-200
+
+          lg:block
+
+          dark:border-slate-800
+        "
+      >
+        {FOOTER_ITEMS.map(
+          ({ id, label, icon }) => (
+            <SidebarLink
               key={id}
+              id={id}
+              label={label}
+              icon={icon}
               to={tabUrl(id)}
-              aria-current={on ? "page" : undefined}
-              className={`flex w-full items-center gap-3 border-l-4 px-6 py-3 text-left text-sm font-medium transition ${
-                on
-                  ? "border-sky-500 bg-sky-500/10 text-white"
-                  : "border-transparent text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon className={`text-base ${on ? "text-sky-400" : "text-slate-400"}`} />
-              {label}
-            </Link>
-          );
-        })}
+              active={activeTab === id}
+              footer
+            />
+          )
+        )}
+
+        {/* SIGN OUT */}
         <button
           type="button"
           onClick={onSignOut}
-          className="flex w-full items-center gap-3 border-l-4 border-transparent px-6 py-3 text-left text-sm text-rose-400 transition hover:bg-slate-800 hover:text-rose-300"
+          className="
+            group flex w-full
+            items-center gap-3
+
+            border-l-4
+            border-transparent
+            px-6 py-3
+
+            text-left text-sm
+            font-medium text-rose-600
+
+            transition-colors duration-200
+
+            hover:bg-rose-50
+            hover:text-rose-700
+
+            focus-visible:outline-none
+            focus-visible:ring-2
+            focus-visible:ring-inset
+            focus-visible:ring-rose-500
+
+            dark:text-rose-400
+            dark:hover:bg-rose-500/10
+            dark:hover:text-rose-300
+          "
         >
-          <FaSignOutAlt /> Sign Out
+          <FaSignOutAlt
+            className="
+              shrink-0 text-base
+            "
+            aria-hidden="true"
+          />
+
+          <span>
+            Sign Out
+          </span>
         </button>
       </div>
     </aside>

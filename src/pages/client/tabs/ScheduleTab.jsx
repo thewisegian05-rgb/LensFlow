@@ -1,12 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
+
 import { supabase } from "../../../lib/supabaseClient";
+
 import Calendar from "../../../components/Schedule/Calendar";
 import BookingModal from "../../../components/Schedule/BookingModal";
+
 import { crewSummary } from "../../../components/Schedule/CrewNeededField";
+
 import Section from "../components/ui/Section";
 import TabHeader from "../components/ui/TabHeader";
+
+// ==========================================
+// BOOKING STATUS LABELS
+// ==========================================
 
 const STATUS_LABEL = {
   pending: "Waiting for photographer",
@@ -15,18 +29,26 @@ const STATUS_LABEL = {
   approved: "Booked",
 };
 
-const peso = (n) =>
-  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+// ==========================================
+// CURRENCY FORMATTER
+// ==========================================
 
-/* ---------------------------------------------------------
-   BOOKING WINDOW
-   Same rule as the photographer's Add Event form: from today
-   up to MAX_YEARS_AHEAD years ahead (a rolling window).
-   "Today" is the date in Manila, not the device's own clock zone.
-   --------------------------------------------------------- */
+const peso = (value) =>
+  `₱${Number(value || 0).toLocaleString("en-PH", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+
+// ==========================================
+// BOOKING DATE RULES
+// ==========================================
+
+// Same booking window used by the
+// photographer's Add Event form.
 const MAX_YEARS_AHEAD = 2;
 
-// "2026-11-06" -> "2026-11-06" in Manila time
+// Use Manila dates regardless of the
+// customer's device timezone.
 const getManilaDateKey = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
@@ -44,27 +66,101 @@ const getManilaDateKey = (date = new Date()) => {
   return `${values.year}-${values.month}-${values.day}`;
 };
 
-// "2026-11-06" + 2 years -> "2028-11-06"
 const addYearsToKey = (key, years) => {
-  const [year, month, day] = key.split("-").map(Number);
-  return new Date(Date.UTC(year + years, month - 1, day)).toISOString().slice(0, 10);
+  const [year, month, day] = key
+    .split("-")
+    .map(Number);
+
+  return new Date(
+    Date.UTC(year + years, month - 1, day)
+  )
+    .toISOString()
+    .slice(0, 10);
 };
 
+// ==========================================
+// REUSABLE BOOKING DETAILS ROW
+// ==========================================
+
+function BookingDetailRow({
+  label,
+  children,
+  highlight = false,
+}) {
+  return (
+    <div
+      className="
+        flex items-start
+        justify-between gap-4
+      "
+    >
+      <dt
+        className="
+          min-w-0 shrink-0
+          text-slate-500
+
+          dark:text-slate-400
+        "
+      >
+        {label}
+      </dt>
+
+      <dd
+        className={`
+          min-w-0 break-words
+          text-right font-medium
+
+          ${
+            highlight
+              ? "text-sky-600 dark:text-sky-400"
+              : "text-slate-800 dark:text-slate-100"
+          }
+        `}
+      >
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+// ==========================================
+// CLIENT SCHEDULE TAB
+// ==========================================
+
 export default function ScheduleTab() {
-  const { portal, activeId, reload } = /** @type {any} */ (useOutletContext());
-  const [bookingDate, setBookingDate] = useState(null);
-  const [myRequests, setMyRequests] = useState([]);
-  const [selected, setSelected] = useState(null);
+  const { portal, activeId, reload } =
+    useOutletContext() || {};
 
-  const minimumBookingDate = getManilaDateKey();
-  const maximumBookingDate = addYearsToKey(minimumBookingDate, MAX_YEARS_AHEAD);
+  // ========================================
+  // STATES
+  // ========================================
 
-  /* ---------------------------------------------------------
-     THIS CLIENT'S OWN BOOKINGS
-     booking_requests is protected by row-level security, so a client
-     can only ever read their own rows. Other clients' details are
-     never loaded here.
-     --------------------------------------------------------- */
+  const [bookingDate, setBookingDate] =
+    useState(null);
+
+  const [myRequests, setMyRequests] =
+    useState([]);
+
+  const [selected, setSelected] =
+    useState(null);
+
+  // ========================================
+  // BOOKING WINDOW
+  // ========================================
+
+  const minimumBookingDate =
+    getManilaDateKey();
+
+  const maximumBookingDate =
+    addYearsToKey(
+      minimumBookingDate,
+      MAX_YEARS_AHEAD
+    );
+
+  // ========================================
+  // LOAD THIS CLIENT'S OWN BOOKINGS
+  // ========================================
+
   useEffect(() => {
     if (!activeId) {
       setMyRequests([]);
@@ -74,284 +170,671 @@ export default function ScheduleTab() {
     let cancelled = false;
 
     const loadMine = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
 
-      if (!user || cancelled) return;
+        if (authError) {
+          throw authError;
+        }
 
-      const { data, error } = await supabase
-        .from("booking_requests")
-        .select("*")
-        .eq("photographer_id", activeId)
-        .eq("client_id", user.id)
-        .in("status", ["pending", "offered", "awaiting_dp", "approved"]);
+        if (!user || cancelled) {
+          return;
+        }
 
-      if (cancelled) return;
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("booking_requests")
+          .select("*")
+          .eq(
+            "photographer_id",
+            activeId
+          )
+          .eq("client_id", user.id)
+          .in("status", [
+            "pending",
+            "offered",
+            "awaiting_dp",
+            "approved",
+          ]);
 
-      if (error) {
-        console.error("Could not load your bookings for the calendar:", error.message);
-        return;
+        if (cancelled) {
+          return;
+        }
+
+        if (error) {
+          throw error;
+        }
+
+        setMyRequests(data || []);
+      } catch (error) {
+        if (!cancelled) {
+          console.error(
+            "Could not load your bookings for the calendar:",
+            error
+          );
+        }
       }
-
-      setMyRequests(data || []);
     };
 
     loadMine();
 
-    const onFocus = () => loadMine();
-    window.addEventListener("focus", onFocus);
+    // Refresh the customer's bookings when
+    // they return to this browser tab.
+    const onFocus = () => {
+      loadMine();
+    };
+
+    window.addEventListener(
+      "focus",
+      onFocus
+    );
 
     return () => {
       cancelled = true;
-      window.removeEventListener("focus", onFocus);
+
+      window.removeEventListener(
+        "focus",
+        onFocus
+      );
     };
   }, [activeId, portal]);
 
-  /* The photographer's busy blocks. Everyone sees these as just "Booked". */
+  // ========================================
+  // PHOTOGRAPHER'S BUSY EVENTS
+  // ========================================
+
+  // Other clients' event details stay hidden.
+  // Their calendar entries display "Booked".
+
   const bookedEvents = useMemo(
     () =>
       (portal?.events || []).map((row) => {
-        const start = new Date(row.start_time);
-        const end = new Date(row.end_time);
+        const start = new Date(
+          row.start_time
+        );
+
+        const end = new Date(
+          row.end_time
+        );
+
         return {
           id: row.id,
+
           title: "Booked",
+
           client: "",
           photographer: "",
+
           category: row.category,
+
           location: "",
           gears: [],
           notes: "",
+
           start,
           end,
-          date: start.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          }),
-          time: start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+
+          date: start.toLocaleDateString(
+            undefined,
+            {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }
+          ),
+
+          time: start.toLocaleTimeString(
+            [],
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+            }
+          ),
         };
       }),
     [portal]
   );
 
-  /* This client's own bookings, with full details. */
+  // ========================================
+  // CLIENT'S OWN BOOKINGS
+  // ========================================
+
+  // These entries include full booking details
+  // because they belong to the signed-in client.
+
   const myEvents = useMemo(
     () =>
       myRequests
-        .filter((r) => r.event_date && r.start_time && r.end_time)
-        .map((r) => {
-          const start = new Date(`${r.event_date}T${r.start_time}`);
-          const end = new Date(`${r.event_date}T${r.end_time}`);
-          const approved = r.status === "approved";
+        .filter(
+          (request) =>
+            request.event_date &&
+            request.start_time &&
+            request.end_time
+        )
+        .map((request) => {
+          const start = new Date(
+            `${request.event_date}T${request.start_time}`
+          );
+
+          const end = new Date(
+            `${request.event_date}T${request.end_time}`
+          );
+
+          const approved =
+            request.status === "approved";
 
           return {
-            id: `mine-${r.id}`,
+            id: `mine-${request.id}`,
+
             mine: true,
-            request: r,
-            title: `★ ${r.title || "Your booking"}${approved ? "" : " (pending)"}`,
+            request,
+
+            title:
+              `★ ${
+                request.title ||
+                "Your booking"
+              }` +
+              (approved
+                ? ""
+                : " (pending)"),
+
             client: "Your booking",
             photographer: "",
-            category: r.category,
-            location: r.location || "",
+
+            category: request.category,
+            location:
+              request.location || "",
+
             gears: [],
             notes: "",
+
             start,
             end,
-            date: start.toLocaleDateString(undefined, {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            }),
-            time: start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+
+            date: start.toLocaleDateString(
+              undefined,
+              {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              }
+            ),
+
+            time: start.toLocaleTimeString(
+              [],
+              {
+                hour: "2-digit",
+                minute: "2-digit",
+              }
+            ),
           };
         }),
     [myRequests]
   );
 
-  /* What the calendar draws: other people's dates stay "Booked", your own
-     bookings replace the generic block that sits on the same time. */
-  const calendarEvents = useMemo(() => {
-    const myApproved = myEvents.filter((e) => e.request.status === "approved");
+  // ========================================
+  // COMBINE CALENDAR EVENTS
+  // ========================================
 
-    const others = bookedEvents.filter(
-      (b) => !myApproved.some((m) => b.start < m.end && b.end > m.start)
+  // Replace generic "Booked" blocks with
+  // the client's own approved booking where
+  // the time ranges overlap.
+
+  const calendarEvents = useMemo(() => {
+    const myApproved = myEvents.filter(
+      (event) =>
+        event.request.status === "approved"
     );
 
-    return [...others, ...myEvents];
+    const others = bookedEvents.filter(
+      (booked) =>
+        !myApproved.some(
+          (mine) =>
+            booked.start < mine.end &&
+            booked.end > mine.start
+        )
+    );
+
+    return [
+      ...others,
+      ...myEvents,
+    ];
   }, [bookedEvents, myEvents]);
 
-  // Calendar date click -> allow only dates inside the booking window
-  // (today up to MAX_YEARS_AHEAD years ahead).
+  // ========================================
+  // SELECT DATE
+  // ========================================
+
   const handleSelectSlot = ({ start }) => {
     const key = getManilaDateKey(start);
 
-    if (key >= minimumBookingDate && key <= maximumBookingDate) {
+    if (
+      key >= minimumBookingDate &&
+      key <= maximumBookingDate
+    ) {
       setBookingDate(key);
     }
   };
 
-  /* Only your own bookings open details. Other dates stay private. */
+  // ========================================
+  // SELECT EXISTING BOOKING
+  // ========================================
+
+  // Only this customer's own events
+  // can show booking information.
+
   const handleEventClick = (event) => {
-    if (event?.mine) setSelected(event.request);
+    if (event?.mine) {
+      setSelected(event.request);
+    }
   };
 
+  // ========================================
+  // BOOKING DETAILS
+  // ========================================
+
   const balance = selected
-    ? Math.max(Number(selected.offered_fee || 0) - Number(selected.downpayment_amount || 0), 0)
+    ? Math.max(
+        Number(
+          selected.offered_fee || 0
+        ) -
+          Number(
+            selected.downpayment_amount ||
+              0
+          ),
+        0
+      )
     : 0;
 
-  // "2 photographers · 1 videographer", or "" for older requests without it.
-  const crewText = selected ? crewSummary(selected.crew_needed) : "";
+  const crewText = selected
+    ? crewSummary(
+        selected.crew_needed
+      )
+    : "";
+
+  // ========================================
+  // PAGE
+  // ========================================
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div
+      className="
+        min-w-0 space-y-4
+
+        text-slate-900
+        dark:text-slate-100
+      "
+    >
+      {/* ======================================
+          PAGE HEADER
+         ====================================== */}
+
       <TabHeader
         eyebrow="Availability"
         title="Schedule"
         text="View the photographer's availability. Select an available date to start a booking request. Your own bookings are marked with a star. Other clients' event details remain private."
       />
 
-      <Section title="Photographer Calendar" dot="bg-sky-400">
-        <div className="min-w-0 max-w-full overflow-x-auto rounded-lg">
+      {/* ======================================
+          PHOTOGRAPHER CALENDAR
+         ====================================== */}
+
+      <Section
+        title="Photographer Calendar"
+        dot="bg-sky-400"
+      >
+        <div
+          className="
+            min-w-0 max-w-full
+            overflow-x-auto
+            rounded-lg
+
+            bg-white
+            text-slate-900
+
+            dark:bg-[#10192C]
+            dark:text-slate-100
+          "
+        >
           <Calendar
             events={calendarEvents}
-            onSelectSlot={handleSelectSlot}
-            onEventClick={handleEventClick}
-            minSelectableDate={minimumBookingDate}
-            maxSelectableDate={maximumBookingDate}
+            onSelectSlot={
+              handleSelectSlot
+            }
+            onEventClick={
+              handleEventClick
+            }
+            minSelectableDate={
+              minimumBookingDate
+            }
+            maxSelectableDate={
+              maximumBookingDate
+            }
           />
         </div>
       </Section>
 
+      {/* ======================================
+          NEW BOOKING MODAL
+         ====================================== */}
+
       <BookingModal
-        open={!!bookingDate}
+        open={Boolean(bookingDate)}
         date={bookingDate}
         photographerId={activeId}
         events={bookedEvents}
-        onClose={() => setBookingDate(null)}
+        onClose={() =>
+          setBookingDate(null)
+        }
         onChanged={reload}
       />
 
-      {/* YOUR BOOKING DETAILS */}
+      {/* ======================================
+          CUSTOMER'S BOOKING DETAILS MODAL
+         ====================================== */}
+
       {selected &&
         createPortal(
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-            onClick={() => setSelected(null)}
+            className="
+              fixed inset-0
+              z-[100]
+
+              flex items-center
+              justify-center
+
+              bg-slate-950/70
+              p-4
+
+              backdrop-blur-sm
+            "
+            onClick={() =>
+              setSelected(null)
+            }
           >
             <div
-              className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-5 text-white shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="client-booking-details-title"
+              onClick={(event) =>
+                event.stopPropagation()
+              }
+              className="
+                custom-scrollbar
+
+                max-h-[90vh]
+                w-full max-w-sm
+                overflow-y-auto
+
+                rounded-2xl
+
+                border border-slate-200
+                bg-white
+
+                p-5
+
+                text-slate-900
+                shadow-2xl
+
+                dark:border-slate-700
+                dark:bg-slate-900
+                dark:text-white
+              "
             >
-              <div className="flex items-start justify-between gap-3">
+              {/* ==============================
+                  MODAL HEADER
+                 ============================== */}
+
+              <div
+                className="
+                  flex items-start
+                  justify-between gap-3
+                "
+              >
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-400">
+                  <p
+                    className="
+                      text-[10px]
+                      font-semibold
+                      uppercase
+                      tracking-wider
+
+                      text-sky-600
+                      dark:text-sky-400
+                    "
+                  >
                     Your booking
                   </p>
-                  <h3 className="mt-0.5 break-words text-lg font-bold">
-                    {selected.title || "Your booking"}
+
+                  <h3
+                    id="client-booking-details-title"
+                    className="
+                      mt-0.5 break-words
+                      text-lg font-bold
+
+                      text-slate-900
+                      dark:text-white
+                    "
+                  >
+                    {selected.title ||
+                      "Your booking"}
                   </h3>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setSelected(null)}
-                  className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-800 hover:text-white"
-                  aria-label="Close"
+                  onClick={() =>
+                    setSelected(null)
+                  }
+                  aria-label="Close booking details"
+                  className="
+                    shrink-0 rounded-lg
+                    px-2 py-1
+
+                    text-slate-500
+
+                    transition-colors
+
+                    hover:bg-slate-100
+                    hover:text-slate-900
+
+                    focus-visible:outline-none
+                    focus-visible:ring-2
+                    focus-visible:ring-sky-500
+
+                    dark:text-slate-400
+                    dark:hover:bg-slate-800
+                    dark:hover:text-white
+                  "
                 >
                   ✕
                 </button>
               </div>
 
+              {/* ==============================
+                  BOOKING STATUS
+                 ============================== */}
+
               <span
-                className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                  selected.status === "approved"
-                    ? "bg-emerald-500/10 text-emerald-400"
-                    : "bg-amber-500/10 text-amber-300"
-                }`}
+                className={`
+                  mt-3 inline-flex
+                  rounded-full
+                  px-3 py-1
+
+                  text-[10px]
+                  font-semibold
+
+                  ${
+                    selected.status ===
+                    "approved"
+                      ? `
+                        bg-emerald-100
+                        text-emerald-700
+
+                        dark:bg-emerald-500/10
+                        dark:text-emerald-400
+                      `
+                      : `
+                        bg-amber-100
+                        text-amber-700
+
+                        dark:bg-amber-500/10
+                        dark:text-amber-300
+                      `
+                  }
+                `}
               >
-                {STATUS_LABEL[selected.status] || selected.status}
+                {STATUS_LABEL[
+                  selected.status
+                ] || selected.status}
               </span>
 
-              <dl className="mt-4 space-y-2 text-sm">
-                <div className="flex justify-between gap-4">
-                  <dt className="text-slate-400">Date</dt>
-                  <dd className="text-right">
-                    {new Date(`${selected.event_date}T00:00:00`).toLocaleDateString(undefined, {
+              {/* ==============================
+                  BOOKING DETAILS
+                 ============================== */}
+
+              <dl
+                className="
+                  mt-5 space-y-3
+                  border-t
+                  border-slate-200
+                  pt-4 text-sm
+
+                  dark:border-slate-700
+                "
+              >
+                {/* DATE */}
+                <BookingDetailRow label="Date">
+                  {new Date(
+                    `${selected.event_date}T00:00:00`
+                  ).toLocaleDateString(
+                    undefined,
+                    {
                       weekday: "long",
                       month: "long",
                       day: "numeric",
                       year: "numeric",
-                    })}
-                  </dd>
-                </div>
+                    }
+                  )}
+                </BookingDetailRow>
 
-                <div className="flex justify-between gap-4">
-                  <dt className="text-slate-400">Time</dt>
-                  <dd className="text-right">
-                    {selected.start_time.slice(0, 5)}–{selected.end_time.slice(0, 5)}
-                  </dd>
-                </div>
+                {/* TIME */}
+                <BookingDetailRow label="Time">
+                  {selected.start_time.slice(
+                    0,
+                    5
+                  )}
+                  –
+                  {selected.end_time.slice(
+                    0,
+                    5
+                  )}
+                </BookingDetailRow>
 
-                {/* Photographer Call Time */}
+                {/* PHOTOGRAPHER CALL TIME */}
                 {selected.call_time && (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-400">Photographer Call Time</dt>
-                    <dd className="text-right font-medium text-sky-400">
-                      {new Date(
-                        `2000-01-01T${selected.call_time.slice(0, 5)}:00`
-                      ).toLocaleTimeString([], {
+                  <BookingDetailRow
+                    label="Photographer Call Time"
+                    highlight
+                  >
+                    {new Date(
+                      `2000-01-01T${selected.call_time.slice(
+                        0,
+                        5
+                      )}:00`
+                    ).toLocaleTimeString(
+                      [],
+                      {
                         hour: "2-digit",
                         minute: "2-digit",
-                      })}
-                    </dd>
-                  </div>
+                      }
+                    )}
+                  </BookingDetailRow>
                 )}
 
+                {/* LOCATION */}
                 {selected.location && (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-400">Location</dt>
-                    <dd className="break-words text-right">{selected.location}</dd>
-                  </div>
+                  <BookingDetailRow label="Location">
+                    {selected.location}
+                  </BookingDetailRow>
                 )}
 
+                {/* CREATIVES NEEDED */}
                 {crewText && (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-400">Creatives needed</dt>
-                    <dd className="break-words text-right">{crewText}</dd>
-                  </div>
+                  <BookingDetailRow label="Creatives needed">
+                    {crewText}
+                  </BookingDetailRow>
                 )}
 
-                {selected.offered_fee != null && (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-slate-400">Agreed fee</dt>
-                    <dd className="text-right">{peso(selected.offered_fee)}</dd>
-                  </div>
+                {/* AGREED FEE */}
+                {selected.offered_fee !=
+                  null && (
+                  <BookingDetailRow label="Agreed fee">
+                    {peso(
+                      selected.offered_fee
+                    )}
+                  </BookingDetailRow>
                 )}
 
-                {selected.downpayment_amount != null &&
-                  Number(selected.downpayment_amount) > 0 && (
+                {/* DOWNPAYMENT AND BALANCE */}
+                {selected.downpayment_amount !=
+                  null &&
+                  Number(
+                    selected.downpayment_amount
+                  ) > 0 && (
                     <>
-                      <div className="flex justify-between gap-4">
-                        <dt className="text-slate-400">Downpayment</dt>
-                        <dd className="text-right">
-                          {peso(selected.downpayment_amount)}
-                          {selected.downpayment_received_at ? " · received" : " · not yet received"}
-                        </dd>
-                      </div>
+                      <BookingDetailRow label="Downpayment">
+                        {peso(
+                          selected.downpayment_amount
+                        )}
 
-                      <div className="flex justify-between gap-4">
-                        <dt className="text-slate-400">Balance (end of event)</dt>
-                        <dd className="text-right">{peso(balance)}</dd>
-                      </div>
+                        {selected.downpayment_received_at
+                          ? " · received"
+                          : " · not yet received"}
+                      </BookingDetailRow>
+
+                      <BookingDetailRow label="Balance (end of event)">
+                        {peso(balance)}
+                      </BookingDetailRow>
                     </>
                   )}
               </dl>
 
-              <p className="mt-4 text-xs text-slate-500">
-                Only you can see these details. Other clients see this date as "Booked".
-              </p>
+              {/* ==============================
+                  PRIVACY NOTE
+                 ============================== */}
+
+              <div
+                className="
+                  mt-5 rounded-xl
+                  border border-sky-200
+                  bg-sky-50
+
+                  px-3 py-3
+
+                  dark:border-sky-500/20
+                  dark:bg-sky-500/[0.06]
+                "
+              >
+                <p
+                  className="
+                    text-xs leading-relaxed
+
+                    text-slate-600
+                    dark:text-slate-400
+                  "
+                >
+                  Only you can see these
+                  booking details. Other
+                  clients see this date
+                  as "Booked".
+                </p>
+              </div>
             </div>
           </div>,
           document.body

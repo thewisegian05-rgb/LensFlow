@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 import Login from "../components/Auth/Login";
 import Layout from "../components/Layout/Layout";
@@ -27,7 +27,6 @@ function Landing() {
 
 function AppRoutes() {
   return (
-    <BrowserRouter>
       <Routes>
         {/* Landing page */}
         <Route path="/" element={<Landing />} />
@@ -59,7 +58,6 @@ function AppRoutes() {
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
   );
 }
 

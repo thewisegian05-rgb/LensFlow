@@ -662,8 +662,8 @@ export default function Settingstab() {
               Choose between light and dark mode.
             </p>
           </div>
-
-          {/* LIGHT / DARK TOGGLE */}
+          
+          {/* LIGHT / DARK TOGGLE - SAME AS ADMIN */}
           <button
             ref={themeButtonRef}
             type="button"
@@ -671,106 +671,46 @@ export default function Settingstab() {
             disabled={iconRolling}
             role="switch"
             aria-checked={theme === "dark"}
-            aria-label={
-              `Switch to ${
-                theme === "light"
-                  ? "dark"
-                  : "light"
-              } mode`
-            }
-            className={`
-              relative h-10 w-28 shrink-0
-              rounded-full border
-              outline-none
-
-              transition-all duration-300
-
-              focus-visible:ring-2
-              focus-visible:ring-sky-500
-              focus-visible:ring-offset-2
-              focus-visible:ring-offset-white
-
-              disabled:cursor-wait
-              disabled:opacity-70
-
-              dark:focus-visible:ring-offset-slate-900
-
-              ${
-                theme === "dark"
-                  ? "border-sky-500/40 bg-[#0A1D35]"
-                  : "border-amber-300 bg-amber-100"
-              }
-            `}
+            aria-label={`Switch to ${
+              theme === "light" ? "dark" : "light"
+            } mode`}
+            className={`theme-pill ${
+              theme === "dark" ? "is-dark" : "is-light"
+            }`}
           >
-            {/* Opposite mode label */}
+            {/* Track labels */}
             <span
-              className={`
-                absolute left-3 top-1/2
-                -translate-y-1/2
-                text-[10px] font-bold
-                tracking-wider
-
-                transition-opacity duration-200
-
-                ${
-                  theme === "dark"
-                    ? "text-sky-200 opacity-100"
-                    : "opacity-0"
-                }
-              `}
-            >
-              LIGHT
-            </span>
-
-            <span
-              className={`
-                absolute right-3 top-1/2
-                -translate-y-1/2
-                text-[10px] font-bold
-                tracking-wider
-
-                transition-opacity duration-200
-
-                ${
-                  theme === "light"
-                    ? "text-amber-800 opacity-100"
-                    : "opacity-0"
-                }
-              `}
+              className="theme-pill-label dark-label"
+              aria-hidden="true"
             >
               DARK
             </span>
 
-            {/* Sliding icon */}
             <span
-              className={`
-                absolute left-1 top-1
-                flex h-8 w-8
-                items-center justify-center
-                rounded-full bg-white
-
-                text-sm
-                shadow-md ring-1 ring-black/5
-
-                transition-transform duration-300
-                ease-out
-
-                motion-reduce:transition-none
-
-                ${
-                  theme === "dark"
-                    ? "translate-x-[72px] text-indigo-600"
-                    : "translate-x-0 text-amber-500"
-                }
-              `}
+              className="theme-pill-label light-label"
+              aria-hidden="true"
             >
-              {theme === "light" ? (
-                <FaSun aria-hidden="true" />
-              ) : (
-                <FaMoon aria-hidden="true" />
-              )}
+              LIGHT
+            </span>
+
+            {/* Sliding and rolling thumb */}
+            <span
+              className="theme-pill-thumb"
+              aria-hidden="true"
+            >
+              <span
+                key={theme}
+                className="theme-pill-icon-wrap"
+              >
+                {theme === "light" ? (
+                  <FaSun className="theme-pill-icon" />
+                ) : (
+                  <FaMoon className="theme-pill-icon" />
+                )}
+              </span>
             </span>
           </button>
+
         </div>
       </section>
 

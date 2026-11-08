@@ -170,6 +170,39 @@ html { scroll-behavior: smooth; }
   .lf-reveal, .lf-vf { opacity: 1 !important; transform: none !important; filter: none !important; transition: none !important; }
   .lf-nav-indicator { transition: none; }
 }
+
+
+@keyframes lf-client-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes lf-client-about-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .client-portal [class*="lf-client-modal-in"],
+  .client-portal [class*="lf-client-about-in"] {
+    animation: none !important;
+  }
+}
+
 `;
 
 export default function ClientPortalStyles() {

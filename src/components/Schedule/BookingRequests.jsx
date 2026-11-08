@@ -870,7 +870,8 @@ export default function BookingRequests({
     <>
       {/* ---------- Box 1: new booking requests ---------- */}
       {requestRows.length > 0 ? (
-        <section className="mb-4 rounded-xl border border-amber-500/30 bg-slate-900 p-4">
+        <section
+          className="mb-4 flex h-[440px] flex-col rounded-xl border border-amber-500/30 bg-slate-900 p-4 sm:h-[520px]">
           <header className="mb-3 flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
               <span className="h-2 w-2 rounded-full bg-amber-400" />
@@ -883,7 +884,7 @@ export default function BookingRequests({
 
           {error && !errorInCancelBox && <p className="mb-2 text-xs text-red-400">{error}</p>}
 
-          <div className="space-y-3">
+          <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-2 pb-1">
             {requestRows.map((r) => {
               const d = getDraft(r);
               const busy = busyId === r.id;

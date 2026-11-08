@@ -324,6 +324,9 @@ function WorkflowPage() {
   const [draggingId, setDraggingId] = useState(null);
   const [dragOverStage, setDragOverStage] = useState(null);
 
+  // Backward move waiting for the user's confirmation: { id, targetIndex }
+  const [pendingMove, setPendingMove] = useState(null);
+
   /* ---- auth ---- */
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -469,6 +472,38 @@ function WorkflowPage() {
     [projects]
   );
 
+  /* ---- ask for confirmation first when moving a card backwards ---- */
+  const requestMove = useCallback(
+    (id, targetIndex) => {
+      const item = projects.find((p) => p.id === id);
+      if (!item) return;
+
+      // Backward move -> confirm first (prevents accidental mis-taps / drags)
+      if (targetIndex < STAGE_INDEX[item.stage]) {
+        setPendingMove({ id, targetIndex });
+        return;
+      }
+
+      moveProject(id, targetIndex);
+    },
+    [projects, moveProject]
+  );
+
+  function confirmBackMove() {
+    if (pendingMove) moveProject(pendingMove.id, pendingMove.targetIndex);
+    setPendingMove(null);
+  }
+
+  // Close the confirmation with the Escape key.
+  useEffect(() => {
+    if (!pendingMove) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setPendingMove(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pendingMove]);
+
   /* ---- drag & drop ---- */
   function handleDragStart(e, id) {
     e.dataTransfer.effectAllowed = "move";
@@ -486,7 +521,7 @@ function WorkflowPage() {
     const id = e.dataTransfer.getData("text/plain") || draggingId;
     setDragOverStage(null);
     setDraggingId(null);
-    if (id) moveProject(id, STAGE_INDEX[stageKey]);
+    if (id) requestMove(id, STAGE_INDEX[stageKey]);
   }
 
   /* ---- grouping ---- */
@@ -512,6 +547,10 @@ function WorkflowPage() {
       </motion.p>
     );
   }
+
+  // Data for the confirmation dialog
+  const pendingItem = pendingMove ? projects.find((p) => p.id === pendingMove.id) : null;
+  const pendingTarget = pendingMove ? STAGES[pendingMove.targetIndex] : null;
 
   return (
     <MotionConfig reducedMotion="user">
@@ -642,7 +681,7 @@ function WorkflowPage() {
                             key={project.id}
                             project={project}
                             dragging={draggingId === project.id}
-                            onMove={moveProject}
+                            onMove={requestMove}
                             onDragStart={handleDragStart}
                             // stagger only on first reveal, capped so long columns don't lag
                             delay={introDone ? 0 : 0.1 + i * 0.07 + Math.min(n, 6) * 0.07}
@@ -657,6 +696,63 @@ function WorkflowPage() {
             })}
           </div>
         </LayoutGroup>
+
+        {/* Confirmation for moving a card backwards */}
+        <AnimatePresence>
+          {pendingMove && pendingItem && pendingTarget && (
+            <motion.div
+              key="confirm-back"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPendingMove(null)}
+            >
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="confirm-back-title"
+                onClick={(e) => e.stopPropagation()}
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.25, ease: SMOOTH_EASE }}
+                className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+              >
+                <h3
+                  id="confirm-back-title"
+                  className="text-base font-semibold text-slate-900 dark:text-white"
+                >
+                  Are you sure you want to bring this back?
+                </h3>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                  "{pendingItem.name}" will move from{" "}
+                  <span className="font-semibold">
+                    {STAGES[STAGE_INDEX[pendingItem.stage]].label}
+                  </span>{" "}
+                  back to <span className="font-semibold">{pendingTarget.label}</span>.
+                </p>
+
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPendingMove(null)}
+                    className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmBackMove}
+                    className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-sky-600"
+                  >
+                    Yes, bring it back
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </MotionConfig>
   );

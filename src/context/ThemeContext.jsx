@@ -1,4 +1,3 @@
-
 import {
   createContext,
   useContext,
@@ -6,188 +5,89 @@ import {
   useLayoutEffect,
   useState,
 } from "react";
-
 import { useLocation } from "react-router-dom";
 
 const ThemeContext = createContext(null);
 
-// Separate saved preferences.
 const CLIENT_THEME_KEY = "lensflow-client-theme";
 const ADMIN_THEME_KEY = "lensflow-admin-theme";
+// Shared by Landing Page, Login, and Registration only.
+const LANDING_THEME_KEY = "lensflow-landing-theme";
 
-// ==========================================
-// READ SAVED THEME
-// ==========================================
-
-function getSavedTheme(key) {
-  if (typeof window === "undefined") {
-    return "light";
-  }
-
+function getSavedTheme(key, fallback = "light") {
+  if (typeof window === "undefined") return fallback;
   try {
-    const saved = localStorage.getItem(key);
-
-    return saved === "dark" ? "dark" : "light";
+    const stored = localStorage.getItem(key);
+    return stored === "dark" || stored === "light" ? stored : fallback;
   } catch {
-    return "light";
+    return fallback;
   }
 }
 
-// ==========================================
-// DETECT CURRENT PAGE TYPE
-// ==========================================
-
-function getPortalType(pathname) {
+function getPageType(pathname) {
   const path = pathname.replace(/\/+$/, "") || "/";
 
-  // Login and Sign Up always start in Dark Mode.
-  if (
-    path === "/login" ||
-    path === "/signup"
-  ) {
-    return "auth";
-  }
-
-  // Customer Portal
-  if (
-    path === "/customer" ||
-    path.startsWith("/customer/")
-  ) {
-    return "client";
-  }
-
-  // Photographer / Admin Portal
-  if (
-    path === "/dashboard" ||
-    path.startsWith("/dashboard/")
-  ) {
-    return "admin";
-  }
-
-  // Other pages, including landing page.
+  if (path === "/") return "landing";
+  if (["/login", "/signup", "/register", "/registration"].includes(path)) return "auth";
+  if (path === "/customer" || path.startsWith("/customer/")) return "client";
+  if (path === "/dashboard" || path.startsWith("/dashboard/")) return "admin";
   return "public";
 }
 
-// ==========================================
-// THEME PROVIDER
-// ==========================================
-
 export function ThemeProvider({ children }) {
   const { pathname } = useLocation();
+  const pageType = getPageType(pathname);
 
-  const portalType = getPortalType(pathname);
+  const [clientTheme, setClientTheme] = useState(() => getSavedTheme(CLIENT_THEME_KEY));
+  const [adminTheme, setAdminTheme] = useState(() => getSavedTheme(ADMIN_THEME_KEY));
+  const [landingTheme, setLandingTheme] = useState(() => getSavedTheme(LANDING_THEME_KEY, "dark"));
 
-  const [clientTheme, setClientTheme] = useState(
-    () => getSavedTheme(CLIENT_THEME_KEY)
-  );
-
-  const [adminTheme, setAdminTheme] = useState(
-    () => getSavedTheme(ADMIN_THEME_KEY)
-  );
-
-  // Choose the theme based on the current page.
   const theme =
-    portalType === "client"
-      ? clientTheme
-      : portalType === "admin"
-        ? adminTheme
-        : portalType === "auth"
-          ? "dark"
-          : "light";
-
-  // ========================================
-  // UPDATE CURRENT PORTAL THEME
-  // ========================================
+    pageType === "client" ? clientTheme :
+    pageType === "admin" ? adminTheme :
+    (pageType === "landing" || pageType === "auth") ? landingTheme :
+    "light";
 
   const setTheme = (nextTheme) => {
     const update = (previous) => {
-      const next =
-        typeof nextTheme === "function"
-          ? nextTheme(previous)
-          : nextTheme;
-
+      const next = typeof nextTheme === "function" ? nextTheme(previous) : nextTheme;
       return next === "dark" ? "dark" : "light";
     };
 
-    if (portalType === "client") {
-      setClientTheme(update);
-    } else if (portalType === "admin") {
-      setAdminTheme(update);
-    }
-
-    // Login, Sign Up, and public pages do not
-    // modify the saved portal preferences.
+    if (pageType === "client") setClientTheme(update);
+    else if (pageType === "admin") setAdminTheme(update);
+    else if (pageType === "landing" || pageType === "auth") setLandingTheme(update);
+    // Landing and authentication pages share one saved theme.
+    // Admin and Client preferences remain separate.
   };
-
-  // ========================================
-  // APPLY THE CURRENT PAGE THEME
-  // ========================================
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-
-    root.classList.toggle(
-      "dark",
-      theme === "dark"
-    );
-
+    root.classList.toggle("dark", theme === "dark");
     root.style.colorScheme = theme;
   }, [theme]);
 
-  // ========================================
-  // SAVE CUSTOMER PREFERENCE
-  // ========================================
-
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        CLIENT_THEME_KEY,
-        clientTheme
-      );
-    } catch {
-      // Storage unavailable.
-    }
+    try { localStorage.setItem(CLIENT_THEME_KEY, clientTheme); } catch {}
   }, [clientTheme]);
 
-  // ========================================
-  // SAVE ADMIN PREFERENCE
-  // ========================================
-
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        ADMIN_THEME_KEY,
-        adminTheme
-      );
-    } catch {
-      // Storage unavailable.
-    }
+    try { localStorage.setItem(ADMIN_THEME_KEY, adminTheme); } catch {}
   }, [adminTheme]);
 
+  useEffect(() => {
+    try { localStorage.setItem(LANDING_THEME_KEY, landingTheme); } catch {}
+  }, [landingTheme]);
+
   return (
-    <ThemeContext.Provider
-      value={{
-        theme,
-        setTheme,
-      }}
-    >
+    <ThemeContext.Provider value={{ theme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
-// ==========================================
-// THEME HOOK
-// ==========================================
-
 export function useTheme() {
   const context = useContext(ThemeContext);
-
-  if (!context) {
-    throw new Error(
-      "useTheme must be used inside ThemeProvider"
-    );
-  }
-
+  if (!context) throw new Error("useTheme must be used inside ThemeProvider");
   return context;
 }

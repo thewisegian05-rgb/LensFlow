@@ -10,12 +10,83 @@ import HeroBackground from "./HeroBackground";
 // have "reduce motion" enabled on their device.
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-.lf{--bg:#020617;--bar:#0a1122;--card:#0a1020;--line:#17213a;--muted:#8a94ab;--accent:#0ea5e9;
+.lf{
+  --bg:#f5f8fc;
+  --bar:#ffffff;
+  --card:#ffffff;
+  --line:#dce5ee;
+  --dashed:#bacbdd;
+  --muted:#64748b;
+  --text:#0f172a;
+  --header-bg:rgba(255,255,255,.90);
+  --ghost-text:#475569;
+  --ghost-hover:#edf6fc;
+  --ghost-hover-text:#0369a1;
+  --demo-bg:#f1f5f9;
+  --demo-badge:#e2e8f0;
+  --demo-badge-text:#334155;
+  --demo-title:#0f172a;
+  --demo-subtitle:#64748b;
+  --accent:#0ea5e9;
   --ease:cubic-bezier(.22,1,.36,1);
-  font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:#fff}
-.lf-card{background:var(--card);border:1px solid var(--line);border-radius:14px;transition:border-color .3s ease}
-.lf-dashed{border:1px dashed #243049;border-radius:12px}
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  transition:background-color 300ms ease,color 300ms ease;
+}
+html.dark .lf{
+  --bg:#020617;
+  --bar:#0a1122;
+  --card:#0a1020;
+  --line:#17213a;
+  --dashed:#243049;
+  --muted:#8a94ab;
+  --text:#ffffff;
+  --header-bg:rgba(10,17,34,.85);
+  --ghost-text:#cbd5e1;
+  --ghost-hover:#0a1020;
+  --ghost-hover-text:#ffffff;
+  --demo-bg:#070d1c;
+  --demo-badge:#1e293b;
+  --demo-badge-text:#cbd5e1;
+  --demo-title:#ffffff;
+  --demo-subtitle:#8a94ab;
+}
+.lf-card{background:var(--card);border:1px solid var(--line);border-radius:14px;transition:background-color .3s ease,border-color .3s ease}
+.lf-dashed{border:1px dashed var(--dashed);border-radius:12px}
 .lf-muted{color:var(--muted)}
+/* Hero: light-mode sky gradient, original photographic hero in dark mode.
+   The HeroBackground component draws dark imagery/glows. An opaque light
+   overlay sits ABOVE those decorations only in light mode. */
+.lf-hero{background:#f3f9ff;color:#0f172a;transition:background-color .3s ease,color .3s ease}
+html.dark .lf-hero{background:#071427;color:#ffffff}
+.lf-hero-lightwash{
+  position:absolute;
+  inset:0;
+  z-index:10;
+  pointer-events:none;
+  background:
+    radial-gradient(ellipse 44% 58% at 11% 32%,rgba(186,230,253,.58),transparent 90%),
+    radial-gradient(ellipse 42% 65% at 88% 24%,rgba(191,219,254,.67),transparent 88%),
+    linear-gradient(116deg,#f9fcff 0%,#eef7ff 51%,#e6f1ff 100%);
+  opacity:1;
+  transition:opacity 300ms ease;
+}
+html.dark .lf-hero-lightwash{opacity:0}
+.lf-hero-content{position:relative;z-index:20}
+.lf-hero-description{color:#475569}
+html.dark .lf-hero-description{color:#cbd5e1}
+.lf .lf-demo-col{background:var(--demo-bg)}
+.lf-demo-badge{background:var(--demo-badge);color:var(--demo-badge-text);border:0;box-shadow:none}
+.lf-demo-title{color:var(--demo-title)}
+.lf-demo-subtitle{color:var(--demo-subtitle)}
+.lf-footer-title{color:var(--text)}
+.lf-header-link:hover{color:#0284c7}
+html.dark .lf-header-link:hover{color:#ffffff}
+.lf-hero-secondary{color:#0369a1}
+.lf-hero-secondary:hover{color:#075985}
+html.dark .lf-hero-secondary{color:#cbd5e1}
+html.dark .lf-hero-secondary:hover{color:#ffffff}
 .lf-btn {
   background-color: var(--accent) !important;
   color: #fff !important;
@@ -37,7 +108,7 @@ const CSS = `
 .lf-btn:active{transform:scale(.97)}
 .lf-ghost {
   background-color: transparent !important;
-  color: #cbd5e1 !important;
+  color: var(--ghost-text) !important;
   border: 1px solid var(--line);
   border-radius: 8px;
   font-weight: 500;
@@ -46,8 +117,8 @@ const CSS = `
     transform .2s var(--ease);
 }
 .lf-ghost:hover {
-  background-color: var(--card) !important;
-  color: #fff !important;
+  background-color: var(--ghost-hover) !important;
+  color: var(--ghost-hover-text) !important;
 }
 .lf-ghost:active{transform:scale(.97)}
 .lf a:focus-visible,.lf button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -75,9 +146,11 @@ const CSS = `
 @keyframes lfOrbC{from{transform:translate3d(0,0,0) scale(.9)}to{transform:translate3d(-20vw,-14vh,0) scale(1.35)}}
 
 /* Sticky header */
-.lf-header{position:sticky;top:0;z-index:50;background:rgba(10,17,34,.85);
-  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);transition:box-shadow .3s ease}
-.lf-header.lf-scrolled{box-shadow:0 8px 24px -12px rgba(0,0,0,.7)}
+.lf-header{position:sticky;top:0;z-index:50;background:var(--header-bg);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  transition:box-shadow .3s ease,background-color .3s ease}
+.lf-header.lf-scrolled{box-shadow:0 8px 24px -12px rgba(15,23,42,.20)}
+html.dark .lf-header.lf-scrolled{box-shadow:0 8px 24px -12px rgba(0,0,0,.7)}
 html{scroll-padding-top:5rem}
 
 /* Scroll reveal */
@@ -130,12 +203,12 @@ html{scroll-padding-top:5rem}
 
 #root .lf .lf-ghost {
   background: transparent !important;
-  color: #cbd5e1 !important;
+  color: var(--ghost-text) !important;
 }
 
 #root .lf .lf-ghost:hover {
-  background: #0a1020 !important;
-  color: #ffffff !important;
+  background: var(--ghost-hover) !important;
+  color: var(--ghost-hover-text) !important;
 }
 /* Remove visible borders from workflow demo arrows */
 .lf .lf-ghost,
@@ -152,6 +225,47 @@ html{scroll-padding-top:5rem}
   color: #64748b !important;
   opacity: 0.65 !important;
 }
+
+
+
+/* The original workflow layout stays intact; only hide its scrollbar. */
+.lf .lf-workflow-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.lf .lf-workflow-scroll::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Original compact booking card, with softer colors in LIGHT mode only. */
+.lf .lf-demo-event {
+  background: #eff7fd !important;
+  border-color: #b8d8ef !important;
+  transition: background-color 200ms ease, border-color 200ms ease;
+}
+.lf .lf-demo-event:hover {
+  background: #e6f3fc !important;
+  border-color: #7ac6f1 !important;
+}
+/* Keep the original dark-mode booking-card colors unchanged. */
+html.dark .lf .lf-demo-event {
+  background: rgba(14, 165, 233, 0.10) !important;
+  border-color: rgba(14, 165, 233, 0.6) !important;
+}
+html.dark .lf .lf-demo-event:hover {
+  background: rgba(14, 165, 233, 0.10) !important;
+  border-color: rgba(14, 165, 233, 0.6) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lf .lf-demo-event { transition: none !important; }
+}
+
 `;
 
 const STAGES = [
@@ -282,6 +396,7 @@ const Title = ({ children, dot = "#0ea5e9" }) => (
 function WorkflowDemo() {
   const [at, setAt] = useState(0);
   const [dir, setDir] = useState("fwd");
+  const scrollRef = useRef(null);
   const columnRefs = useRef([]);
   const firstRender = useRef(true);
   const last = STAGES.length - 1;
@@ -292,16 +407,24 @@ function WorkflowDemo() {
     setAt(next);
   };
 
-  // Keep the active column in view on small screens (skipped on first load).
+  // Keep the active stage centered inside the workflow, not the whole page.
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
-    columnRefs.current[at]?.scrollIntoView({
+    const scroller = scrollRef.current;
+    const activeColumn = columnRefs.current[at];
+    if (!scroller || !activeColumn) return;
+
+    const viewport = scroller.getBoundingClientRect();
+    const column = activeColumn.getBoundingClientRect();
+    const target = scroller.scrollLeft + column.left - viewport.left
+      - (scroller.clientWidth - column.width) / 2;
+
+    scroller.scrollTo({
+      left: Math.max(0, target),
       behavior: prefersReducedMotion() ? "auto" : "smooth",
-      inline: "center",
-      block: "nearest",
     });
   }, [at]);
 
@@ -344,16 +467,19 @@ function WorkflowDemo() {
           </button>
         </div>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div
+        ref={scrollRef}
+        className="lf-workflow-scroll flex gap-3 pb-2"
+        role="region"
+        aria-label="Sample booking workflow stages"
+        tabIndex={0}
+      >
         {STAGES.map((s, i) => (
           <div
             key={s.name}
             ref={(el) => (columnRefs.current[i] = el)}
-            className="lf-card min-w-[150px] flex-1 p-3"
-            style={{
-              background: "#070d1c",
-              borderColor: i === at ? "rgba(14,165,233,.55)" : undefined,
-            }}
+            className="lf-card lf-demo-col min-w-[150px] flex-1 p-3"
+            style={{ borderColor: i === at ? "rgba(14,165,233,.55)" : undefined }}
           >
             <div className="mb-3 flex items-center justify-between">
               <span className="flex items-center gap-2 text-[11px] font-semibold uppercase">
@@ -361,13 +487,7 @@ function WorkflowDemo() {
                 {s.name}
               </span>
               <span
-                className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                style={{
-                  backgroundColor: "#1e293b",
-                  color: "#cbd5e1",
-                  border: "none",
-                  boxShadow: "none",
-                }}
+                className="lf-demo-badge rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
               >
                 {i === at ? 1 : 0}
               </span>
@@ -384,23 +504,16 @@ function WorkflowDemo() {
                     go(Math.min(at + 1, last));
                   }
                 }}
-                className={`lf-slide-${dir} w-full cursor-pointer rounded-lg border border-sky-500/60 bg-sky-500/10 p-3 text-left`}
-                style={{
-                  backgroundColor: "rgba(14, 165, 233, 0.10)",
-                  color: "#ffffff",
-                  borderColor: "rgba(14, 165, 233, 0.6)",
-                }}
+                className={`lf-demo-event lf-slide-${dir} w-full cursor-pointer rounded-lg border p-3 text-left`}
               >
                 <span
-                  className="block text-sm font-semibold"
-                  style={{ color: "#ffffff" }}
+                  className="lf-demo-title block text-sm font-semibold"
                 >
                   Angela’s wedding
                 </span>
 
                 <span
-                  className="block text-xs"
-                  style={{ color: "#8a94ab" }}
+                  className="lf-demo-subtitle block text-xs"
                 >
                   Weddings · ₱45,000
                 </span>
@@ -424,10 +537,11 @@ export default function LandingPage({ loginHref = "/login", onLogin }) {
 
       <main>
         {/* Hero: background photo, then each part rises in one after the other */}
-        <section className="relative overflow-hidden">
+        <section className="lf-hero relative isolate overflow-hidden">
           <HeroBackground />
+          <div className="lf-hero-lightwash" aria-hidden="true" />
 
-          <div className="relative mx-auto max-w-6xl px-5 pb-24 pt-20 sm:pb-32 sm:pt-32">
+          <div className="lf-hero-content mx-auto max-w-6xl px-5 pb-24 pt-20 sm:pb-32 sm:pt-32">
             <h1
               className="lf-rise max-w-3xl text-4xl font-extrabold leading-tight sm:text-5xl lg:text-6xl"
               style={{ animationDelay: "150ms" }}
@@ -435,7 +549,7 @@ export default function LandingPage({ loginHref = "/login", onLogin }) {
               Every shoot, from booking to delivery, in one place.
             </h1>
             <p
-              className="lf-rise mt-5 max-w-xl text-lg text-slate-300"
+              className="lf-rise lf-hero-description mt-5 max-w-xl text-lg"
               style={{ animationDelay: "300ms" }}
             >
               LensFlow keeps your clients, schedule, payments and photos together,
@@ -446,7 +560,7 @@ export default function LandingPage({ loginHref = "/login", onLogin }) {
               style={{ animationDelay: "450ms" }}
             >
               <LoginButton href={loginHref} onLogin={onLogin} className="lf-btn px-6 py-3">Create your studio</LoginButton>
-              <a href="#features" className="lf-link px-3 py-3 text-slate-300 hover:text-white">See what’s inside</a>
+              <a href="#features" className="lf-link lf-hero-secondary px-3 py-3">See what’s inside</a>
             </div>
           </div>
         </section>
@@ -531,7 +645,7 @@ export default function LandingPage({ loginHref = "/login", onLogin }) {
 
       <footer className="border-t" style={{ borderColor: "var(--line)", background: "var(--bar)" }}>
         <div className="lf-muted mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-5 py-6 text-sm sm:flex-row">
-          <span className="font-semibold text-white">LensFlow</span>
+          <span className="lf-footer-title font-semibold">LensFlow</span>
           <span>© {new Date().getFullYear()} LensFlow. Studio management for photographers.</span>
         </div>
       </footer>

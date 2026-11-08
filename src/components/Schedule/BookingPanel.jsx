@@ -4,21 +4,63 @@ import { FaCalendarPlus } from "react-icons/fa";
 
 import { supabase } from "../../lib/supabaseClient";
 import { CATEGORY_LABELS } from "./eventCategory";
+
 import CrewNeededField, {
   emptyCrew,
   cleanCrew,
   crewProblem,
 } from "./CrewNeededField";
 
+// ==========================================
+// STYLES
+// ==========================================
+
 const input =
   "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
+
+// ==========================================
+// REPEATED LETTER VALIDATION
+// ==========================================
+
+// Checks three identical consecutive letters.
+// Examples: aaa, AAA, aAa, bbb
+const hasTripleRepeatedLetters = (value) =>
+  /([a-z])\1{2}/i.test(value);
+
+const repeatedMessage = (field) =>
+  `${field} cannot contain three consecutive identical letters.`;
+
+// Error message displayed underneath the input.
+function RepeatError({ message }) {
+  if (!message) return null;
+
+  return (
+    <p
+      role="alert"
+      className="mt-1.5 flex items-start gap-2 text-xs leading-5 text-rose-400"
+    >
+      <span
+        aria-hidden="true"
+        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-500/20 text-[10px] font-bold text-rose-400"
+      >
+        !
+      </span>
+
+      <span>{message}</span>
+    </p>
+  );
+}
+
+// ==========================================
+// DATE UTILITIES
+// ==========================================
 
 const pad = (n) => String(n).padStart(2, "0");
 
 const dateKey = (d) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-// Get the current date and time using Philippine time.
+// Get the current date/time in Philippine time.
 const manilaParts = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
@@ -39,20 +81,23 @@ const manilaParts = (date = new Date()) => {
 
 const today = () => {
   const p = manilaParts();
+
   return `${p.year}-${p.month}-${p.day}`;
 };
 
-// Maximum booking date: December 31 of next calendar year.
+// Maximum booking date: December 31 of next year.
 const lastBookableDate = () => {
   const year = Number(manilaParts().year) + 1;
+
   return `${year}-12-31`;
 };
 
-// Calculate the earliest permitted booking time (2 hours from now).
-// Round up to the next minute because the time input uses HH:mm.
+// Minimum booking time: two hours from now.
 const minimumBooking = () => {
   const minimumTimestamp =
-    Math.ceil((Date.now() + 2 * 60 * 60 * 1000) / 60000) * 60000;
+    Math.ceil(
+      (Date.now() + 2 * 60 * 60 * 1000) / 60000
+    ) * 60000;
 
   const p = manilaParts(new Date(minimumTimestamp));
 
@@ -62,22 +107,33 @@ const minimumBooking = () => {
   };
 };
 
-// Interpret a selected date/time as Philippine time.
+// Interpret date and time using Philippine time.
 const bookingTimestamp = (date, time) =>
   Date.parse(`${date}T${time}:00+08:00`);
 
-// Most bookings need at least one photographer.
+// ==========================================
+// CREW
+// ==========================================
+
 const defaultCrew = () => ({
   ...emptyCrew(),
   photographers: 1,
 });
 
-const EMAIL_RULE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+// ==========================================
+// CONTACT VALIDATION
+// ==========================================
+
+const EMAIL_RULE =
+  /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const phoneDigits = (value) =>
   String(value || "").replace(/\D/g, "");
 
-// Regions of the Philippines.
+// ==========================================
+// PHILIPPINE REGIONS
+// ==========================================
+
 const PH_REGIONS = [
   "NCR (National Capital Region)",
   "CAR (Cordillera Administrative Region)",
@@ -99,7 +155,10 @@ const PH_REGIONS = [
   "BARMM (Bangsamoro Autonomous Region)",
 ];
 
-// Address fields.
+// ==========================================
+// ADDRESS UTILITIES
+// ==========================================
+
 const emptyAddress = () => ({
   venue: "",
   street: "",
@@ -130,15 +189,10 @@ const joinAddress = (a) => {
     .join(", ");
 };
 
-/**
- * Booking request form (client side).
- *
- * photographerId - active photographer's ID
- * events         - calendar events (start/end are Date objects)
- * initialDate    - selected calendar date ("YYYY-MM-DD")
- * onChanged      - called after a request is sent
- * onBooked       - called after a request is sent
- */
+// ==========================================
+// BOOKING PANEL
+// ==========================================
+
 export default function BookingPanel({
   photographerId,
   events = [],
@@ -146,6 +200,10 @@ export default function BookingPanel({
   initialDate,
   onBooked,
 }) {
+  // ==========================================
+  // STATES
+  // ==========================================
+
   const [form, setForm] = useState({
     title: "",
     category: Object.keys(CATEGORY_LABELS)[0] || "",
@@ -164,20 +222,30 @@ export default function BookingPanel({
   });
 
   const [crew, setCrew] = useState(defaultCrew);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Update the selected date when the calendar selection changes.
+  // Store validation errors for individual inputs.
+  const [repeatErrors, setRepeatErrors] = useState({});
+
+  // ==========================================
+  // UPDATE SELECTED DATE
+  // ==========================================
+
   useEffect(() => {
     if (initialDate) {
-      setForm((f) => ({
-        ...f,
+      setForm((prev) => ({
+        ...prev,
         date: initialDate,
       }));
     }
   }, [initialDate]);
 
-  // Automatically fill in the client's email and phone.
+  // ==========================================
+  // AUTO-FILL CONTACT DETAILS
+  // ==========================================
+
   useEffect(() => {
     let active = true;
 
@@ -186,10 +254,10 @@ export default function BookingPanel({
 
       if (!active || !user) return;
 
-      setContact((c) => ({
-        email: c.email || user.email || "",
+      setContact((prev) => ({
+        email: prev.email || user.email || "",
         phone:
-          c.phone ||
+          prev.phone ||
           user.phone ||
           user.user_metadata?.phone ||
           "",
@@ -201,6 +269,10 @@ export default function BookingPanel({
     };
   }, []);
 
+  // ==========================================
+  // CONTACT INPUT HANDLER
+  // ==========================================
+
   const setContactPart = (key) => (e) => {
     const raw = e.target.value;
 
@@ -209,48 +281,136 @@ export default function BookingPanel({
         ? raw.replace(/\D/g, "").slice(0, 11)
         : raw.replace(/\s/g, "");
 
-    setContact((c) => ({
-      ...c,
+    setContact((prev) => ({
+      ...prev,
       [key]: value,
     }));
   };
 
+  // ==========================================
+  // BOOKING INPUT VALIDATION
+  // ==========================================
+
+  
   const set = (key) => (e) => {
-    setForm((f) => ({
-      ...f,
-      [key]: e.target.value,
+    const value = e.target.value;
+
+    // Only validate the Booking Title.
+    // Notes and other fields are unrestricted.
+    if (
+      key === "title" &&
+      hasTripleRepeatedLetters(value)
+    ) {
+      setRepeatErrors((prev) => ({
+        ...prev,
+        [key]: repeatedMessage("Booking title"),
+      }));
+
+      // Reject the third consecutive identical letter.
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
     }));
+
+    if (key === "title") {
+      setRepeatErrors((prev) => ({
+        ...prev,
+        [key]: "",
+      }));
+    }
   };
+
+
+  // ==========================================
+  // LOCATION INPUT VALIDATION
+  // ==========================================
 
   const setPart = (key) => (e) => {
-    setAddress((a) => ({
-      ...a,
-      [key]: e.target.value,
+    const value = e.target.value;
+
+    const labels = {
+      venue: "Venue",
+      barangay: "Barangay",
+      city: "City",
+      municipality: "Municipality",
+    };
+
+    // Street is unrestricted.
+    // Region is a dropdown.
+    const shouldValidate =
+      key !== "street" && key !== "region";
+
+    if (
+      shouldValidate &&
+      hasTripleRepeatedLetters(value)
+    ) {
+      setRepeatErrors((prev) => ({
+        ...prev,
+        [key]: repeatedMessage(
+          labels[key] || "This field"
+        ),
+      }));
+
+      // Reject the third repeated letter.
+      // Do not update the address state.
+      return;
+    }
+
+    // Save only valid input.
+    setAddress((prev) => ({
+      ...prev,
+      [key]: value,
     }));
+
+    // Clear the error on valid input.
+    if (shouldValidate) {
+      setRepeatErrors((prev) => ({
+        ...prev,
+        [key]: "",
+      }));
+    }
   };
 
-  // Calculate the minimum permitted booking time.
+  // ==========================================
+  // DYNAMIC INPUT STYLING
+  // ==========================================
+
+  const textClass = (key) =>
+    `${input} ${
+      repeatErrors[key]
+        ? "!border-rose-500 ring-1 ring-rose-500/40 focus:!border-rose-500"
+        : ""
+    }`;
+
+  // ==========================================
+  // BOOKING TIME CALCULATIONS
+  // ==========================================
+
   const minimum = minimumBooking();
 
-  // For the minimum allowed date, restrict the start time.
   const earliestStart =
-    form.date === minimum.date ? minimum.time : undefined;
+    form.date === minimum.date
+      ? minimum.time
+      : undefined;
 
-  // Determine whether the selected appointment meets the two-hour rule.
   const meetsAdvanceNotice =
     form.date &&
     form.start &&
     bookingTimestamp(form.date, form.start) >=
       bookingTimestamp(minimum.date, minimum.time);
 
-  // Call time must be before or equal to event start time.
   const validCallTime =
     form.callTime &&
     form.start &&
     form.callTime <= form.start;
 
-  // What is still missing.
-  // The Send Request button stays disabled until validation passes.
+  // ==========================================
+  // REQUIRED FIELD VALIDATION
+  // ==========================================
+
   const missing = [];
 
   if (!form.title.trim()) {
@@ -271,14 +431,19 @@ export default function BookingPanel({
   if (!form.callTime) {
     missing.push("the photographer's call time");
   } else if (!validCallTime) {
-    missing.push("a call time before or at the event start time");
+    missing.push(
+      "a call time before or at the event start time"
+    );
   }
 
   if (!address.venue.trim()) {
     missing.push("the venue");
   }
 
-  if (!address.city.trim() && !address.municipality.trim()) {
+  if (
+    !address.city.trim() &&
+    !address.municipality.trim()
+  ) {
     missing.push("the city or municipality");
   }
 
@@ -298,10 +463,18 @@ export default function BookingPanel({
     missing.push("at least one creative");
   }
 
-  // Check whether the selected time conflicts with existing bookings.
+  // ==========================================
+  // CHECK SCHEDULE CONFLICTS
+  // ==========================================
+
   const conflict = () => {
-    const start = new Date(`${form.date}T${form.start}`);
-    const end = new Date(`${form.date}T${form.end}`);
+    const start = new Date(
+      `${form.date}T${form.start}`
+    );
+
+    const end = new Date(
+      `${form.date}T${form.end}`
+    );
 
     return events.some(
       (e) =>
@@ -311,6 +484,10 @@ export default function BookingPanel({
     );
   };
 
+  // ==========================================
+  // SUBMIT BOOKING REQUEST
+  // ==========================================
+
   async function submit(e) {
     e.preventDefault();
     setError("");
@@ -318,13 +495,14 @@ export default function BookingPanel({
     const title = form.title.trim();
 
     if (!title) {
-      return setError("Please give your booking a title.");
+      return setError(
+        "Please give your booking a title."
+      );
     }
 
-    // Refresh the minimum booking time during submission.
     const currentMinimum = minimumBooking();
 
-    // Validate the maximum allowed booking date.
+    // Maximum booking date.
     if (form.date > lastBookableDate()) {
       return setError(
         `Bookings can only be made up to December 31, ${
@@ -333,19 +511,22 @@ export default function BookingPanel({
       );
     }
 
-    // Validate the two-hour advance booking requirement.
+    // Two-hour advance booking requirement.
     if (
       !form.date ||
       !form.start ||
       bookingTimestamp(form.date, form.start) <
-        bookingTimestamp(currentMinimum.date, currentMinimum.time)
+        bookingTimestamp(
+          currentMinimum.date,
+          currentMinimum.time
+        )
     ) {
       return setError(
         "Bookings must be scheduled at least 2 hours in advance. Please choose a later date or time."
       );
     }
 
-    // Validate the photographer's call time.
+    // Validate call time.
     if (!form.callTime) {
       return setError(
         "Please specify the photographer's call time."
@@ -358,17 +539,21 @@ export default function BookingPanel({
       );
     }
 
-    // Validate the event's end time.
+    // Validate event end.
     if (form.end <= form.start) {
       return setError(
         "The end time must be later than the start time on the same day. For an event that runs past midnight, set the end to 11:59 pm and mention the rest in your notes."
       );
     }
 
+    // Validate venue.
     if (!address.venue.trim()) {
-      return setError("Please enter the venue.");
+      return setError(
+        "Please enter the venue."
+      );
     }
 
+    // Validate city or municipality.
     if (
       !address.city.trim() &&
       !address.municipality.trim()
@@ -378,26 +563,35 @@ export default function BookingPanel({
       );
     }
 
+    // Validate region.
     if (!address.region) {
-      return setError("Please choose the region.");
+      return setError(
+        "Please choose the region."
+      );
     }
 
+    // Validate email.
     if (!EMAIL_RULE.test(contact.email.trim())) {
-      return setError("Please enter a valid email address.");
+      return setError(
+        "Please enter a valid email address."
+      );
     }
 
+    // Validate phone.
     if (phoneDigits(contact.phone).length !== 11) {
       return setError(
         "Please enter an 11-digit contact number (e.g. 09171234567)."
       );
     }
 
+    // Validate booking conflicts.
     if (conflict()) {
       return setError(
         "That time is already booked. Please pick another slot."
       );
     }
 
+    // Validate crew.
     const crewError = crewProblem(crew);
 
     if (crewError) {
@@ -406,7 +600,10 @@ export default function BookingPanel({
 
     setSaving(true);
 
-    // Create the booking request.
+    // ==========================================
+    // CREATE BOOKING REQUEST
+    // ==========================================
+
     const { error: err } = await supabase.rpc(
       "request_booking",
       {
@@ -427,8 +624,10 @@ export default function BookingPanel({
       return setError(err.message);
     }
 
-    // Attach the creatives requested by the client.
-    // The booking already exists if this secondary step fails.
+    // ==========================================
+    // SAVE CREW DETAILS
+    // ==========================================
+
     const { error: crewErr } = await supabase.rpc(
       "set_booking_crew",
       {
@@ -440,7 +639,10 @@ export default function BookingPanel({
       }
     );
 
-    // Save the client's contact information.
+    // ==========================================
+    // SAVE CONTACT DETAILS
+    // ==========================================
+
     const { error: contactErr } = await supabase.rpc(
       "set_booking_contact",
       {
@@ -477,9 +679,12 @@ export default function BookingPanel({
       );
     }
 
-    // Reset the form after a successful booking request.
-    setForm((f) => ({
-      ...f,
+    // ==========================================
+    // RESET FORM
+    // ==========================================
+
+    setForm((prev) => ({
+      ...prev,
       title: "",
       callTime: "",
       notes: "",
@@ -488,34 +693,58 @@ export default function BookingPanel({
     setAddress(emptyAddress());
     setCrew(defaultCrew());
 
+    // Clear repeated-letter errors.
+    setRepeatErrors({});
+
     onChanged?.();
     onBooked?.();
   }
+
+  // ==========================================
+  // BOOKING PANEL INTERFACE
+  // ==========================================
 
   return (
     <form
       onSubmit={submit}
       className="min-w-0 space-y-3 rounded-lg border border-slate-700 bg-slate-950/50 p-3 sm:p-4"
     >
+      {/* ======================================
+          HEADER
+         ====================================== */}
+
       <p className="flex items-center gap-2 text-xs font-semibold text-slate-300">
         <FaCalendarPlus className="text-sky-400" />
         Send a booking request
       </p>
 
       <p className="text-xs text-slate-500">
-        Your photographer will review it and send back a quote.
-        You confirm it in "My Bookings".
+        Your photographer will review it and send back a
+        quote. You confirm it in "My Bookings".
       </p>
 
-      <input
-        className={input}
-        placeholder="What is the shoot for? (e.g. Wedding of Ana & Ben)"
-        value={form.title}
-        onChange={set("title")}
-        maxLength={120}
-      />
+      {/* ======================================
+          BOOKING TITLE
+         ====================================== */}
 
-      {/* CATEGORY AND DATE */}
+      <div>
+        <input
+          className={textClass("title")}
+          placeholder="What is the shoot for? (e.g. Wedding of Ana & Ben)"
+          aria-label="Booking title"
+          aria-invalid={Boolean(repeatErrors.title)}
+          value={form.title}
+          onChange={set("title")}
+          maxLength={120}
+        />
+
+        <RepeatError message={repeatErrors.title} />
+      </div>
+
+      {/* ======================================
+          CATEGORY AND DATE
+         ====================================== */}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <select
           className={input}
@@ -541,12 +770,16 @@ export default function BookingPanel({
         />
       </div>
 
-      {/* SCHEDULE DETAILS */}
-      <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 sm:p-4 space-y-3">
+      {/* ======================================
+          SCHEDULE DETAILS
+         ====================================== */}
+
+      <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/70 p-3 sm:p-4">
         <div>
           <h3 className="text-sm font-semibold text-white">
             Schedule Details
           </h3>
+
           <p className="mt-0.5 text-xs text-slate-500">
             Set the photographer's arrival and event duration.
           </p>
@@ -614,90 +847,136 @@ export default function BookingPanel({
         </div>
       </div>
 
-      {/* TWO-HOUR BOOKING NOTICE */}
+      {/* ======================================
+          ADVANCE BOOKING NOTICE
+         ====================================== */}
+
       {form.date === minimum.date && (
         <p className="text-xs text-slate-500">
-          For today, your booking must start at least 2 hours
-          from the current time. Earliest available start:{" "}
-          {minimum.time}.
+          For today, your booking must start at least 2
+          hours from the current time. Earliest available
+          start: {minimum.time}.
         </p>
       )}
 
+      {/* ======================================
+          LOCATION
+         ====================================== */}
 
-      {/* Location */}
       <div className="space-y-3">
         <p className="text-sm font-medium text-slate-200">
           Location
         </p>
 
-        <input
-          className={input}
-          placeholder="Venue"
-          aria-label="Venue"
-          value={address.venue}
-          onChange={setPart("venue")}
-          maxLength={80}
-        />
+        {/* VENUE */}
+        <div>
+          <input
+            className={textClass("venue")}
+            placeholder="Venue"
+            aria-label="Venue"
+            aria-invalid={Boolean(repeatErrors.venue)}
+            value={address.venue}
+            onChange={setPart("venue")}
+            maxLength={80}
+          />
 
-        <input
-          className={input}
-          placeholder="Street"
-          aria-label="Street"
-          value={address.street}
-          onChange={setPart("street")}
-          maxLength={60}
-        />
+          <RepeatError message={repeatErrors.venue} />
+        </div>
 
+        {/* STREET - NO REPEATED LETTER RESTRICTION */}
+        <div>
+          <input
+            className={input}
+            placeholder="Street"
+            aria-label="Street"
+            value={address.street}
+            onChange={setPart("street")}
+            maxLength={60}
+          />
+        </div>
+
+        {/* BARANGAY, CITY, MUNICIPALITY, REGION */}
         <div className="grid gap-3 sm:grid-cols-2">
-          <input
-            className={input}
-            placeholder="Barangay"
-            aria-label="Barangay"
-            value={address.barangay}
-            onChange={setPart("barangay")}
-            maxLength={40}
-          />
+          {/* BARANGAY */}
+          <div className="min-w-0">
+            <input
+              className={textClass("barangay")}
+              placeholder="Barangay"
+              aria-label="Barangay"
+              aria-invalid={Boolean(
+                repeatErrors.barangay
+              )}
+              value={address.barangay}
+              onChange={setPart("barangay")}
+              maxLength={40}
+            />
 
-          <input
-            className={input}
-            placeholder="City"
-            aria-label="City"
-            value={address.city}
-            onChange={setPart("city")}
-            maxLength={40}
-          />
+            <RepeatError
+              message={repeatErrors.barangay}
+            />
+          </div>
 
-          <input
-            className={input}
-            placeholder="Municipality"
-            aria-label="Municipality"
-            value={address.municipality}
-            onChange={setPart("municipality")}
-            maxLength={40}
-          />
+          {/* CITY */}
+          <div className="min-w-0">
+            <input
+              className={textClass("city")}
+              placeholder="City"
+              aria-label="City"
+              aria-invalid={Boolean(repeatErrors.city)}
+              value={address.city}
+              onChange={setPart("city")}
+              maxLength={40}
+            />
 
-          <select
-            className={`${input} ${
-              address.region ? "" : "text-slate-500"
-            }`}
-            aria-label="Region"
-            value={address.region}
-            onChange={setPart("region")}
-          >
-            <option value="" disabled>
-              Select region
-            </option>
+            <RepeatError message={repeatErrors.city} />
+          </div>
 
-            {PH_REGIONS.map((region) => (
-              <option
-                key={region}
-                value={region}
-                className="bg-slate-800 text-white"
-              >
-                {region}
+          {/* MUNICIPALITY */}
+          <div className="min-w-0">
+            <input
+              className={textClass("municipality")}
+              placeholder="Municipality"
+              aria-label="Municipality"
+              aria-invalid={Boolean(
+                repeatErrors.municipality
+              )}
+              value={address.municipality}
+              onChange={setPart("municipality")}
+              maxLength={40}
+            />
+
+            <RepeatError
+              message={repeatErrors.municipality}
+            />
+          </div>
+
+          {/* REGION */}
+          <div className="min-w-0">
+            <select
+              className={`${input} ${
+                address.region
+                  ? ""
+                  : "text-slate-500"
+              }`}
+              aria-label="Region"
+              value={address.region}
+              onChange={setPart("region")}
+            >
+              <option value="" disabled>
+                Select region
               </option>
-            ))}
-          </select>
+
+              {PH_REGIONS.map((region) => (
+                <option
+                  key={region}
+                  value={region}
+                  className="bg-slate-800 text-white"
+                >
+                  {region}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <p className="text-xs text-slate-500">
@@ -706,13 +985,17 @@ export default function BookingPanel({
         </p>
       </div>
 
-      {/* Contact details */}
+      {/* ======================================
+          CONTACT DETAILS
+         ====================================== */}
+
       <div className="space-y-3">
         <p className="text-sm font-medium text-slate-200">
           Contact
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
+          {/* EMAIL */}
           <input
             className={input}
             type="email"
@@ -725,6 +1008,7 @@ export default function BookingPanel({
             maxLength={120}
           />
 
+          {/* PHONE */}
           <input
             className={input}
             type="tel"
@@ -740,9 +1024,14 @@ export default function BookingPanel({
 
         <p className="text-xs text-slate-500">
           Your email is filled in from your account. Your
-          photographer uses these to reach you about this booking.
+          photographer uses these to reach you about this
+          booking.
         </p>
       </div>
+
+      {/* ======================================
+          CREATIVES NEEDED
+         ====================================== */}
 
       <CrewNeededField
         value={crew}
@@ -750,15 +1039,22 @@ export default function BookingPanel({
         disabled={saving}
       />
 
-      <textarea
-        className={input}
-        rows={2}
-        placeholder="Notes for your photographer (optional)"
-        value={form.notes}
-        onChange={set("notes")}
-        maxLength={200}
-      />
+      {/* ======================================
+          NOTES
+         ====================================== */}
 
+      <div>
+        <textarea
+          className={input}
+          rows={2}
+          placeholder="Notes for your photographer (optional)"
+          value={form.notes}
+          onChange={set("notes")}
+          maxLength={200}
+        />
+      </div>
+
+      {/* NOTES CHARACTER COUNTER */}
       <div className="mt-1 flex justify-end">
         <span
           className={`text-xs ${
@@ -771,11 +1067,19 @@ export default function BookingPanel({
         </span>
       </div>
 
+      {/* ======================================
+          SUBMISSION ERRORS
+         ====================================== */}
+
       {error && (
         <p className="text-xs text-red-400">
           {error}
         </p>
       )}
+
+      {/* ======================================
+          MISSING REQUIREMENTS
+         ====================================== */}
 
       {missing.length > 0 && (
         <p
@@ -785,6 +1089,10 @@ export default function BookingPanel({
           Still needed: {missing.join(", ")}.
         </p>
       )}
+
+      {/* ======================================
+          SUBMIT BUTTON
+         ====================================== */}
 
       <div className="flex justify-end">
         <button

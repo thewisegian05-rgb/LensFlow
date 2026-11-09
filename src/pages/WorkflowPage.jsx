@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useOutletContext, useLocation } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup, MotionConfig } from "framer-motion";
+import { createPortal } from "react-dom";
+import { FiX } from "react-icons/fi";
 
 import {
   FaChevronLeft,
@@ -697,62 +699,96 @@ function WorkflowPage() {
           </div>
         </LayoutGroup>
 
-        {/* Confirmation for moving a card backwards */}
-        <AnimatePresence>
-          {pendingMove && pendingItem && pendingTarget && (
-            <motion.div
-              key="confirm-back"
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setPendingMove(null)}
-            >
-              <motion.div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="confirm-back-title"
-                onClick={(e) => e.stopPropagation()}
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.25, ease: SMOOTH_EASE }}
-                className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900"
-              >
-                <h3
-                  id="confirm-back-title"
-                  className="text-base font-semibold text-slate-900 dark:text-white"
+        {/* Confirmation for moving a card backwards — matches LensFlow modals. */}
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {pendingMove && pendingItem && pendingTarget && (
+                <motion.div
+                  key="confirm-back"
+                  className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.22, ease: SMOOTH_EASE }}
+                  onClick={() => setPendingMove(null)}
                 >
-                  Are you sure you want to bring this back?
-                </h3>
-                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                  "{pendingItem.name}" will move from{" "}
-                  <span className="font-semibold">
-                    {STAGES[STAGE_INDEX[pendingItem.stage]].label}
-                  </span>{" "}
-                  back to <span className="font-semibold">{pendingTarget.label}</span>.
-                </p>
+                  <motion.div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="confirm-back-title"
+                    aria-describedby="confirm-back-description"
+                    onClick={(e) => e.stopPropagation()}
+                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.97, y: 10 }}
+                    transition={{ duration: 0.3, ease: SMOOTH_EASE }}
+                    className="relative flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  >
+                    {/* Header — same light/dark background as the other modals. */}
+                    <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="min-w-0">
+                        <h3
+                          id="confirm-back-title"
+                          className="text-lg font-bold text-slate-900 dark:text-white"
+                        >
+                          Are you sure you want to bring this back?
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Confirm this workflow change.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPendingMove(null)}
+                        aria-label="Close confirmation"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent p-0 text-slate-500 shadow-none transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                      >
+                        <FiX aria-hidden="true" />
+                      </button>
+                    </div>
 
-                <div className="mt-5 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPendingMove(null)}
-                    className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={confirmBackMove}
-                    className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-sky-600"
-                  >
-                    Yes, bring it back
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
+                    {/* Content */}
+                    <div className="bg-white px-6 py-6 dark:bg-slate-900">
+                      <p
+                        id="confirm-back-description"
+                        className="break-words text-sm leading-6 text-slate-600 dark:text-slate-300"
+                      >
+                        &ldquo;{pendingItem.name}&rdquo; will move from{" "}
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                          {STAGES[STAGE_INDEX[pendingItem.stage]].label}
+                        </span>{" "}
+                        back to{" "}
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                          {pendingTarget.label}
+                        </span>
+                        .
+                      </p>
+                    </div>
+
+                    {/* Footer — outlined Cancel and solid blue confirmation. */}
+                    <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+                      <button
+                        type="button"
+                        onClick={() => setPendingMove(null)}
+                        className="rounded-xl border border-slate-300 bg-transparent px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmBackMove}
+                        className="rounded-xl border border-transparent bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                      >
+                        Yes, bring it back
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body
           )}
-        </AnimatePresence>
       </div>
     </MotionConfig>
   );

@@ -2067,7 +2067,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => setViewDetails(false)}
-                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-400"
               >
                 Save
               </button>
@@ -2873,12 +2873,12 @@ function DetailEditor({
   // ========================================
   return (
     <div className={`modal-overlay-anim fixed inset-0 z-[130] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md ${isClosing ? "modal-exit" : ""}`}>
-      <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ${isClosing ? "modal-exit" : ""}`}>
+      <div className={`modal-card-pop relative flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white ${isClosing ? "modal-exit" : ""}`}>
 
         {/* ========================================
             DETAIL EDITOR HEADER
             ======================================== */}
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
           <div>
             <h2 className="text-xl font-bold">
               {titleMap[type]}
@@ -2900,7 +2900,7 @@ function DetailEditor({
         {/* ========================================
             DETAIL EDITOR CONTENT
             ======================================== */}
-        <div className="flex-1 space-y-5 overflow-y-auto p-6">
+        <div className="flex-1 space-y-5 overflow-y-auto bg-white p-6 text-slate-900 dark:bg-slate-900 dark:text-white">
 
           {/* ========================================
               PERSONAL DETAILS EDITOR
@@ -3170,7 +3170,7 @@ function DetailEditor({
         {/* ========================================
             DETAIL EDITOR BUTTONS
             ======================================== */}
-        <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
           <button
             onClick={onClose}
             className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"

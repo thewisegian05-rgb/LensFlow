@@ -185,6 +185,9 @@ const getSignUpErrorField = (error) => {
 const hasTripleRepeatedLetters = (value) =>
   /([a-z])\1{2}/i.test(value);
 
+// Reject digits and other Unicode numeric characters in personal names.
+const hasNumbers = (value) => /\p{N}/u.test(value);
+
 // ==============================
 // FORM VALIDATION
 // ==============================
@@ -216,6 +219,8 @@ const validateSignUpForm = (form, passwordIsValid) => {
     ) {
       errors[field] =
         `${label} must be between 2 and 50 characters.`;
+    } else if (value && hasNumbers(value)) {
+      errors[field] = `${label} cannot contain numbers.`;
     } else if (
       value &&
       hasTripleRepeatedLetters(value)
@@ -423,6 +428,22 @@ function SignUpPage() {
       lastName: "Last name",
       studioName: "Studio / Business Name",
     };
+
+    // Applies to all account types because they use these same name fields.
+    // Reject the edit (including pasted text) and show the reason.
+    const personalNameFields = {
+      firstName: "First name",
+      middleName: "Middle name",
+      lastName: "Last name",
+    };
+
+    if (personalNameFields[name] && hasNumbers(value)) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: `${personalNameFields[name]} cannot contain numbers.`,
+      }));
+      return;
+    }
 
     if (
       repeatedLetterFields[name] &&
@@ -717,8 +738,8 @@ function SignUpPage() {
 
                   <p className="signup-field-help mb-2">
                     Enter your first, middle (optional), and
-                    last name. Each field must contain 2–50
-                    characters.
+                    last name. Each filled field must contain 2–50
+                    characters. Numbers are not allowed in names.
                   </p>
 
                   <div

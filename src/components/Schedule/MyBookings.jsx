@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createWorker } from "tesseract.js";
 import { supabase } from "../../lib/supabaseClient";
+
 const STATUS = {
   pending: { label: "Waiting for photographer", cls: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300" },
   offered: { label: "Quote received", cls: "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300" },
@@ -11,65 +12,84 @@ const STATUS = {
   rejected: { label: "You declined the quote", cls: "bg-slate-100 text-slate-500 dark:bg-slate-700/50 dark:text-slate-400" },
   cancelled: { label: "Cancelled", cls: "bg-slate-100 text-slate-500 dark:bg-slate-700/50 dark:text-slate-400" },
 };
+
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })}`;
+
 const shortDate = (iso) =>
   new Date(iso).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
+
 function refundNote(r) {
   const hasDown = r.downpayment_amount != null && Number(r.downpayment_amount) > 0;
+
   if (r.status === "approved") {
     if (hasDown && r.downpayment_received_at) {
       return `Your downpayment of ${peso(r.downpayment_amount)} has already been received and is non-refundable, even if your cancellation is approved.`;
     }
+
     if (hasDown) {
       return `If you already sent your downpayment of ${peso(r.downpayment_amount)}, it is non-refundable, even if your cancellation is approved.`;
     }
+
     return "Any downpayment you have paid is non-refundable, even if your cancellation is approved.";
   }
+
   if (!hasDown) return null;
+
   return `If you already sent your downpayment of ${peso(r.downpayment_amount)}, it is non-refundable. Please do not send it if you are cancelling.`;
 }
+
 async function extractReceiptData(file) {
   const worker = await createWorker("eng");
+
   try {
     const {
       data: { text },
     } = await worker.recognize(file);
+
     const lines = text
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
+
     // ==========================================
     // 1. EXTRACT TRANSACTION AMOUNT
     // ==========================================
     let amount = null;
+
     const amountPatterns = [
       // Specific transfer/payment amount labels.
       /(?:transfer(?:red)?\s*amount|amount\s*(?:sent|transferred|paid)|payment\s*amount|transaction\s*amount)\s*[:\-]?\s*(?:PHP|₱|P)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+
       // Generic amount label.
       /(?:^|\b)amount\s*[:\-]?\s*(?:PHP|₱|P)?\s*([\d,]+(?:\.\d{1,2})?)/im,
+
       // Total amount fallback.
       /total\s+amount\s*[:\-]?\s*(?:PHP|₱|P)?\s*([\d,]+(?:\.\d{1,2})?)/i,
     ];
+
     for (const pattern of amountPatterns) {
       const match = text.match(pattern);
+
       if (match) {
         amount = Number(match[1].replace(/,/g, ""));
         break;
       }
     }
+
     // Handle labels and amounts on separate lines.
     if (amount === null) {
       const amountLabelIndex = lines.findIndex((line) =>
         /^(?:transfer(?:red)?\s*amount|amount\s*(?:sent|transferred|paid)|payment\s*amount|transaction\s*amount|amount)\s*[:\-]?\s*$/i.test(line)
       );
+
       if (amountLabelIndex !== -1) {
         for (
           let i = amountLabelIndex + 1;
@@ -77,9 +97,11 @@ async function extractReceiptData(file) {
           i++
         ) {
           if (/fee|total/i.test(lines[i])) continue;
+
           const match = lines[i].match(
             /(?:PHP|₱|P)?\s*([\d,]+(?:\.\d{1,2})?)/
           );
+
           if (match) {
             amount = Number(match[1].replace(/,/g, ""));
             break;
@@ -87,13 +109,17 @@ async function extractReceiptData(file) {
         }
       }
     }
+
     // ==========================================
     // 2. EXTRACT REFERENCE NUMBER
     // ==========================================
     let referenceNumber = null;
+
     const referencePattern =
       /(?:reference\s*(?:no\.?|number)?|ref\.?\s*(?:no\.?|number)?|transaction\s*(?:id|no\.?|number)|trace\s*(?:no\.?|number)|instapay\s*(?:invoice\s*)?(?:no\.?|number))\s*[:#-]?\s*([A-Z0-9-]{6,})/i;
+
     const referenceMatch = text.match(referencePattern);
+
     if (referenceMatch) {
       referenceNumber = referenceMatch[1];
     } else {
@@ -103,22 +129,28 @@ async function extractReceiptData(file) {
           line
         )
       );
+
       if (referenceLabelIndex !== -1) {
         const referenceText = lines
           .slice(referenceLabelIndex + 1, referenceLabelIndex + 3)
           .join(" ");
+
         const match = referenceText.match(/\b([A-Z0-9-]{6,})\b/i);
+
         if (match) {
           referenceNumber = match[1];
         }
       }
     }
+
     // ==========================================
     // 3. EXTRACT TRANSACTION DATE
     // ==========================================
     let transactionDate = null;
+
     const monthPattern =
       "Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?";
+
     // Examples:
     // 06 Nov 2026, 10:31 AM
     // 05 Nov 2026, 17:36
@@ -128,6 +160,7 @@ async function extractReceiptData(file) {
         "i"
       )
     );
+
     // Examples:
     // Nov 06, 2026 10:31 AM
     // November 05, 2026
@@ -137,24 +170,30 @@ async function extractReceiptData(file) {
         "i"
       )
     );
+
     // Examples:
     // 2026-11-06
     // 2026-11-06 10:31
     const isoMatch = text.match(
       /\b(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?/i
     );
+
     const monthNames = [
       "jan", "feb", "mar", "apr", "may", "jun",
       "jul", "aug", "sep", "oct", "nov", "dec",
     ];
+
     function buildDate(year, month, day, hour = 12, minute = 0, meridiem = "") {
       hour = Number(hour);
       minute = Number(minute);
+
       if (meridiem) {
         meridiem = meridiem.toUpperCase();
+
         if (meridiem === "PM" && hour < 12) hour += 12;
         if (meridiem === "AM" && hour === 12) hour = 0;
       }
+
       const parsedDate = new Date(
         Number(year),
         Number(month),
@@ -162,6 +201,7 @@ async function extractReceiptData(file) {
         hour,
         minute
       );
+
       // Validate that the date components are valid.
       if (
         parsedDate.getFullYear() !== Number(year) ||
@@ -170,14 +210,17 @@ async function extractReceiptData(file) {
       ) {
         return null;
       }
+
       return Number.isNaN(parsedDate.getTime())
         ? null
         : parsedDate.toISOString();
     }
+
     if (dayFirstMatch) {
       const monthIndex = monthNames.indexOf(
         dayFirstMatch[2].slice(0, 3).toLowerCase()
       );
+
       if (monthIndex >= 0) {
         transactionDate = buildDate(
           dayFirstMatch[3],
@@ -192,6 +235,7 @@ async function extractReceiptData(file) {
       const monthIndex = monthNames.indexOf(
         monthFirstMatch[1].slice(0, 3).toLowerCase()
       );
+
       if (monthIndex >= 0) {
         transactionDate = buildDate(
           monthFirstMatch[3],
@@ -211,6 +255,7 @@ async function extractReceiptData(file) {
         isoMatch[5] || 0
       );
     }
+
     // ==========================================
     // 4. RETURN EXTRACTED RECEIPT DATA
     // ==========================================
@@ -224,6 +269,7 @@ async function extractReceiptData(file) {
     await worker.terminate();
   }
 }
+
 function Icon({ name, className = "" }) {
   const common = {
     className,
@@ -235,6 +281,7 @@ function Icon({ name, className = "" }) {
     strokeLinejoin: "round",
     "aria-hidden": true,
   };
+
   const paths = {
     wallet: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 8h18M16 14h.01" /><path d="M6 5V4a1 1 0 0 1 1-1h12" /></>,
     user: <><circle cx="12" cy="8" r="3.2" /><path d="M5 20c.7-3.2 3.1-5 7-5s6.3 1.8 7 5" /></>,
@@ -253,8 +300,10 @@ function Icon({ name, className = "" }) {
       </>
     ),
   };
+
   return <svg {...common}>{paths[name] || null}</svg>;
 }
+
 /**
  * Client booking requests and quote responses.
  * photographerId - active photographer's id
@@ -271,6 +320,10 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   const [reason, setReason] = useState("");
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [isQrExpanded, setIsQrExpanded] = useState(false);
+
+  // Workflow stage per booking id (same source as "Your Events")
+  const [stages, setStages] = useState({});
+
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [paymentQrUrl, setPaymentQrUrl] = useState("");
@@ -279,29 +332,69 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
   const [receiptFiles, setReceiptFiles] = useState({});
   const [uploadBusyId, setUploadBusyId] = useState(null);
   const [paymentLoadError, setPaymentLoadError] = useState("");
+
   const receiptInputRefs = useRef({});
   const qrSignedAt = useRef(0);
   const qrPathRef = useRef("");
+
   const confirmRow = rows.find((r) => r.id === confirmId) || null;
+
+  // Order bookings by when the event actually happens:
+  // happening now → already happened (latest first) → upcoming (soonest first)
+  const sortedRows = useMemo(() => {
+    const now = Date.now();
+
+    const withTimes = rows.map((r) => {
+      const start = new Date(`${r.event_date}T${r.start_time}`).getTime();
+      let end = new Date(`${r.event_date}T${r.end_time}`).getTime();
+      if (end <= start) end += 24 * 60 * 60 * 1000; // event runs past midnight
+
+      const group = start <= now && now < end ? 0 : end <= now ? 1 : 2;
+      return { r, start, end, group };
+    });
+
+    withTimes.sort((a, b) => {
+      if (a.group !== b.group) return a.group - b.group;
+      if (a.group === 1) return b.end - a.end; // happened: most recent first
+      return a.start - b.start; // happening / upcoming: soonest first
+    });
+
+    return withTimes.map((item) => item.r);
+  }, [rows]);
+
   const load = useCallback(async () => {
     if (!photographerId) return;
+
     const { data, error: err } = await supabase
       .from("booking_requests")
       .select("*")
       .eq("photographer_id", photographerId)
       .order("created_at", { ascending: false })
       .limit(20);
+
     if (err) {
       console.error("Failed to load bookings:", err.message);
       setLoadError(err.message);
       return;
     }
+
     setLoadError("");
+
     const bookingRows = data || [];
     setRows(bookingRows);
+
+    // Workflow stage per booking (same source as "Your Events")
+    const { data: progress } = await supabase.rpc("my_event_progress");
+    const stageMap = {};
+    for (const p of Array.isArray(progress) ? progress : []) {
+      stageMap[p.booking_id] = p.stage;
+    }
+    setStages(stageMap);
+
     const awaitingBookings = bookingRows.filter(
       (booking) => booking.status === "awaiting_dp"
     );
+
     if (awaitingBookings.length === 0) {
       setPaymentMethod(null);
       setPaymentQrUrl("");
@@ -311,31 +404,38 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
       qrPathRef.current = "";
       return;
     }
+
     const bookingIds = awaitingBookings.map((booking) => booking.id);
     let nextPaymentError = "";
+
     const { data: submissions, error: submissionsError } = await supabase
       .from("booking_payment_submissions")
       .select("*")
       .in("booking_request_id", bookingIds)
       .order("created_at", { ascending: false });
+
     if (submissionsError) {
       console.error("Payment submissions loading failed:", submissionsError);
       nextPaymentError = submissionsError.message;
     } else {
       const latestByBooking = {};
+
       for (const submission of submissions || []) {
         if (!latestByBooking[submission.booking_request_id]) {
           latestByBooking[submission.booking_request_id] = submission;
         }
       }
+
       setPaymentSubmissions(latestByBooking);
     }
+
     const { data: method, error: methodError } = await supabase
       .from("photographer_payment_methods")
       .select("*")
       .eq("photographer_id", photographerId)
       .eq("is_active", true)
       .maybeSingle();
+
     if (methodError) {
       console.error("Payment details loading failed:", methodError);
       nextPaymentError = nextPaymentError || methodError.message;
@@ -343,19 +443,23 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
       setPaymentQrUrl("");
     } else {
       setPaymentMethod(method || null);
+
       const nextQrPath =
         method?.qr_storage_path ||
         method?.gcash_qr_path ||
         "";
+
       const shouldRefreshSignedUrl =
         nextQrPath &&
         (nextQrPath !== qrPathRef.current ||
           !paymentQrUrl ||
           Date.now() - qrSignedAt.current > 50 * 60 * 1000);
+
       if (shouldRefreshSignedUrl) {
         const { data: signedData, error: signedError } = await supabase.storage
           .from("photographer-payment-qr")
           .createSignedUrl(nextQrPath, 3600);
+
         if (signedError) {
           console.error("Payment QR loading failed:", signedError);
           nextPaymentError = nextPaymentError || signedError.message;
@@ -371,114 +475,150 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
         qrSignedAt.current = 0;
       }
     }
+
     setPaymentLoadError(nextPaymentError);
   }, [photographerId, paymentQrUrl]);
+
   useEffect(() => {
     load();
   }, [load, refreshKey]);
+
   useEffect(() => {
     const onFocus = () => load();
+
     window.addEventListener("focus", onFocus);
     const timer = setInterval(load, 10000);
+
     return () => {
       window.removeEventListener("focus", onFocus);
       clearInterval(timer);
     };
   }, [load]);
+
   useEffect(() => {
     if (!confirmId) return;
+
     const onKey = (e) => {
       if (e.key === "Escape" && !busyId) setConfirmId(null);
     };
+
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [confirmId, busyId]);
+
   useEffect(() => {
     if (!selectedBookingId) return;
+
     const onKey = (e) => {
       if (e.key === "Escape" && !busyId && !uploadBusyId) {
         setSelectedBookingId(null);
       }
     };
+
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedBookingId, busyId, uploadBusyId]);
+
   // Reset the agreement whenever the booking details modal opens or closes.
   useEffect(() => {
     setTermsAccepted(false);
   }, [selectedBookingId]);
+
   async function run(id, call) {
     setBusyId(id);
     setError("");
     setErrorId(null);
+
     const { error: err } = await call();
+
     setBusyId(null);
+
     if (err) {
       console.error("Booking action failed:", err);
       setError(err.message);
       setErrorId(id);
     }
+
     await load();
     onChanged?.();
   }
+
   const accept = (id) =>
     run(id, () => supabase.rpc("respond_to_offer", { p_id: id, p_accept: true }));
+
   const decline = (id) =>
     run(id, () => supabase.rpc("respond_to_offer", { p_id: id, p_accept: false }));
+
   const cancel = (id) => run(id, () => supabase.rpc("cancel_booking", { p_id: id }));
+
   const cancelAwaiting = (id) =>
     run(id, () => supabase.rpc("cancel_awaiting_request", { p_id: id }));
+
   async function submitReceipt(booking) {
     if (!termsAccepted) {
       setError("Please read and agree to the Downpayment Terms and Conditions.");
       setErrorId(booking.id);
       return;
     }
+
     const file = receiptFiles[booking.id];
+
     if (!file) {
       setError("Please select your payment receipt first.");
       setErrorId(booking.id);
       return;
     }
+
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
       setError("Please upload a PNG, JPG, or WEBP image.");
       setErrorId(booking.id);
       return;
     }
+
     if (file.size > 5 * 1024 * 1024) {
       setError("Your receipt must be 5 MB or smaller.");
       setErrorId(booking.id);
       return;
     }
+
     if (!paymentMethod?.is_active) {
       setError("The photographer's payment details are unavailable.");
       setErrorId(booking.id);
       return;
     }
+
     setUploadBusyId(booking.id);
     setError("");
     setErrorId(null);
+
     let uploadedPath = "";
     let submissionCreated = false;
+
     try {
       // STEP 1: Process receipt using Tesseract.js.
       let ocrResult = null;
+
       try {
         ocrResult = await extractReceiptData(file);
         console.log("Payment receipt OCR Results:", ocrResult);
       } catch (ocrError) {
         console.warn("OCR processing failed:", ocrError);
       }
+
       // STEP 2: Upload receipt to Supabase Storage.
       const extension = file.name.split(".").pop().toLowerCase();
+
       uploadedPath = `${booking.id}/${crypto.randomUUID()}.${extension}`;
+
       const { error: uploadError } = await supabase.storage
         .from("payment-receipts")
         .upload(uploadedPath, file, {
           contentType: file.type,
           upsert: false,
         });
+
       if (uploadError) throw uploadError;
+
       // STEP 3: Create payment submission.
       const { data: submissionId, error: submitError } =
         await supabase.rpc("submit_booking_payment", {
@@ -486,8 +626,11 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
           p_receipt_storage_path: uploadedPath,
           p_terms_accepted: termsAccepted,
         });
+
       if (submitError) throw submitError;
+
       submissionCreated = true;
+
       // STEP 4: Save OCR results if extraction succeeded.
       if (ocrResult) {
         const { error: ocrSaveError } = await supabase.rpc(
@@ -500,43 +643,53 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
             p_transaction_date: ocrResult.transactionDate,
           }
         );
+
         if (ocrSaveError) {
           console.warn("Could not save OCR results:", ocrSaveError);
         }
       }
+
       // STEP 5: Clear selected receipt.
       setReceiptFiles((previous) => {
         const updated = { ...previous };
         delete updated[booking.id];
         return updated;
       });
+
       if (receiptInputRefs.current[booking.id]) {
         receiptInputRefs.current[booking.id].value = "";
       }
+
       // STEP 6: Refresh payment submissions.
       await load();
       onChanged?.();
     } catch (submitError) {
       console.error("Receipt submission failed:", submitError);
+
       // Only delete the uploaded file if the database
       // submission was not successfully created.
       if (uploadedPath && !submissionCreated) {
         const { error: cleanupError } = await supabase.storage
           .from("payment-receipts")
           .remove([uploadedPath]);
+
         if (cleanupError) {
           console.warn("Could not remove unused receipt:", cleanupError);
         }
       }
+
       setError(submitError.message || "Unable to submit your receipt.");
       setErrorId(booking.id);
     } finally {
       setUploadBusyId(null);
     }
   }
+
   async function confirmCancel() {
     if (!confirmRow) return;
+
     const row = confirmRow;
+
     if (row.status === "approved") {
       await run(row.id, () =>
         supabase.rpc("request_booking_cancellation", {
@@ -547,9 +700,11 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
     } else {
       await (row.status === "awaiting_dp" ? cancelAwaiting(row.id) : cancel(row.id));
     }
+
     setConfirmId(null);
     setReason("");
   }
+
   if (loadError) {
     return (
       <p className="rounded-lg border border-rose-200 dark:border-rose-500/40 p-3 text-xs text-rose-700 dark:text-rose-300">
@@ -557,6 +712,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
       </p>
     );
   }
+
   if (rows.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-slate-200 dark:border-slate-700 py-6 text-center text-sm text-slate-500">
@@ -564,598 +720,699 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
       </p>
     );
   }
+
   return (
     <div className="space-y-3 text-slate-900 dark:text-slate-100">
       <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-gradient-to-b from-white dark:from-slate-900/90 to-slate-50 dark:to-slate-950/80 shadow-sm shadow-slate-900/10 dark:shadow-lg dark:shadow-black/10">
-      {/* Booking list container header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700/70 bg-slate-50 dark:bg-slate-900/70 px-4 py-3.5 sm:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200 dark:border-blue-400/20 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
-            <Icon name="calendar" className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Booking activity</h3>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Select a booking to view its details and available actions.
-            </p>
-          </div>
-        </div>
-        <span className="inline-flex shrink-0 items-center rounded-full border border-blue-200 dark:border-blue-400/15 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-blue-700 dark:text-blue-300">
-          {rows.length} {rows.length === 1 ? "booking" : "bookings"}
-        </span>
-      </div>
-      {/* Independently scrollable booking list */}
-      <div className="custom-scrollbar max-h-[70vh] min-h-[260px] overflow-y-auto overscroll-contain p-3 sm:p-4">
-        {error && !errorId && (
-          <p className="mb-3 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/5 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
-            {error}
-          </p>
-        )}
-        <div className="space-y-3">
-          {rows.map((r) => {
-        const cancelPending = r.status === "approved" && Boolean(r.cancel_requested_at);
-        const s = cancelPending
-          ? { label: "Cancellation requested", cls: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300" }
-          : STATUS[r.status] || STATUS.cancelled;
-        const busy = busyId === r.id;
-        const hasDown = r.downpayment_amount != null && Number(r.downpayment_amount) > 0;
-        const balance = Math.max(Number(r.offered_fee || 0) - Number(r.downpayment_amount || 0), 0);
-        const canCancel =
-          ["pending", "offered", "awaiting_dp", "approved"].includes(r.status) && !cancelPending;
-        if (selectedBookingId === r.id) {
-          return createPortal(
-            <div
-              key={`booking-detail-${r.id}`}
-              className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-6"
-              onMouseDown={(event) => {
-                if (
-                  event.target === event.currentTarget &&
-                  busyId !== r.id &&
-                  uploadBusyId !== r.id
-                ) {
-                  setSelectedBookingId(null);
-                }
-              }}
-            >
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby={`booking-detail-title-${r.id}`}
-                className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 shadow-2xl shadow-black/50"
-              >
-                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 px-4 py-3 sm:px-5">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
-                      Booking details
-                    </p>
-                    <h2
-                      id={`booking-detail-title-${r.id}`}
-                      className="mt-0.5 truncate text-sm font-semibold text-slate-900 dark:text-white"
-                    >
-                      {r.title}
-                    </h2>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBookingId(null)}
-                    disabled={busyId === r.id || uploadBusyId === r.id}
-                    aria-label="Close booking details"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition hover:border-blue-400/50 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-slate-900 dark:hover:text-white disabled:opacity-50"
-                  >
-                    <span aria-hidden="true" className="text-xl leading-none">×</span>
-                  </button>
-                </div>
-                <div className="custom-scrollbar min-h-0 overflow-y-auto p-3 sm:p-5">
-                            <article
-            key={r.id}
-            className="rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-950/40 p-3 sm:p-4"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{r.title}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {r.event_date} · {r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)}
-                  {r.location ? ` · ${r.location}` : ""}
-                </p>
-              </div>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${s.cls}`}>
-                {s.label}
-              </span>
+        {/* Booking list container header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700/70 bg-slate-50 dark:bg-slate-900/70 px-4 py-3.5 sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200 dark:border-blue-400/20 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
+              <Icon name="calendar" className="h-4 w-4" />
+            </span>
+
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Booking activity</h3>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Select a booking to view its details and available actions.
+              </p>
             </div>
-            {r.status === "offered" && (
-              <div className="mt-3 rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/5 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Photographer's quote</p>
-                <p className="mt-1 text-xl font-bold text-sky-700 dark:text-sky-300">{peso(r.offered_fee)}</p>
-                {hasDown && (
-                  <div className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-                    <p>
-                      Downpayment to secure your date: {" "}
-                      <span className="font-semibold text-slate-900 dark:text-white">{peso(r.downpayment_amount)}</span>
-                    </p>
-                    <p>
-                      Balance, paid at the end of the event: {" "}
-                      <span className="font-semibold text-slate-900 dark:text-white">{peso(balance)}</span>
-                    </p>
-                    <p className="pt-1 text-xs text-slate-500">
-                      The downpayment is non-refundable. Send it to your photographer to confirm
-                      your date.
-                    </p>
-                  </div>
-                )}
-                {r.admin_message && (
-                  <p className="mt-2 whitespace-pre-line text-sm text-slate-600 dark:text-slate-300">{r.admin_message}</p>
-                )}
-                <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => decline(r.id)}
-                    className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+          </div>
+
+          <span className="inline-flex shrink-0 items-center rounded-full border border-blue-200 dark:border-blue-400/15 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-blue-700 dark:text-blue-300">
+            {rows.length} {rows.length === 1 ? "booking" : "bookings"}
+          </span>
+        </div>
+
+        {/* Independently scrollable booking list */}
+        <div className="custom-scrollbar max-h-[70vh] min-h-[260px] overflow-y-auto overscroll-contain p-3 sm:p-4">
+          {error && !errorId && (
+            <p className="mb-3 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/5 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+              {error}
+            </p>
+          )}
+
+          <div className="space-y-3">
+            {sortedRows.map((r) => {
+              const cancelPending = r.status === "approved" && Boolean(r.cancel_requested_at);
+
+              // Past "Upcoming" in the workflow = the event has happened.
+              const stage = stages[r.id];
+              const eventProgressed =
+                r.status === "approved" && Boolean(stage) && stage !== "coming-events";
+
+              const s = eventProgressed
+                ? { label: "Event completed", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" }
+                : cancelPending
+                ? { label: "Cancellation requested", cls: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300" }
+                : STATUS[r.status] || STATUS.cancelled;
+
+              const busy = busyId === r.id;
+              const hasDown = r.downpayment_amount != null && Number(r.downpayment_amount) > 0;
+              const balance = Math.max(Number(r.offered_fee || 0) - Number(r.downpayment_amount || 0), 0);
+
+              const canCancel =
+                ["pending", "offered", "awaiting_dp", "approved"].includes(r.status) &&
+                !cancelPending &&
+                !eventProgressed;
+
+              if (selectedBookingId === r.id) {
+                return createPortal(
+                  <div
+                    key={`booking-detail-${r.id}`}
+                    className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-6"
+                    onMouseDown={(event) => {
+                      if (
+                        event.target === event.currentTarget &&
+                        busyId !== r.id &&
+                        uploadBusyId !== r.id
+                      ) {
+                        setSelectedBookingId(null);
+                      }
+                    }}
                   >
-                    Decline
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => accept(r.id)}
-                    className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-sky-400 disabled:opacity-50"
-                  >
-                    {busy ? "Please wait..." : "Accept & book"}
-                  </button>
-                </div>
-              </div>
-            )}
-            {r.status === "awaiting_dp" && (
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-900/70">
-                {/* Awaiting payment banner */}
-                <div className="flex items-center gap-3 border-b border-blue-200 dark:border-blue-400/20 bg-blue-50 dark:bg-blue-500/10 px-4 py-3 sm:px-5">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300">
-                    <Icon name="clock" className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-blue-700 dark:text-blue-200">Awaiting Downpayment</p>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Send your downpayment to secure your booking.
-                    </p>
-                  </div>
-                </div>
-                {/* Design A: summary left, GCash payment right */}
-                <div className="grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[0.82fr_1.5fr]">
-                  {/* Booking payment summary */}
-                  <section className="flex flex-col rounded-xl border border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-800/55 p-4">
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Booking Payment</p>
-                      <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-                        {peso(r.downpayment_amount)}
-                      </p>
-                      <span className="mt-2 inline-flex rounded-full bg-blue-100 dark:bg-blue-500/15 px-2.5 py-1 text-[10px] font-semibold text-blue-700 dark:text-blue-300">
-                        Downpayment
-                      </span>
-                    </div>
-                    <div className="mt-5 space-y-2 border-t border-slate-200 dark:border-slate-700/80 pt-4 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-slate-500 dark:text-slate-400">Total fee</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">{peso(r.offered_fee)}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-slate-500 dark:text-slate-400">Balance due</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">{peso(balance)}</span>
-                      </div>
-                    </div>
-                    <div className="mt-auto pt-5">
-                      <div className="flex items-start gap-2 rounded-lg bg-slate-100 dark:bg-slate-700/40 p-3">
-                        <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-blue-700 dark:text-blue-300" />
-                        <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                          The downpayment is non-refundable. Your booking is added to the
-                          photographer's schedule after payment verification.
-                        </p>
-                      </div>
-                    </div>
-                  </section>
-                  {/* Payment details and receipt upload */}
-                  <section className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-800/55 p-3 sm:p-4">
-                    <div className="mb-3 flex items-center gap-2">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-sm font-bold text-white">
-                        {(paymentMethod?.provider || "GCash").charAt(0)}
-                      </span>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                          Pay via {paymentMethod?.provider || "GCash"}
-                        </h4>
-                        <p className="text-[11px] text-slate-500">
-                          Photographer's preferred payment method
-                        </p>
-                      </div>
-                    </div>
-                    {paymentMethod ? (
-                      <>
-                        <div className="grid gap-3 sm:grid-cols-[minmax(112px,0.72fr)_1fr] sm:items-center">
-                          {paymentQrUrl ? (
-                            <button
-                              type="button"
-                              onClick={() => setIsQrExpanded(true)}
-                              aria-label="Enlarge payment QR code"
-                              title="Click to enlarge"
-                              className="group relative flex min-h-[150px] cursor-zoom-in items-center justify-center rounded-xl bg-white p-3 text-left transition hover:ring-2 hover:ring-blue-400/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-                            >
-                              <img
-                                src={paymentQrUrl}
-                                alt="Photographer's payment QR code"
-                                className="max-h-48 w-full object-contain"
-                              />
-                              <span className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-1.5 rounded-lg bg-slate-950/75 px-2 py-1.5 text-[11px] font-semibold text-white opacity-0 backdrop-blur-sm transition group-hover:opacity-100 group-focus-visible:opacity-100">
-                                <Icon name="maximize-2" className="h-3.5 w-3.5" />
-                                Click to enlarge
-                              </span>
-                            </button>
-                          ) : (
-                            <div className="flex min-h-[150px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 p-3 text-center">
-                              <Icon name="wallet" className="h-7 w-7 text-slate-500" />
-                              <p className="mt-2 text-[11px] text-slate-500">No QR code provided</p>
-                            </div>
-                          )}
-                          <div className="space-y-3">
-                            <div className="flex items-start gap-2.5">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
-                                <Icon name="user" className="h-4 w-4" />
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-[11px] text-slate-500">Account Holder Name</p>
-                                <p className="break-words text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                  {paymentMethod.account_name ||
-                                    paymentMethod.gcash_account_name ||
-                                    "Not provided"}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-start gap-2.5">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
-                                <Icon name="wallet" className="h-4 w-4" />
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-[11px] text-slate-500">
-                                  {paymentMethod.provider === "GCash"
-                                    ? "GCash Mobile Number"
-                                    : "Account Number"}
-                                </p>
-                                <p className="break-words text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                  {paymentMethod.account_number ||
-                                    paymentMethod.gcash_number ||
-                                    "Not provided"}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
+                    <div
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby={`booking-detail-title-${r.id}`}
+                      className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 shadow-2xl shadow-black/50"
+                    >
+                      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 px-4 py-3 sm:px-5">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
+                            Booking details
+                          </p>
+
+                          <h2
+                            id={`booking-detail-title-${r.id}`}
+                            className="mt-0.5 truncate text-sm font-semibold text-slate-900 dark:text-white"
+                          >
+                            {r.title}
+                          </h2>
                         </div>
-                        <div className="mt-4 border-t border-slate-200 dark:border-slate-700/80 pt-4">
-                          {(() => {
-                            const submission = paymentSubmissions[r.id];
-                            if (submission?.status === "pending") {
-                              return (
-                                <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-400/25 bg-amber-100 dark:bg-amber-400/10 p-3">
-                                  <Icon name="clock" className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
-                                  <div>
-                                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                                      Receipt submitted · Under review
-                                    </p>
-                                    <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                                      Your photographer will review your receipt and confirm the
-                                      payment.
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            }
-                            if (submission?.status === "verified") {
-                              return (
-                                <div className="flex items-start gap-3 rounded-xl border border-emerald-400/25 bg-emerald-100 dark:bg-emerald-400/10 p-3">
-                                  <Icon name="check" className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300" />
-                                  <div>
-                                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">
-                                      Payment verified
-                                    </p>
-                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                      Your downpayment has been verified.
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            }
-                            return (
-                              <>
-                                {submission?.status === "rejected" && (
-                                  <div className="mb-3 rounded-xl border border-rose-200 dark:border-rose-400/25 bg-rose-50 dark:bg-rose-400/10 p-3">
-                                    <p className="text-sm font-semibold text-rose-700 dark:text-rose-200">
-                                      Receipt needs attention
-                                    </p>
-                                    {submission.review_note && (
-                                      <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                                        Photographer's note: {submission.review_note}
-                                      </p>
-                                    )}
-                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                      You can upload a corrected receipt below.
-                                    </p>
-                                  </div>
-                                )}
-                                {paymentLoadError && (
-                                  <p className="mb-3 rounded-lg bg-rose-50 dark:bg-rose-500/10 p-2 text-xs text-rose-700 dark:text-rose-300">
-                                    Could not load all payment information: {paymentLoadError}
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBookingId(null)}
+                          disabled={busyId === r.id || uploadBusyId === r.id}
+                          aria-label="Close booking details"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition hover:border-blue-400/50 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-slate-900 dark:hover:text-white disabled:opacity-50"
+                        >
+                          <span aria-hidden="true" className="text-xl leading-none">×</span>
+                        </button>
+                      </div>
+
+                      <div className="custom-scrollbar min-h-0 overflow-y-auto p-3 sm:p-5">
+                        <article
+                          key={r.id}
+                          className="rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-950/40 p-3 sm:p-4"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{r.title}</p>
+
+                              <p className="mt-1 text-xs text-slate-500">
+                                {r.event_date} · {r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)}
+                                {r.location ? ` · ${r.location}` : ""}
+                              </p>
+                            </div>
+
+                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${s.cls}`}>
+                              {s.label}
+                            </span>
+                          </div>
+
+                          {r.status === "offered" && (
+                            <div className="mt-3 rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-50 dark:bg-sky-500/5 p-3">
+                              <p className="text-xs text-slate-500 dark:text-slate-400">Photographer's quote</p>
+
+                              <p className="mt-1 text-xl font-bold text-sky-700 dark:text-sky-300">{peso(r.offered_fee)}</p>
+
+                              {hasDown && (
+                                <div className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                                  <p>
+                                    Downpayment to secure your date: {" "}
+                                    <span className="font-semibold text-slate-900 dark:text-white">{peso(r.downpayment_amount)}</span>
                                   </p>
-                                )}
-                                <div className="flex flex-col gap-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-400/50 bg-blue-50 dark:bg-blue-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
-                                  <div className="flex min-w-0 items-center gap-3">
-                                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
-                                      <Icon name="upload" className="h-5 w-5" />
-                                    </span>
-                                    <div className="min-w-0">
-                                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                        Upload payment receipt
-                                      </p>
-                                      <p className="mt-0.5 text-[11px] text-slate-500">
-                                        PNG, JPG, or WEBP · Maximum 5 MB
-                                      </p>
-                                      {receiptFiles[r.id] && (
-                                        <p className="mt-1 truncate text-[11px] text-blue-700 dark:text-blue-300">
-                                          {receiptFiles[r.id].name}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <label className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-blue-300 dark:border-blue-400/40 bg-blue-50 dark:bg-blue-500/10 px-3.5 py-2 text-xs font-semibold text-blue-700 dark:text-blue-200 transition hover:border-blue-300/70 hover:bg-blue-100 dark:hover:bg-blue-500/20">
-                                    Choose file
-                                    <input
-                                      ref={(node) => {
-                                        receiptInputRefs.current[r.id] = node;
-                                      }}
-                                      type="file"
-                                      accept="image/png,image/jpeg,image/webp"
-                                      className="sr-only"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                          setReceiptFiles((previous) => ({
-                                            ...previous,
-                                            [r.id]: file,
-                                          }));
-                                          setError("");
-                                          setErrorId(null);
-                                        }
-                                      }}
-                                    />
-                                  </label>
+
+                                  <p>
+                                    Balance, paid at the end of the event: {" "}
+                                    <span className="font-semibold text-slate-900 dark:text-white">{peso(balance)}</span>
+                                  </p>
+
+                                  <p className="pt-1 text-xs text-slate-500">
+                                    The downpayment is non-refundable. Send it to your photographer to confirm
+                                    your date.
+                                  </p>
                                 </div>
-                                <div className="mt-4 rounded-xl border border-amber-200 dark:border-amber-400/25 bg-amber-50 dark:bg-amber-400/5 p-3 sm:p-4">
-                                  <div className="flex items-start gap-2">
-                                    <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
-                                    <div>
-                                      <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                                        Downpayment Terms and Conditions
-                                      </p>
-                                      <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                                        Please review the payment and cancellation policy before submitting
-                                        your receipt.
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <details className="mt-3 group">
-                                    <summary className="cursor-pointer text-xs font-semibold text-blue-700 dark:text-blue-300 transition hover:text-blue-600 dark:hover:text-blue-200">
-                                      View full Terms and Conditions
-                                    </summary>
-                                    <div className="mt-3 space-y-3 border-t border-slate-200 dark:border-slate-700/70 pt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                                      <div>
-                                        <p className="font-semibold text-slate-900 dark:text-slate-100">1. Downpayment Requirement</p>
-                                        <p className="mt-1">
-                                          A downpayment is required to secure your booking. Your booking
-                                          will only be confirmed after your photographer verifies your payment.
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="font-semibold text-slate-900 dark:text-slate-100">2. Non-Refundable Downpayment</p>
-                                        <p className="mt-1">
-                                          Once paid, the downpayment is non-refundable if you voluntarily
-                                          cancel the booking or fail to attend the scheduled session.
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="font-semibold text-slate-900 dark:text-slate-100">3. Booking Cancellation</p>
-                                        <p className="mt-1">
-                                          Please communicate with your photographer as early as possible
-                                          if you need to cancel or make changes to your booking.
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="font-semibold text-slate-900 dark:text-slate-100">4. Rescheduling</p>
-                                        <p className="mt-1">
-                                          Rescheduling requests are subject to the photographer's
-                                          availability and approval.
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="font-semibold text-slate-900 dark:text-slate-100">5. Photographer Cancellation</p>
-                                        <p className="mt-1">
-                                          If the photographer cancels or cannot provide the agreed service,
-                                          an appropriate remedy, including a refund where applicable,
-                                          should be arranged.
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="font-semibold text-slate-900 dark:text-slate-100">6. Payment Verification</p>
-                                        <p className="mt-1">
-                                          You must submit a valid payment receipt. Your photographer may
-                                          reject incomplete, invalid, or unverifiable payment submissions.
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </details>
-                                  <label
-                                    htmlFor={`downpayment-terms-${r.id}`}
-                                    className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 dark:border-slate-700/70 bg-slate-50 dark:bg-slate-900/60 p-3"
-                                  >
-                                    <input
-                                      id={`downpayment-terms-${r.id}`}
-                                      type="checkbox"
-                                      checked={termsAccepted}
-                                      onChange={(e) => setTermsAccepted(e.target.checked)}
-                                      disabled={uploadBusyId === r.id}
-                                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-500"
-                                    />
-                                    <span className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                                      I have read and agree to the Downpayment Terms and Conditions.
-                                      I understand that my downpayment is non-refundable under the
-                                      stated conditions.
-                                    </span>
-                                  </label>
-                                </div>
+                              )}
+
+                              {r.admin_message && (
+                                <p className="mt-2 whitespace-pre-line text-sm text-slate-600 dark:text-slate-300">{r.admin_message}</p>
+                              )}
+
+                              <div className="mt-3 flex flex-wrap justify-end gap-2">
                                 <button
                                   type="button"
-                                  disabled={
-                                    !receiptFiles[r.id] ||
-                                    !termsAccepted ||
-                                    uploadBusyId === r.id
-                                  }
-                                  onClick={() => submitReceipt(r)}
-                                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+                                  disabled={busy}
+                                  onClick={() => decline(r.id)}
+                                  className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
                                 >
-                                  <Icon name="send" className="h-4 w-4" />
-                                  {uploadBusyId === r.id
-                                    ? "Submitting receipt..."
-                                    : !termsAccepted
-                                      ? "Agree to Terms to Continue"
-                                      : "Submit Payment Receipt"}
+                                  Decline
                                 </button>
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="rounded-xl border border-amber-200 dark:border-amber-400/25 bg-amber-100 dark:bg-amber-400/10 p-3">
-                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                          Payment details unavailable
+
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => accept(r.id)}
+                                  className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-sky-400 disabled:opacity-50"
+                                >
+                                  {busy ? "Please wait..." : "Accept & book"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {r.status === "awaiting_dp" && (
+                            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-900/70">
+                              {/* Awaiting payment banner */}
+                              <div className="flex items-center gap-3 border-b border-blue-200 dark:border-blue-400/20 bg-blue-50 dark:bg-blue-500/10 px-4 py-3 sm:px-5">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                                  <Icon name="clock" className="h-5 w-5" />
+                                </div>
+
+                                <div className="min-w-0">
+                                  <p className="text-sm font-bold text-blue-700 dark:text-blue-200">Awaiting Downpayment</p>
+
+                                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                                    Send your downpayment to secure your booking.
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Design A: summary left, GCash payment right */}
+                              <div className="grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[0.82fr_1.5fr]">
+                                {/* Booking payment summary */}
+                                <section className="flex flex-col rounded-xl border border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-800/55 p-4">
+                                  <div>
+                                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Booking Payment</p>
+
+                                    <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+                                      {peso(r.downpayment_amount)}
+                                    </p>
+
+                                    <span className="mt-2 inline-flex rounded-full bg-blue-100 dark:bg-blue-500/15 px-2.5 py-1 text-[10px] font-semibold text-blue-700 dark:text-blue-300">
+                                      Downpayment
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-5 space-y-2 border-t border-slate-200 dark:border-slate-700/80 pt-4 text-sm">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-slate-500 dark:text-slate-400">Total fee</span>
+                                      <span className="font-semibold text-slate-700 dark:text-slate-200">{peso(r.offered_fee)}</span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-slate-500 dark:text-slate-400">Balance due</span>
+                                      <span className="font-semibold text-slate-700 dark:text-slate-200">{peso(balance)}</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-auto pt-5">
+                                    <div className="flex items-start gap-2 rounded-lg bg-slate-100 dark:bg-slate-700/40 p-3">
+                                      <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-blue-700 dark:text-blue-300" />
+
+                                      <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                        The downpayment is non-refundable. Your booking is added to the
+                                        photographer's schedule after payment verification.
+                                      </p>
+                                    </div>
+                                  </div>
+                                </section>
+
+                                {/* Payment details and receipt upload */}
+                                <section className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-800/55 p-3 sm:p-4">
+                                  <div className="mb-3 flex items-center gap-2">
+                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-sm font-bold text-white">
+                                      {(paymentMethod?.provider || "GCash").charAt(0)}
+                                    </span>
+
+                                    <div>
+                                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                                        Pay via {paymentMethod?.provider || "GCash"}
+                                      </h4>
+
+                                      <p className="text-[11px] text-slate-500">
+                                        Photographer's preferred payment method
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {paymentMethod ? (
+                                    <>
+                                      <div className="grid gap-3 sm:grid-cols-[minmax(112px,0.72fr)_1fr] sm:items-center">
+                                        {paymentQrUrl ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => setIsQrExpanded(true)}
+                                            aria-label="Enlarge payment QR code"
+                                            title="Click to enlarge"
+                                            className="group relative flex min-h-[150px] cursor-zoom-in items-center justify-center rounded-xl bg-white p-3 text-left transition hover:ring-2 hover:ring-blue-400/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                                          >
+                                            <img
+                                              src={paymentQrUrl}
+                                              alt="Photographer's payment QR code"
+                                              className="max-h-48 w-full object-contain"
+                                            />
+
+                                            <span className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-1.5 rounded-lg bg-slate-950/75 px-2 py-1.5 text-[11px] font-semibold text-white opacity-0 backdrop-blur-sm transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                                              <Icon name="maximize-2" className="h-3.5 w-3.5" />
+                                              Click to enlarge
+                                            </span>
+                                          </button>
+                                        ) : (
+                                          <div className="flex min-h-[150px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 p-3 text-center">
+                                            <Icon name="wallet" className="h-7 w-7 text-slate-500" />
+                                            <p className="mt-2 text-[11px] text-slate-500">No QR code provided</p>
+                                          </div>
+                                        )}
+
+                                        <div className="space-y-3">
+                                          <div className="flex items-start gap-2.5">
+                                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                                              <Icon name="user" className="h-4 w-4" />
+                                            </span>
+
+                                            <div className="min-w-0">
+                                              <p className="text-[11px] text-slate-500">Account Holder Name</p>
+
+                                              <p className="break-words text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                                {paymentMethod.account_name ||
+                                                  paymentMethod.gcash_account_name ||
+                                                  "Not provided"}
+                                              </p>
+                                            </div>
+                                          </div>
+
+                                          <div className="flex items-start gap-2.5">
+                                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                                              <Icon name="wallet" className="h-4 w-4" />
+                                            </span>
+
+                                            <div className="min-w-0">
+                                              <p className="text-[11px] text-slate-500">
+                                                {paymentMethod.provider === "GCash"
+                                                  ? "GCash Mobile Number"
+                                                  : "Account Number"}
+                                              </p>
+
+                                              <p className="break-words text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                                {paymentMethod.account_number ||
+                                                  paymentMethod.gcash_number ||
+                                                  "Not provided"}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-4 border-t border-slate-200 dark:border-slate-700/80 pt-4">
+                                        {(() => {
+                                          const submission = paymentSubmissions[r.id];
+
+                                          if (submission?.status === "pending") {
+                                            return (
+                                              <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-400/25 bg-amber-100 dark:bg-amber-400/10 p-3">
+                                                <Icon name="clock" className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
+
+                                                <div>
+                                                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                                    Receipt submitted · Under review
+                                                  </p>
+
+                                                  <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                                                    Your photographer will review your receipt and confirm the
+                                                    payment.
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            );
+                                          }
+
+                                          if (submission?.status === "verified") {
+                                            return (
+                                              <div className="flex items-start gap-3 rounded-xl border border-emerald-400/25 bg-emerald-100 dark:bg-emerald-400/10 p-3">
+                                                <Icon name="check" className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300" />
+
+                                                <div>
+                                                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">
+                                                    Payment verified
+                                                  </p>
+
+                                                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                    Your downpayment has been verified.
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            );
+                                          }
+
+                                          return (
+                                            <>
+                                              {submission?.status === "rejected" && (
+                                                <div className="mb-3 rounded-xl border border-rose-200 dark:border-rose-400/25 bg-rose-50 dark:bg-rose-400/10 p-3">
+                                                  <p className="text-sm font-semibold text-rose-700 dark:text-rose-200">
+                                                    Receipt needs attention
+                                                  </p>
+
+                                                  {submission.review_note && (
+                                                    <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                                                      Photographer's note: {submission.review_note}
+                                                    </p>
+                                                  )}
+
+                                                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                    You can upload a corrected receipt below.
+                                                  </p>
+                                                </div>
+                                              )}
+
+                                              {paymentLoadError && (
+                                                <p className="mb-3 rounded-lg bg-rose-50 dark:bg-rose-500/10 p-2 text-xs text-rose-700 dark:text-rose-300">
+                                                  Could not load all payment information: {paymentLoadError}
+                                                </p>
+                                              )}
+
+                                              <div className="flex flex-col gap-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-400/50 bg-blue-50 dark:bg-blue-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                                <div className="flex min-w-0 items-center gap-3">
+                                                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                                                    <Icon name="upload" className="h-5 w-5" />
+                                                  </span>
+
+                                                  <div className="min-w-0">
+                                                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                                      Upload payment receipt
+                                                    </p>
+
+                                                    <p className="mt-0.5 text-[11px] text-slate-500">
+                                                      PNG, JPG, or WEBP · Maximum 5 MB
+                                                    </p>
+
+                                                    {receiptFiles[r.id] && (
+                                                      <p className="mt-1 truncate text-[11px] text-blue-700 dark:text-blue-300">
+                                                        {receiptFiles[r.id].name}
+                                                      </p>
+                                                    )}
+                                                  </div>
+                                                </div>
+
+                                                <label className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-blue-300 dark:border-blue-400/40 bg-blue-50 dark:bg-blue-500/10 px-3.5 py-2 text-xs font-semibold text-blue-700 dark:text-blue-200 transition hover:border-blue-300/70 hover:bg-blue-100 dark:hover:bg-blue-500/20">
+                                                  Choose file
+
+                                                  <input
+                                                    ref={(node) => {
+                                                      receiptInputRefs.current[r.id] = node;
+                                                    }}
+                                                    type="file"
+                                                    accept="image/png,image/jpeg,image/webp"
+                                                    className="sr-only"
+                                                    onChange={(e) => {
+                                                      const file = e.target.files?.[0];
+
+                                                      if (file) {
+                                                        setReceiptFiles((previous) => ({
+                                                          ...previous,
+                                                          [r.id]: file,
+                                                        }));
+
+                                                        setError("");
+                                                        setErrorId(null);
+                                                      }
+                                                    }}
+                                                  />
+                                                </label>
+                                              </div>
+
+                                              <div className="mt-4 rounded-xl border border-amber-200 dark:border-amber-400/25 bg-amber-50 dark:bg-amber-400/5 p-3 sm:p-4">
+                                                <div className="flex items-start gap-2">
+                                                  <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
+
+                                                  <div>
+                                                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                                      Downpayment Terms and Conditions
+                                                    </p>
+
+                                                    <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                                                      Please review the payment and cancellation policy before submitting
+                                                      your receipt.
+                                                    </p>
+                                                  </div>
+                                                </div>
+
+                                                <details className="mt-3 group">
+                                                  <summary className="cursor-pointer text-xs font-semibold text-blue-700 dark:text-blue-300 transition hover:text-blue-600 dark:hover:text-blue-200">
+                                                    View full Terms and Conditions
+                                                  </summary>
+
+                                                  <div className="mt-3 space-y-3 border-t border-slate-200 dark:border-slate-700/70 pt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                                    <div>
+                                                      <p className="font-semibold text-slate-900 dark:text-slate-100">1. Downpayment Requirement</p>
+                                                      <p className="mt-1">
+                                                        A downpayment is required to secure your booking. Your booking
+                                                        will only be confirmed after your photographer verifies your payment.
+                                                      </p>
+                                                    </div>
+
+                                                    <div>
+                                                      <p className="font-semibold text-slate-900 dark:text-slate-100">2. Non-Refundable Downpayment</p>
+                                                      <p className="mt-1">
+                                                        Once paid, the downpayment is non-refundable if you voluntarily
+                                                        cancel the booking or fail to attend the scheduled session.
+                                                      </p>
+                                                    </div>
+
+                                                    <div>
+                                                      <p className="font-semibold text-slate-900 dark:text-slate-100">3. Booking Cancellation</p>
+                                                      <p className="mt-1">
+                                                        Please communicate with your photographer as early as possible
+                                                        if you need to cancel or make changes to your booking.
+                                                      </p>
+                                                    </div>
+
+                                                    <div>
+                                                      <p className="font-semibold text-slate-900 dark:text-slate-100">4. Rescheduling</p>
+                                                      <p className="mt-1">
+                                                        Rescheduling requests are subject to the photographer's
+                                                        availability and approval.
+                                                      </p>
+                                                    </div>
+
+                                                    <div>
+                                                      <p className="font-semibold text-slate-900 dark:text-slate-100">5. Photographer Cancellation</p>
+                                                      <p className="mt-1">
+                                                        If the photographer cancels or cannot provide the agreed service,
+                                                        an appropriate remedy, including a refund where applicable,
+                                                        should be arranged.
+                                                      </p>
+                                                    </div>
+
+                                                    <div>
+                                                      <p className="font-semibold text-slate-900 dark:text-slate-100">6. Payment Verification</p>
+                                                      <p className="mt-1">
+                                                        You must submit a valid payment receipt. Your photographer may
+                                                        reject incomplete, invalid, or unverifiable payment submissions.
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                </details>
+
+                                                <label
+                                                  htmlFor={`downpayment-terms-${r.id}`}
+                                                  className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 dark:border-slate-700/70 bg-slate-50 dark:bg-slate-900/60 p-3"
+                                                >
+                                                  <input
+                                                    id={`downpayment-terms-${r.id}`}
+                                                    type="checkbox"
+                                                    checked={termsAccepted}
+                                                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                                                    disabled={uploadBusyId === r.id}
+                                                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-blue-500"
+                                                  />
+
+                                                  <span className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                                    I have read and agree to the Downpayment Terms and Conditions.
+                                                    I understand that my downpayment is non-refundable under the
+                                                    stated conditions.
+                                                  </span>
+                                                </label>
+                                              </div>
+
+                                              <button
+                                                type="button"
+                                                disabled={
+                                                  !receiptFiles[r.id] ||
+                                                  !termsAccepted ||
+                                                  uploadBusyId === r.id
+                                                }
+                                                onClick={() => submitReceipt(r)}
+                                                className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+                                              >
+                                                <Icon name="send" className="h-4 w-4" />
+
+                                                {uploadBusyId === r.id
+                                                  ? "Submitting receipt..."
+                                                  : !termsAccepted
+                                                    ? "Agree to Terms to Continue"
+                                                    : "Submit Payment Receipt"}
+                                              </button>
+                                            </>
+                                          );
+                                        })()}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="rounded-xl border border-amber-200 dark:border-amber-400/25 bg-amber-100 dark:bg-amber-400/10 p-3">
+                                      <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                        Payment details unavailable
+                                      </p>
+
+                                      <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                                        {paymentLoadError ||
+                                          "The photographer has not configured their payment details yet. Please contact them before sending payment."}
+                                      </p>
+                                    </div>
+                                  )}
+                                </section>
+                              </div>
+                            </div>
+                          )}
+
+                          {r.status === "approved" && r.offered_fee != null && (
+                            <div className="mt-2 space-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+                              <p>Agreed fee: {peso(r.offered_fee)}</p>
+
+                              {hasDown &&
+                                (r.downpayment_received_at ? (
+                                  <p className="text-emerald-700 dark:text-emerald-400">
+                                    Downpayment of {peso(r.downpayment_amount)} received on {" "}
+                                    {shortDate(r.downpayment_received_at)}. Balance of {peso(balance)} is due at
+                                    the end of the event.
+                                  </p>
+                                ) : (
+                                  <p className="text-amber-700 dark:text-amber-300">
+                                    Waiting for your {peso(r.downpayment_amount)} downpayment.
+                                  </p>
+                                ))}
+                            </div>
+                          )}
+
+                          {cancelPending && (
+                            <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-3">
+                              <p className="text-sm text-slate-600 dark:text-slate-300">
+                                You asked to cancel this event on {" "}
+                                <span className="font-semibold text-slate-900 dark:text-white">{shortDate(r.cancel_requested_at)}</span>.
+                                Your date stays booked until your photographer confirms.
+                              </p>
+
+                              {r.cancel_reason && (
+                                <p className="mt-1 whitespace-pre-line text-xs text-slate-500 dark:text-slate-400">
+                                  Your note: {r.cancel_reason}
+                                </p>
+                              )}
+
+                              <p className="mt-1 text-xs text-slate-500">The downpayment is non-refundable.</p>
+                            </div>
+                          )}
+
+                          {error && errorId === r.id && (
+                            <p className="mt-2 rounded-lg border border-rose-200 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+                              {error}
+                            </p>
+                          )}
+
+                          {r.status === "declined" && r.admin_message && (
+                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{r.admin_message}</p>
+                          )}
+
+                          {canCancel && (
+                            <div className="mt-2 flex justify-end">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => {
+                                  setReason("");
+                                  setConfirmId(r.id);
+                                }}
+                                className={
+                                  r.status === "approved"
+                                    ? "rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-500/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                    : "text-xs text-slate-500 hover:text-slate-900 disabled:opacity-50 dark:hover:text-white"
+                                }
+                              >
+                                {r.status === "approved" ? "Request cancellation" : "Cancel request"}
+                              </button>
+                            </div>
+                          )}
+                        </article>
+                      </div>
+                    </div>
+                  </div>,
+                  document.body
+                );
+              }
+
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setSelectedBookingId(r.id)}
+                  className="group w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/35 p-4 text-left transition duration-200 hover:border-blue-500/50 hover:bg-blue-500/[0.045] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 sm:px-5"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200 dark:border-blue-400/15 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                        <Icon name="info" className="h-4 w-4" />
+                      </span>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 transition group-hover:text-slate-900 dark:group-hover:text-white">
+                          {r.title}
                         </p>
-                        <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                          {paymentLoadError ||
-                            "The photographer has not configured their payment details yet. Please contact them before sending payment."}
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          {r.event_date} · {r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)}
+                          {r.location ? ` · ${r.location}` : ""}
                         </p>
                       </div>
-                    )}
-                  </section>
-                </div>
-              </div>
-            )}
-            {r.status === "approved" && r.offered_fee != null && (
-              <div className="mt-2 space-y-0.5 text-xs text-slate-500 dark:text-slate-400">
-                <p>Agreed fee: {peso(r.offered_fee)}</p>
-                {hasDown &&
-                  (r.downpayment_received_at ? (
-                    <p className="text-emerald-700 dark:text-emerald-400">
-                      Downpayment of {peso(r.downpayment_amount)} received on {" "}
-                      {shortDate(r.downpayment_received_at)}. Balance of {peso(balance)} is due at
-                      the end of the event.
+                    </div>
+
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${s.cls}`}>
+                      {s.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800/80 pt-3">
+                    <p className="text-xs text-slate-500">
+                      {r.status === "awaiting_dp"
+                        ? "Payment details and receipt submission are available"
+                        : r.status === "offered"
+                        ? "Review the photographer's quote and respond"
+                        : r.status === "approved"
+                        ? "View your confirmed booking and payment summary"
+                        : "View booking information and available actions"}
                     </p>
-                  ) : (
-                    <p className="text-amber-700 dark:text-amber-300">
-                      Waiting for your {peso(r.downpayment_amount)} downpayment.
-                    </p>
-                  ))}
-              </div>
-            )}
-            {cancelPending && (
-              <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-3">
-                <p className="text-sm text-slate-600 dark:text-slate-300">
-                  You asked to cancel this event on {" "}
-                  <span className="font-semibold text-slate-900 dark:text-white">{shortDate(r.cancel_requested_at)}</span>.
-                  Your date stays booked until your photographer confirms.
-                </p>
-                {r.cancel_reason && (
-                  <p className="mt-1 whitespace-pre-line text-xs text-slate-500 dark:text-slate-400">
-                    Your note: {r.cancel_reason}
-                  </p>
-                )}
-                <p className="mt-1 text-xs text-slate-500">The downpayment is non-refundable.</p>
-              </div>
-            )}
-            {error && errorId === r.id && (
-              <p className="mt-2 rounded-lg border border-rose-200 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
-                {error}
-              </p>
-            )}
-            {r.status === "declined" && r.admin_message && (
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{r.admin_message}</p>
-            )}
-            {canCancel && (
-              <div className="mt-2 flex justify-end">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setReason("");
-                    setConfirmId(r.id);
-                  }}
-                  className={
-                    r.status === "approved"
-                      ? "rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-500/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
-                      : "text-xs text-slate-500 hover:text-slate-900 disabled:opacity-50 dark:hover:text-white"
-                  }
-                >
-                  {r.status === "approved" ? "Request cancellation" : "Cancel request"}
+
+                    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 transition group-hover:gap-2 group-hover:text-blue-600 dark:group-hover:text-blue-300">
+                      View details <span aria-hidden="true">→</span>
+                    </span>
+                  </div>
                 </button>
-              </div>
-            )}
-          </article>
-                </div>
-              </div>
-            </div>,
-            document.body
-          );
-        }
-        return (
-          <button
-            key={r.id}
-            type="button"
-            onClick={() => setSelectedBookingId(r.id)}
-            className="group w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/35 p-4 text-left transition duration-200 hover:border-blue-500/50 hover:bg-blue-500/[0.045] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 sm:px-5"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200 dark:border-blue-400/15 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
-                  <Icon name="info" className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 transition group-hover:text-slate-900 dark:group-hover:text-white">
-                    {r.title}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {r.event_date} · {r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)}
-                    {r.location ? ` · ${r.location}` : ""}
-                  </p>
-                </div>
-              </div>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${s.cls}`}>
-                {s.label}
-              </span>
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800/80 pt-3">
-              <p className="text-xs text-slate-500">
-                {r.status === "awaiting_dp"
-                  ? "Payment details and receipt submission are available"
-                  : r.status === "offered"
-                  ? "Review the photographer's quote and respond"
-                  : r.status === "approved"
-                  ? "View your confirmed booking and payment summary"
-                  : "View booking information and available actions"}
-              </p>
-              <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 transition group-hover:gap-2 group-hover:text-blue-600 dark:group-hover:text-blue-300">
-                View details <span aria-hidden="true">→</span>
-              </span>
-            </div>
-          </button>
-        );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
-    </div>
+
       {/* Expanded payment QR lightbox */}
       {isQrExpanded &&
         paymentQrUrl &&
@@ -1184,14 +1441,17 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
               >
                 ×
               </button>
+
               <div className="mb-4 pr-10 text-center">
                 <h3 className="text-base font-semibold text-slate-900 dark:text-white">
                   {paymentMethod?.provider || "Payment"} QR Code
                 </h3>
+
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   Scan this code using the corresponding bank or e-wallet app.
                 </p>
               </div>
+
               <div className="flex max-h-[72vh] w-full items-center justify-center overflow-auto rounded-xl bg-white p-4">
                 <img
                   src={paymentQrUrl}
@@ -1199,6 +1459,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
                   className="max-h-[68vh] max-w-full object-contain"
                 />
               </div>
+
               <p className="mt-3 text-[11px] text-slate-500">
                 Click outside or press Escape to close.
               </p>
@@ -1206,6 +1467,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
           </div>,
           document.body
         )}
+
       {/* Cancel confirmation */}
       {confirmRow &&
         createPortal(
@@ -1227,21 +1489,26 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
                   ? "Request to cancel this event?"
                   : "Cancel this request?"}
               </h3>
+
               <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{confirmRow.title}</p>
+
               <p className="mb-3 text-xs text-slate-500">
                 {confirmRow.event_date} · {confirmRow.start_time.slice(0, 5)}–
                 {confirmRow.end_time.slice(0, 5)}
               </p>
+
               <p className="mb-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                 {confirmRow.status === "approved"
                   ? "You're about to send a cancellation request to your photographer. Your event stays booked until they confirm."
                   : "You're about to cancel this request."}
               </p>
+
               {refundNote(confirmRow) && (
                 <p className="mb-4 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-100 dark:bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
                   {refundNote(confirmRow)}
                 </p>
               )}
+
               {confirmRow.status === "approved" && (
                 <textarea
                   value={reason}
@@ -1252,6 +1519,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
                   className="mb-4 w-full resize-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-left text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
                 />
               )}
+
               <div className="flex items-center justify-center gap-3">
                 <button
                   type="button"
@@ -1261,6 +1529,7 @@ export default function MyBookings({ photographerId, refreshKey = 0, onChanged }
                 >
                   Keep booking
                 </button>
+
                 <button
                   type="button"
                   disabled={busyId === confirmRow.id}

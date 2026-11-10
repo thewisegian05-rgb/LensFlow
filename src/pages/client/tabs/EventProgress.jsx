@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   FaCheck,
@@ -22,6 +21,20 @@ const STEPS = [
 ];
 
 const LAST = STEPS.length - 1;
+
+// Sort order: in progress → upcoming → completed
+const stageIndex = (event) =>
+  STEPS.findIndex((step) => step.key === event.stage);
+
+const groupOf = (event) => {
+  const i = stageIndex(event);
+  if (i === LAST) return 2; // completed
+  if (i > 0) return 0; // shoot day … delivered (in progress)
+  return 1; // upcoming / just booked
+};
+
+const dateTimeKey = (event) =>
+  `${event.event_date} ${event.start_time}`;
 
 function formatDay(value) {
   if (!value) return "";
@@ -96,12 +109,23 @@ export default function EventProgress({
     };
   }, []);
 
-  // Only show events for the selected photographer.
-  const mine = events.filter(
-    (event) =>
-      !activeId ||
-      event.photographer_id === activeId
-  );
+  // Only show events for the selected photographer,
+  // with in-progress events first.
+  const mine = events
+    .filter(
+      (event) =>
+        !activeId ||
+        event.photographer_id === activeId
+    )
+    .sort((a, b) => {
+      const groupDiff = groupOf(a) - groupOf(b);
+      if (groupDiff !== 0) return groupDiff;
+
+      // Completed: most recent first. Everything else: soonest first.
+      return groupOf(a) === 2
+        ? dateTimeKey(b).localeCompare(dateTimeKey(a))
+        : dateTimeKey(a).localeCompare(dateTimeKey(b));
+    });
 
   // Keep Home clean when there are no events.
   if (!loaded || mine.length === 0) {

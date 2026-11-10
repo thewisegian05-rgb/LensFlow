@@ -287,7 +287,23 @@ def analyze_eye_state(image_path):
     Returns:
         dict: Blink-related measurements for the detected faces.
     """
-    mp_image = mp.Image.create_from_file(str(image_path))
+    image = cv2.imread(str(image_path))
+
+    if image is None:
+        raise ValueError(
+            f"Could not decode image: {image_path}"
+        )
+
+    rgb_image = cv2.cvtColor(
+        image,
+        cv2.COLOR_BGR2RGB
+    )
+
+    mp_image = mp.Image(
+        image_format=mp.ImageFormat.SRGB,
+        data=np.ascontiguousarray(rgb_image)
+    )
+
     result = face_landmarker.detect(mp_image)
     if not result.face_blendshapes:
         return {

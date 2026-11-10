@@ -1,6 +1,7 @@
 import os
 import time
 import shutil
+import traceback
 from uuid import uuid4
 from pathlib import Path
 from io import BytesIO
@@ -721,6 +722,8 @@ def run_culling_job(
         )
     except Exception as error:
         import time
+        import traceback
+        traceback.print_exc()
         print("CULL ERROR:", repr(error))
         update_cull_job(
             job_id,

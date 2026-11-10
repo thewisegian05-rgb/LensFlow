@@ -2516,9 +2516,122 @@ function CullingPage() {
 
   return (
     <div>
+      {/* Scoped reset: breadcrumbs behave like plain clickable text, never pill buttons. */}
+      <style>{`
+        .lf-culling-breadcrumb button.lf-culling-crumb,
+        .lf-culling-breadcrumb button.lf-culling-crumb:hover,
+        .lf-culling-breadcrumb button.lf-culling-crumb:focus,
+        .lf-culling-breadcrumb button.lf-culling-crumb:active,
+        .lf-culling-breadcrumb button.lf-culling-crumb:disabled {
+          background: transparent !important;
+          background-image: none !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          text-decoration: none !important;
+          appearance: none !important;
+          -webkit-appearance: none !important;
+        }
+        .lf-culling-breadcrumb button.lf-culling-crumb {
+          color: #64748b !important;
+          cursor: pointer;
+        }
+        .lf-culling-breadcrumb button.lf-culling-crumb:not(:disabled):hover {
+          color: #0284c7 !important;
+        }
+        .lf-culling-breadcrumb button.lf-culling-crumb:disabled {
+          color: #0f172a !important;
+          cursor: default;
+          opacity: 1 !important;
+        }
+        html.dark .lf-culling-breadcrumb button.lf-culling-crumb {
+          color: #94a3b8 !important;
+        }
+        html.dark .lf-culling-breadcrumb button.lf-culling-crumb:not(:disabled):hover {
+          color: #38bdf8 !important;
+        }
+        html.dark .lf-culling-breadcrumb button.lf-culling-crumb:disabled {
+          color: #f8fafc !important;
+        }
+        .lf-culling-breadcrumb button.lf-culling-crumb:focus-visible {
+          outline: 2px solid #0ea5e9 !important;
+          outline-offset: 4px !important;
+        }
+        /* Text-only buttons: no white rectangle or browser/global button chrome. */
+        button.lf-culling-plain-action,
+        button.lf-culling-plain-action:hover,
+        button.lf-culling-plain-action:focus,
+        button.lf-culling-plain-action:active {
+          background: transparent !important;
+          background-image: none !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          text-decoration: none !important;
+          appearance: none !important;
+          -webkit-appearance: none !important;
+        }
+        button.lf-culling-plain-action:focus-visible {
+          outline: 2px solid #0ea5e9 !important;
+          outline-offset: 4px !important;
+        }
+        /* New subfolder: only the label and icon color respond to hover. */
+        button.lf-culling-new-subfolder {
+          color: #0369a1 !important;
+        }
+        button.lf-culling-new-subfolder:hover {
+          color: #0284c7 !important;
+        }
+        html.dark button.lf-culling-new-subfolder {
+          color: #38bdf8 !important;
+        }
+        html.dark button.lf-culling-new-subfolder:hover {
+          color: #7dd3fc !important;
+        }
+        /* Duplicate group title: preserve icon tile and subtitle, no button chrome. */
+        button.lf-culling-group-toggle .lf-culling-group-title {
+          color: #0f172a !important;
+          transition: color 200ms ease;
+          text-decoration: none !important;
+        }
+        button.lf-culling-group-toggle:hover .lf-culling-group-title {
+          color: #0284c7 !important;
+          text-decoration: none !important;
+        }
+        html.dark button.lf-culling-group-toggle .lf-culling-group-title {
+          color: #f8fafc !important;
+        }
+        html.dark button.lf-culling-group-toggle:hover .lf-culling-group-title {
+          color: #38bdf8 !important;
+        }
+
+        /* Match the Settings modals: backdrop fade + subtle upward pop. */
+        @keyframes lfCullingFolderOverlayFade {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes lfCullingFolderModalPop {
+          from { opacity: 0; transform: translateY(12px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .lf-culling-folder-overlay-anim {
+          animation: lfCullingFolderOverlayFade 0.2s ease-out both;
+        }
+        .lf-culling-folder-card-pop {
+          animation: lfCullingFolderModalPop 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .lf-culling-folder-overlay-anim,
+          .lf-culling-folder-card-pop {
+            animation: none !important;
+          }
+        }
+      `}</style>
       {/* Header */}
       <div className="mb-5 flex flex-col items-start justify-between gap-4 transition-opacity duration-300 sm:flex-row sm:items-center">
-        <h2 className="text-xl sm:text-2xl font-semibold text-white">Culling Station</h2>
+        <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">Culling Station</h2>
         <div className="flex items-center gap-2 w-full sm:w-auto" />
       </div>
 
@@ -2632,10 +2745,11 @@ function CullingPage() {
               {/* Breadcrumb + back */}
               {path.length > 0 && (
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                  <div className="lf-culling-breadcrumb flex items-center gap-2 flex-wrap text-sm">
                     <button
+                      type="button"
                       onClick={() => closeFolderWithAnimation(path.slice(0, -1))}
-                      className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors mr-2"
+                      className="lf-culling-crumb mr-2 flex items-center gap-1.5 transition-colors duration-200"
                     >
                       <FaArrowLeft className="text-xs" /> Back
                     </button>
@@ -2646,13 +2760,13 @@ function CullingPage() {
                         <span key={`${crumb.id}-${index}`} className="flex items-center gap-2">
                           {index > 0 && <span className="text-slate-600">/</span>}
                           <button
+                            type="button"
                             onClick={() => closeFolderWithAnimation(path.slice(0, index))}
                             disabled={isLast}
-                            className={
-                              isLast
-                                ? "text-white font-medium cursor-default"
-                                : "text-slate-400 hover:text-white transition-colors"
-                            }
+                            aria-current={isLast ? "location" : undefined}
+                            className={`lf-culling-crumb transition-colors duration-200 ${
+                              isLast ? "font-semibold" : "font-normal"
+                            }`}
                           >
                             {crumb.name}
                           </button>
@@ -2680,8 +2794,9 @@ function CullingPage() {
                     )}
 
                     <button
+                      type="button"
                       onClick={openNewFolderModal}
-                      className="flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 transition-colors"
+                      className="lf-culling-plain-action lf-culling-new-subfolder inline-flex items-center gap-1.5 text-xs font-medium transition-colors duration-200"
                     >
                       <FaFolderPlus className="text-xs" /> New subfolder
                     </button>
@@ -3227,46 +3342,104 @@ function CullingPage() {
                                 </button>
                               </div>
 
-                              <div className="mt-5 space-y-4 text-sm text-slate-600 dark:text-slate-300">
+                              <div className="mt-5 space-y-5 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                                {/* These are interpretation guidelines, not decision thresholds. */}
                                 <div>
-                                  <h4 className="font-semibold text-slate-900 dark:text-white">What do the percentages mean?</h4>
-                                  <p className="mt-1">Higher scores generally indicate stronger results for that particular check. Use this scale as a quick guide, not a guarantee of photo quality:</p>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">Understanding the percentages</h4>
+                                  <p className="mt-1">
+                                    Each quality score is normalized to 0–100%. Higher usually means a stronger result for that check.
+                                    These ranges are reading guides, not automatic KEEP/REVIEW/REJECT cutoffs or confidence percentages.
+                                  </p>
                                   <div className="mt-3 space-y-2">
                                     <div className="flex items-center gap-3 rounded-lg bg-emerald-500/10 px-3 py-2">
                                       <span className="w-20 flex-shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">80–100%</span>
-                                      <span>High — strong result for this check.</span>
+                                      <span>High — stronger result for this check.</span>
                                     </div>
                                     <div className="flex items-center gap-3 rounded-lg bg-sky-500/10 px-3 py-2">
                                       <span className="w-20 flex-shrink-0 font-semibold text-sky-700 dark:text-sky-400">60–79%</span>
-                                      <span>Moderate — generally okay, but review the photo.</span>
+                                      <span>Moderate — generally promising; inspect the photo.</span>
                                     </div>
                                     <div className="flex items-center gap-3 rounded-lg bg-amber-500/10 px-3 py-2">
                                       <span className="w-20 flex-shrink-0 font-semibold text-amber-700 dark:text-amber-400">40–59%</span>
-                                      <span>Low — inspect for possible issues.</span>
+                                      <span>Low — closer review is recommended.</span>
                                     </div>
                                     <div className="flex items-center gap-3 rounded-lg bg-rose-500/10 px-3 py-2">
                                       <span className="w-20 flex-shrink-0 font-semibold text-rose-700 dark:text-rose-400">0–39%</span>
-                                      <span>Very low — this check may have found a concern.</span>
+                                      <span>Very low — a potential quality concern.</span>
                                     </div>
                                   </div>
                                 </div>
-                                <div>
-                                  <h4 className="font-semibold text-slate-900 dark:text-white">What each score checks</h4>
-                                  <ul className="mt-1.5 space-y-1">
-                                    <li><strong>Overall Quality</strong> — combined quality estimate.</li>
-                                    <li><strong>Technical Quality</strong> — sharpness and image clarity.</li>
-                                    <li><strong>Face Quality</strong> — detected-face quality and possible facial blur.</li>
-                                    <li><strong>Eye Quality</strong> — eye-related checks, such as whether eyes appear closed.</li>
-                                    <li><strong>Aesthetic Quality</strong> — estimated visual appeal.</li>
-                                  </ul>
+
+                                <div className="border-t border-slate-200 pt-4 dark:border-slate-700/70">
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">What each score measures</h4>
+                                  <div className="mt-2 space-y-3">
+                                    <p>
+                                      <strong className="text-slate-800 dark:text-slate-100">Technical Quality</strong> — combines
+                                      <strong> sharpness (80%)</strong> and <strong>exposure (20%)</strong>. OpenCV measures overall image
+                                      sharpness, plus the percentage of very dark and very bright pixels. Excessive dark or bright
+                                      pixels reduce the exposure score; the larger penalty is used rather than adding both.
+                                    </p>
+                                    <div className="rounded-lg bg-sky-500/10 px-3 py-2 text-xs leading-relaxed">
+                                      A very blurry photo can still earn some technical points from acceptable exposure.
+                                      A 0% sharpness score does <strong>not</strong> automatically make Technical Quality 0%.
+                                    </div>
+                                    <p>
+                                      <strong className="text-slate-800 dark:text-slate-100">Face Quality</strong> — measures sharpness
+                                      within detected face regions, not just the surrounding image. MediaPipe attempts face detection
+                                      on the original and enhanced image variants; sharpness is evaluated on the original pixels.
+                                    </p>
+                                    <p>
+                                      <strong className="text-slate-800 dark:text-slate-100">Eye Quality</strong> — estimates eye
+                                      openness from MediaPipe blink signals. A stronger possible closed-eye signal lowers this score;
+                                      it is not a guaranteed blink diagnosis.
+                                    </p>
+                                    <p>
+                                      <strong className="text-slate-800 dark:text-slate-100">Aesthetic Quality</strong> — estimates
+                                      visual appeal using OpenCLIP image features and a LAION aesthetic predictor.
+                                    </p>
+                                    <p>
+                                      <strong className="text-slate-800 dark:text-slate-100">Overall Quality</strong> — combines
+                                      Technical (35%), Face (25%), Eye (25%), and Aesthetic (15%) scores. If a component is unavailable,
+                                      its weight is excluded and the remaining weights are rebalanced; it is not counted as 0%.
+                                    </p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <h4 className="font-semibold text-slate-900 dark:text-white">Recommendations and unavailable scores</h4>
-                                  <p className="mt-1"><strong className="text-emerald-600 dark:text-emerald-400">KEEP</strong> = likely a good candidate; <strong className="text-amber-600 dark:text-amber-400">REVIEW</strong> = check it yourself; <strong className="text-rose-600 dark:text-rose-400">REJECT</strong> = issues may make it unsuitable.</p>
-                                  <p className="mt-2">“No face detected” means no face was found for analysis. “Not applicable” means eye analysis does not apply. “Unable to determine” means an eye score could not be calculated. None of these means the score is 0%.</p>
+
+                                <div className="border-t border-slate-200 pt-4 dark:border-slate-700/70">
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">Similar photos and group ranks</h4>
+                                  <p className="mt-1">
+                                    DINOv2 compares photos using visual features and cosine similarity. LensFlow clusters visually
+                                    similar photos using a 90% similarity threshold. In a group, <strong>Rank 1</strong> has the
+                                    highest Overall Quality score — it is an AI ranking, not a photographer-selected keeper.
+                                    Photos without a similar match are treated as independent.
+                                  </p>
+                                </div>
+
+                                <div className="border-t border-slate-200 pt-4 dark:border-slate-700/70">
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">Why LensFlow recommends KEEP, REVIEW, or REJECT</h4>
+                                  <div className="mt-2 space-y-2">
+                                    <p><strong className="text-emerald-600 dark:text-emerald-400">KEEP</strong> — no major issue was found in an independent photo, or a similar photo has a competitive quality score without significant detected defects.</p>
+                                    <p><strong className="text-amber-600 dark:text-amber-400">REVIEW</strong> — the photo needs human inspection because of a detected issue, uncertain information, or its quality compared with similar shots.</p>
+                                    <p><strong className="text-rose-600 dark:text-rose-400">REJECT</strong> — a lower-quality alternative in a similar-photo group may be unsuitable, based on its quality difference and/or detected defects.</p>
+                                  </div>
+                                  <p className="mt-2">
+                                    Defect checks include possible underexposure or overexposure, low sharpness, blurry faces,
+                                    partial blinks, and possible closed eyes. A detected <strong>blurry face always triggers REVIEW</strong>,
+                                    regardless of rank. <strong>Independent photos are never automatically rejected</strong> by the current decision engine.
+                                  </p>
+                                </div>
+
+                                <div className="border-t border-slate-200 pt-4 dark:border-slate-700/70">
+                                  <h4 className="font-semibold text-slate-900 dark:text-white">Unavailable scores</h4>
+                                  <p className="mt-1">
+                                    “No face detected” means face analysis found no face. “Not applicable” means an eye score
+                                    does not apply to this photo. “Unable to determine” means eye analysis could not produce
+                                    a usable score. These are missing measurements, <strong>not 0% scores</strong>.
+                                  </p>
                                 </div>
                                 <p className="rounded-xl bg-sky-500/10 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                                  Scores are indicators, not guarantees. Always check the photo yourself before rejecting or deleting it.
+                                  Scores and defect detections are estimates, not guarantees. Review the original photograph
+                                  before making a final selection; LensFlow's recommendations do not delete your files.
                                 </p>
                               </div>
                             </section>
@@ -3531,27 +3704,27 @@ function CullingPage() {
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-white">Similar Photo Review</h3>
-              <p className="mt-1 max-w-2xl text-sm text-slate-400">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Similar Photo Review</h3>
+              <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
                 Compare similar shots, review LensFlow's suggestion, and keep as many photos as you like from each group. Your decision won't delete any files.
               </p>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-400">
-              <span className="font-semibold text-white">{duplicateSets.length}</span> groups
-              <span className="mx-2 text-slate-600">•</span>
-              <span className="font-semibold text-white">{duplicateSets.reduce((n, set) => n + set.images.length, 0)}</span> photos
-              <span className="mx-2 text-slate-600">•</span>
-              <span className="font-semibold text-emerald-400">
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400">
+              <span className="font-semibold text-slate-900 dark:text-white">{duplicateSets.length}</span> groups
+              <span className="mx-2 text-slate-400 dark:text-slate-600">•</span>
+              <span className="font-semibold text-slate-900 dark:text-white">{duplicateSets.reduce((n, set) => n + set.images.length, 0)}</span> photos
+              <span className="mx-2 text-slate-400 dark:text-slate-600">•</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                 {duplicateSets.reduce((n, set) => n + (bestPicks[set.id]?.length || 0), 0)}
               </span> kept
             </div>
           </div>
 
           {duplicateSets.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-16 text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-sky-400"><FaLayerGroup className="text-xl" /></div>
-              <h4 className="font-semibold text-white">No similar-photo groups yet</h4>
-              <p className="mx-auto mt-2 max-w-sm text-sm text-slate-400">Open a folder and run LensFlow Culling. Photos identified as similar will appear here for review.</p>
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-slate-700 dark:bg-slate-900/40">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-600 dark:bg-slate-800 dark:text-sky-400"><FaLayerGroup className="text-xl" /></div>
+              <h4 className="font-semibold text-slate-900 dark:text-white">No similar-photo groups yet</h4>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-slate-600 dark:text-slate-400">Open a folder and run LensFlow Culling. Photos identified as similar will appear here for review.</p>
               <button type="button" onClick={() => setMode("cull")} className="mt-5 rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400">Back to Culling</button>
             </div>
           ) : (
@@ -3568,13 +3741,13 @@ function CullingPage() {
                 const saveState = keeperSaveState[set.id];
 
                 return (
-                  <section key={set.id} className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/70 shadow-sm shadow-black/10">
-                    <div className="flex flex-col gap-3 border-b border-slate-800 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                      <button type="button" onClick={() => toggleDuplicateSet(set.id)} className="flex min-w-0 items-center gap-3 text-left">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400"><FaLayerGroup /></span>
+                  <section key={set.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-900/5 dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/10">
+                    <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-slate-800 dark:bg-transparent">
+                      <button type="button" onClick={() => toggleDuplicateSet(set.id)} aria-expanded={expanded} className="lf-culling-plain-action lf-culling-group-toggle inline-flex min-w-0 items-center gap-3 text-left">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400"><FaLayerGroup /></span>
                         <span className="min-w-0">
-                          <span className="block font-semibold text-white">{set.label}</span>
-                          <span className="mt-0.5 block text-xs text-slate-400">
+                          <span className="lf-culling-group-title block font-semibold">{set.label}</span>
+                          <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
                             {set.images.length} similar photos ·{" "}
                             {resolved ? `${keeperIds.length} kept` : "Needs your review"}
                           </span>
@@ -3582,11 +3755,11 @@ function CullingPage() {
                       </button>
                       <div className="flex flex-wrap items-center gap-2">
                         {resolved ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400"><FaCheckCircle /> {keeperIds.length === 1 ? "Your keeper" : `${keeperIds.length} keepers`}</span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"><FaCheckCircle /> {keeperIds.length === 1 ? "Your keeper" : `${keeperIds.length} keepers`}</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-300"><FaCrown /> AI suggestion</span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 dark:bg-sky-500/10 dark:text-sky-300"><FaCrown /> AI suggestion</span>
                         )}
-                        <button type="button" onClick={() => toggleDuplicateSet(set.id)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800">{expanded ? "Collapse" : "Expand"}</button>
+                        <button type="button" onClick={() => toggleDuplicateSet(set.id)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-transparent dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white">{expanded ? "Collapse" : "Expand"}</button>
                       </div>
                     </div>
 
@@ -3610,40 +3783,40 @@ function CullingPage() {
                                   key={img.id}
                                   className={`group overflow-hidden rounded-xl border transition ${
                                     highlighted
-                                      ? "border-sky-400 ring-1 ring-sky-400/50 bg-sky-500/[0.06]"
-                                      : "border-slate-700 bg-slate-950/50 hover:border-slate-500"
+                                      ? "border-sky-400 bg-sky-50/70 ring-1 ring-sky-400/50 dark:bg-sky-500/[0.06]"
+                                      : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-950/50 dark:hover:border-slate-500"
                                   }`}
                                 >
                                   <button
                                     type="button"
                                     onClick={() => toggleKeeper(set.id, img.id)}
                                     aria-pressed={isKeeper}
-                                    className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                                    className="block w-full !border-0 !bg-transparent !p-0 text-left !shadow-none hover:!bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
                                   >
-                                    <div className="relative aspect-[4/3] overflow-hidden bg-slate-800">
+                                    <div className="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-slate-800">
                                       {img.thumbUrl ? <img src={img.thumbUrl} alt={img.fileName} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" /> : <div className="flex h-full items-center justify-center text-xs text-slate-500">Preview unavailable</div>}
                                       {rating === "star" && <span className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-emerald-400"><FaStar className="text-[10px]" /></span>}
                                       {rating === "reject" && <span className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-rose-400"><FaBan className="text-[10px]" /></span>}
                                       {highlighted && <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-sky-400 px-2 py-1 text-[10px] font-bold text-slate-950"><FaCrown /> {isKeeper ? "KEEPER" : "SUGGESTED"}</span>}
                                       {!highlighted && isAiPick && <span className="absolute left-2 top-2 rounded-full bg-slate-950/80 px-2 py-1 text-[10px] font-medium text-sky-200">AI PICK</span>}
-                                      {img.aiResult?.group_rank && <span className="absolute bottom-2 left-2 rounded-md bg-black/75 px-2 py-1 text-[10px] text-white">Rank {img.aiResult.group_rank}</span>}
+                                      {img.aiResult?.group_rank && <span className="absolute bottom-2 left-2 z-10 rounded-md !bg-slate-950/90 px-2 py-1 text-[10px] font-bold !text-white shadow-sm" style={{ backgroundColor: "rgba(2, 6, 23, 0.90)", color: "#ffffff" }}>Rank {img.aiResult.group_rank}</span>}
                                     </div>
                                     <div className="p-3">
-                                      <p title={img.fileName} className="truncate text-xs font-medium text-slate-200">{img.fileName}</p>
-                                      <p className={`mt-1 text-[11px] ${highlighted ? "text-sky-300" : "text-slate-500"}`}>
+                                      <p title={img.fileName} className="truncate text-xs font-semibold text-slate-900 dark:text-slate-200">{img.fileName}</p>
+                                      <p className={`mt-1 text-[11px] ${highlighted ? "text-sky-700 dark:text-sky-300" : "text-slate-500 dark:text-slate-500"}`}>
                                         {isKeeper ? "Your selected keeper" : isSuggested ? "LensFlow's suggestion" : "Similar shot"}
                                       </p>
                                     </div>
                                   </button>
                                   <div className="flex gap-2 px-3 pb-3">
-                                    <button type="button" onClick={() => setDupLightbox({ setId: set.id, imageId: img.id })} className="flex-1 rounded-lg border border-slate-700 px-2 py-2 text-xs font-medium text-slate-300 transition hover:border-sky-500/50 hover:bg-slate-800"><FaSearchPlus className="mr-1 inline" /> Compare</button>
+                                    <button type="button" onClick={() => setDupLightbox({ setId: set.id, imageId: img.id })} className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium text-slate-700 transition hover:border-sky-400 hover:bg-sky-50 dark:border-slate-700 dark:bg-transparent dark:text-slate-300 dark:hover:border-sky-500/50 dark:hover:bg-slate-800"><FaSearchPlus className="mr-1 inline" /> Compare</button>
                                     <button
                                       type="button"
                                       onClick={() => toggleKeeper(set.id, img.id)}
                                       className={`flex-1 rounded-lg px-2 py-2 text-xs font-semibold transition ${
                                         isKeeper
-                                          ? "bg-emerald-500/15 text-emerald-300"
-                                          : "bg-slate-800 text-slate-200 hover:bg-sky-500/15 hover:text-sky-300"
+                                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                          : "bg-slate-100 text-slate-700 hover:bg-sky-50 hover:text-sky-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-sky-500/15 dark:hover:text-sky-300"
                                       }`}
                                     >
                                       {isKeeper ? "Selected" : "Keep this"}
@@ -3655,7 +3828,7 @@ function CullingPage() {
                           </div>
                         </div>
 
-                        <aside className="h-fit rounded-xl border border-slate-700 bg-slate-950/60 p-4">
+                        <aside className="h-fit rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-950/60">
                           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                             {resolved ? `Keepers (${keeperIds.length})` : "Keeper summary"}
                           </p>
@@ -3664,10 +3837,10 @@ function CullingPage() {
                             <div className="mt-3 space-y-2">
                               {summaryImages.map((img) => (
                                 <div key={img.id} className="flex items-start gap-3">
-                                  {img.thumbUrl ? <img src={img.thumbUrl} alt={img.fileName} className="h-16 w-16 shrink-0 rounded-lg border border-slate-700 object-cover" /> : <div className="h-16 w-16 shrink-0 rounded-lg bg-slate-800" />}
+                                  {img.thumbUrl ? <img src={img.thumbUrl} alt={img.fileName} className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 object-cover dark:border-slate-700" /> : <div className="h-16 w-16 shrink-0 rounded-lg bg-slate-200 dark:bg-slate-800" />}
                                   <div className="min-w-0">
-                                    <p className="break-words text-sm font-semibold text-white">{img.fileName}</p>
-                                    <p className="mt-1 text-xs text-slate-400">{resolved ? "Selected by you" : "Suggested by LensFlow"}</p>
+                                    <p className="break-words text-sm font-semibold text-slate-900 dark:text-white">{img.fileName}</p>
+                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{resolved ? "Selected by you" : "Suggested by LensFlow"}</p>
                                   </div>
                                 </div>
                               ))}
@@ -3676,9 +3849,9 @@ function CullingPage() {
                             <p className="mt-3 text-sm text-slate-500">No keeper available.</p>
                           )}
 
-                          <div className="mt-4 rounded-lg bg-slate-900 p-3">
-                            <p className="text-xs font-medium text-slate-300">LensFlow reason</p>
-                            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                          <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3 dark:border-transparent dark:bg-slate-900">
+                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">LensFlow reason</p>
+                            <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                               {summaryImages[0]?.aiResult?.decision_reason || "Strongest-ranked candidate in this similar-photo group."}
                             </p>
                           </div>
@@ -3694,10 +3867,10 @@ function CullingPage() {
                                 {saveState === "saving" ? "Saving keeper…" : "Confirm suggested keeper"}
                               </button>
                             )}
-                            <button type="button" onClick={() => setDupLightbox({ setId: set.id, imageId: summaryImages[0]?.id || set.images[0].id })} className="w-full rounded-lg border border-slate-700 px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800"><FaSearchPlus className="mr-2 inline" /> Open comparison viewer</button>
+                            <button type="button" onClick={() => setDupLightbox({ setId: set.id, imageId: summaryImages[0]?.id || set.images[0].id })} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:bg-transparent dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800"><FaSearchPlus className="mr-2 inline" /> Open comparison viewer</button>
                           </div>
 
-                          <p className={`mt-3 text-xs ${saveState === "error" ? "text-rose-400" : saveState === "saved" ? "text-emerald-400" : "text-slate-500"}`} aria-live="polite">
+                          <p className={`mt-3 text-xs ${saveState === "error" ? "text-rose-600 dark:text-rose-400" : saveState === "saved" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500"}`} aria-live="polite">
                             {saveState === "saving" ? "Saving your choice to LensFlow…"
                               : saveState === "saved" ? "Keepers saved to your project."
                               : saveState === "error" ? "Couldn't save. Check the database migration and try again."
@@ -3746,15 +3919,15 @@ function CullingPage() {
       )}
 
       {/* ============ NEW FOLDER MODAL ============ */}
-      {newFolderModalOpen && (
+      {newFolderModalOpen && createPortal(
         <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="lf-culling-folder-overlay-anim fixed inset-0 z-[999999] flex h-[100dvh] w-screen items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           onClick={() => setNewFolderModalOpen(false)}
         >
           <form
             onSubmit={createFolder}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6"
+            className="lf-culling-folder-card-pop w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6"
           >
             <div className="flex items-center gap-2 mb-1">
               <FaFolderPlus className="text-sky-400" />
@@ -3797,7 +3970,8 @@ function CullingPage() {
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ============ FULLSCREEN PHOTO PREVIEW ============ */}
@@ -3947,30 +4121,36 @@ function CullingPage() {
         )}
 
       {/* ============ LIGHTBOX: duplicate review ============ */}
-      {mode === "duplicates" && dupLightboxImage && (
+      {/* Portal outside transformed Culling page so the viewer covers the entire viewport. */}
+      {mode === "duplicates" && dupLightboxImage && createPortal(
         <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex flex-col"
+          className="fixed inset-0 z-[999999] flex h-[100dvh] w-screen flex-col overflow-hidden bg-slate-50/95 backdrop-blur-sm dark:bg-black/90"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Compare similar photos"
           onClick={() => setDupLightbox(null)}
         >
           <div
-            className="flex items-center justify-between px-4 sm:px-6 py-4 text-white"
+            className="flex items-center justify-between border-b border-slate-200 px-4 py-4 text-slate-900 dark:border-white/10 dark:text-white sm:px-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 min-w-0">
               <span className="font-mono text-sm truncate">{dupLightboxImage.fileName}</span>
               {isLightboxKeeper && (
-                <span className="flex items-center gap-1 text-sky-400 text-xs bg-sky-500/10 px-2 py-1 rounded-full flex-shrink-0">
+                <span className="flex flex-shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-xs text-sky-700 dark:bg-sky-500/10 dark:text-sky-400">
                   <FaCrown /> Keeper
                 </span>
               )}
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {dupLightboxIndex + 1} / {dupLightboxSet.images.length}
               </span>
               <button
+                type="button"
                 onClick={() => setDupLightbox(null)}
-                className="text-slate-400 hover:text-white transition-colors"
+                aria-label="Close comparison viewer"
+                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
               >
                 <FaTimes className="text-lg" />
               </button>
@@ -3978,13 +4158,13 @@ function CullingPage() {
           </div>
 
           <div
-            className="flex-1 flex items-center justify-center relative px-4"
+            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4"
             onClick={(e) => e.stopPropagation()}
           >
             {dupLightboxSet.images.length > 1 && (
               <button
                 onClick={() => goToDupOffset(-1)}
-                className="absolute left-2 sm:left-6 text-white/60 hover:text-white bg-black/30 hover:bg-black/50 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                className="absolute left-2 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-800 shadow-sm transition-colors hover:bg-slate-100 dark:border-white/10 dark:bg-black/50 dark:text-white/80 dark:hover:bg-black/75 dark:hover:text-white sm:left-6"
               >
                 <FaChevronLeft />
               </button>
@@ -4008,7 +4188,7 @@ function CullingPage() {
             {dupLightboxSet.images.length > 1 && (
               <button
                 onClick={() => goToDupOffset(1)}
-                className="absolute right-2 sm:right-6 text-white/60 hover:text-white bg-black/30 hover:bg-black/50 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                className="absolute right-2 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-800 shadow-sm transition-colors hover:bg-slate-100 dark:border-white/10 dark:bg-black/50 dark:text-white/80 dark:hover:bg-black/75 dark:hover:text-white sm:right-6"
               >
                 <FaChevronRight />
               </button>
@@ -4016,7 +4196,7 @@ function CullingPage() {
           </div>
 
           <div
-            className="flex items-center justify-center py-6"
+            className="flex items-center justify-center border-t border-slate-200 py-6 dark:border-white/10"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -4024,14 +4204,15 @@ function CullingPage() {
               className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 isLightboxKeeper
                   ? "bg-sky-500 text-slate-900"
-                  : "bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-600"
+                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               }`}
             >
               <FaCrown />
               {isLightboxKeeper ? "Keeper (click to remove)" : "Mark as keeper"}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

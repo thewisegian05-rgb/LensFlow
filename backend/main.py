@@ -412,12 +412,14 @@ def analyze_photo(photo: dict, temp_path: Path):
         subject_result["average_face_sharpness"],
         subject_result["maximum_blink_score"],
         aesthetic_score,
+        technical_result["dark_pixels_percent"],
+        technical_result["bright_pixels_percent"],
     )
     defects = detect_defects(
         subject_result["maximum_blink_score"],
         technical_result["bright_pixels_percent"],
         technical_result["dark_pixels_percent"],
-        quality_scores["technical_score"],
+        quality_scores["sharpness_score"],  # Still assess blur from sharpness alone
         technical_result["sharpness"],
         average_face_sharpness=subject_result["average_face_sharpness"],
     )
@@ -486,6 +488,8 @@ def save_culling_results(
                 "technical_score": result.get(
                     "technical_score"
                 ),
+                "sharpness_score": result.get("sharpness_score"),
+                "exposure_score": result.get("exposure_score"),
                 "face_quality_score": result.get(
                     "face_quality_score"
                 ),

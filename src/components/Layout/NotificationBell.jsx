@@ -220,6 +220,32 @@ function NotificationBell() {
             from { opacity: 1; transform: translateY(0) scale(1); }
             to { opacity: 0; transform: translateY(-5px) scale(0.98); }
           }
+          /* Prevent site-wide button styles from adding white rectangles,
+             borders or shadows to the notification controls. */
+          .lf-notification-clear,
+          .lf-notification-row {
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            text-decoration: none !important;
+            appearance: none;
+            -webkit-appearance: none;
+          }
+          .lf-notification-clear:hover {
+            background: transparent !important;
+            text-decoration: none !important;
+          }
+          .lf-notification-row:hover {
+            background: rgb(241 245 249 / 85%) !important;
+          }
+          .dark .lf-notification-row:hover {
+            background: rgb(30 41 59 / 65%) !important;
+          }
+          .lf-notification-clear:focus-visible,
+          .lf-notification-row:focus-visible {
+            outline: 2px solid #0ea5e9 !important;
+            outline-offset: -2px;
+          }
           @media (prefers-reduced-motion: reduce) {
             .lensflow-bell-ring, .lensflow-notification-in, .lensflow-notification-out { animation: none !important; }
           }
@@ -235,7 +261,7 @@ function NotificationBell() {
 
       {open && (
         <div
-          className={`absolute right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ${closing ? "lensflow-notification-out" : "lensflow-notification-in"}`}
+          className={`custom-scrollbar absolute right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ${closing ? "lensflow-notification-out" : "lensflow-notification-in"}`}
           style={{ width: 340, maxWidth: "calc(100vw - 1.5rem)", animation: `${closing ? "lensflow-notification-out" : "lensflow-notification-in"} 180ms cubic-bezier(0.22, 1, 0.36, 1) both` }}
           onAnimationEnd={(e) => {
             if (closing && e.target === e.currentTarget) {
@@ -244,7 +270,7 @@ function NotificationBell() {
             }
           }}
         >
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+          <div className="flex items-center justify-between px-4 py-3">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
               Notifications
             </h3>
@@ -252,7 +278,7 @@ function NotificationBell() {
               <button
                 type="button"
                 onClick={clearNotifications}
-                className="text-xs text-slate-500 transition hover:text-slate-900 dark:hover:text-white"
+                className="lf-notification-clear cursor-pointer p-0 text-xs font-medium text-slate-500 transition-colors hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-400"
               >
                 Clear
               </button>
@@ -268,7 +294,7 @@ function NotificationBell() {
 
             {/* Today's scheduled work */}
             {todayEvents.length > 0 && (
-              <section className="border-b border-slate-200 px-4 py-3 dark:border-slate-800/70">
+              <section className="px-4 py-3">
                 <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-600 dark:text-amber-400">
                   <FaRegCalendarAlt />
                   {todayEvents.length === 1
@@ -282,7 +308,7 @@ function NotificationBell() {
                       <button
                         type="button"
                         onClick={() => openItem({ to: "/dashboard/schedule" })}
-                        className="flex w-full items-baseline gap-3 rounded-lg px-2 py-1.5 text-left transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="lf-notification-row flex w-full items-baseline gap-3 rounded-lg px-2 py-1.5 text-left transition-colors"
                       >
                         <span className="w-16 flex-shrink-0 text-xs font-semibold tabular-nums text-slate-900 dark:text-white">
                           {formatTime(event.start)}
@@ -312,7 +338,7 @@ function NotificationBell() {
                     <button
                       type="button"
                       onClick={() => openItem(item)}
-                      className="flex w-full items-start gap-3 border-b border-slate-200 px-4 py-3 text-left transition last:border-b-0 hover:bg-slate-50 dark:border-slate-800/70 dark:hover:bg-slate-800/60"
+                      className="lf-notification-row flex w-full items-start gap-3 px-4 py-3 text-left transition-colors"
                     >
                       <span
                         className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm ${

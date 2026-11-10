@@ -21,6 +21,13 @@ CONFIG = {
     # OpenCV exposure measurements
     "dark_pixel_threshold": 30,
     "bright_pixel_threshold": 225,
+    # Technical score subweights: sharpness is still dominant.
+    "technical_weight_sharpness": 0.80,
+    "technical_weight_exposure": 0.20,
+    # Percentage of extreme pixels where exposure gets the full penalty.
+    # These initial values must be calibrated on representative photos.
+    "dark_pixels_full_penalty": 70.0,
+    "bright_pixels_full_penalty": 70.0,
     # Absolute quality calibration
     "sharpness_low": 30.0,
     "sharpness_high": 75.0,
@@ -479,12 +486,50 @@ def linear_score(value, low, high):
         )
     )
 def score_sharpness(value):
-    """Converts global image sharpness into a 0-to-1 technical score."""
+    """Converts global image sharpness into a 0-to-1 sharpness score."""
     return linear_score(
         value,
         CONFIG["sharpness_low"],
         CONFIG["sharpness_high"],
     )
+def score_exposure(dark_pixels_percent, bright_pixels_percent):
+    """Return 0-to-1 exposure quality based on extreme-pixel percentages.
+
+    The existing defect thresholds are treated as the points where an
+    exposure penalty BEGINS. The full-penalty thresholds are adjustable.
+    This is a heuristic, not a definitive measure of proper exposure.
+    """
+    if dark_pixels_percent is None or bright_pixels_percent is None:
+        return None
+
+    dark_penalty = linear_score(
+        dark_pixels_percent,
+        CONFIG["underexposed_pixels"],
+        CONFIG["dark_pixels_full_penalty"],
+    )
+    bright_penalty = linear_score(
+        bright_pixels_percent,
+        CONFIG["overexposed_pixels"],
+        CONFIG["bright_pixels_full_penalty"],
+    )
+    # Use the worse extreme to avoid double-penalizing mixed lighting.
+    return float(1.0 - max(dark_penalty, bright_penalty))
+
+
+def calculate_technical_score(sharpness_score, exposure_score):
+    """Combine available sharpness and exposure quality components."""
+    components = [
+        (sharpness_score, CONFIG["technical_weight_sharpness"]),
+        (exposure_score, CONFIG["technical_weight_exposure"]),
+    ]
+    available = [(value, weight) for value, weight in components
+                 if value is not None]
+    if not available:
+        return None
+    scores, weights = zip(*available)
+    return float(np.average(scores, weights=weights))
+
+
 def score_face_sharpness(value):
     """Converts average face sharpness into a 0-to-1 face-quality score."""
     return linear_score(
@@ -550,13 +595,20 @@ def calculate_quality_scores(
     average_face_sharpness,
     maximum_blink_score,
     aesthetic_score,
+    dark_pixels_percent,
+    bright_pixels_percent,
 ):
     """
-    Calculates all normalized quality scores for a single photo.
-    Returns:
-        dict: Technical, face, eye, aesthetic, and Base Quality scores.
+    Calculate sharpness and exposure separately, then combine them into
+    technical quality. Face, eye, and aesthetic scoring are unchanged.
     """
-    technical_score = score_sharpness(sharpness)
+    sharpness_score = score_sharpness(sharpness)
+    exposure_score = score_exposure(
+        dark_pixels_percent, bright_pixels_percent
+    )
+    technical_score = calculate_technical_score(
+        sharpness_score, exposure_score
+    )
     face_quality_score = score_face_sharpness(
         average_face_sharpness
     )
@@ -567,6 +619,8 @@ def calculate_quality_scores(
         aesthetic_score
     )
     return {
+        "sharpness_score": sharpness_score,
+        "exposure_score": exposure_score,
         "technical_score": technical_score,
         "face_quality_score": face_quality_score,
         "eye_quality_score": eye_quality_score,
@@ -585,7 +639,7 @@ def detect_defects(
     maximum_blink_score,
     bright_pixels_percent,
     dark_pixels_percent,
-    technical_score,
+    sharpness_score,
     sharpness=None,
     average_face_sharpness=None,
 ):
@@ -647,14 +701,14 @@ def detect_defects(
             "severity": "moderate",
             "message": "Possible underexposure",
         })
-    if technical_score is not None:
-        if technical_score < CONFIG["very_low_sharpness"]:
+    if sharpness_score is not None:
+        if sharpness_score < CONFIG["very_low_sharpness"]:
             defects.append({
                 "type": "sharpness",
                 "severity": "strong",
                 "message": "Very low sharpness",
             })
-        elif technical_score <= CONFIG["low_sharpness"]:
+        elif sharpness_score <= CONFIG["low_sharpness"]:
             defects.append({
                 "type": "sharpness",
                 "severity": "moderate",

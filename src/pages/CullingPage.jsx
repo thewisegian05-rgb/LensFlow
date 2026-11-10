@@ -336,14 +336,14 @@ const PhotoTile = memo(function PhotoTile({
 
       {/* Existing star / reject status indicators */}
       {state === "star" && (
-        <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-sky-400">
+        <span className={`absolute right-2 ${isBestPick ? "top-10" : "top-2"} z-10 rounded-full bg-black/70 p-1 text-sky-400`}>
           <FaStar className="text-[10px]" />
         </span>
       )}
 
       {(state === "reject" || aiResult?.ai_decision === "REJECT") &&
         state !== "star" && (
-          <span className="absolute right-2 top-10 z-10 rounded-full bg-black/70 p-1 text-rose-400">
+          <span className={`absolute right-2 ${isBestPick ? "top-10" : "top-2"} z-10 rounded-full bg-black/70 p-1 text-rose-400`}>
             <FaBan className="text-[10px]" />
           </span>
         )}

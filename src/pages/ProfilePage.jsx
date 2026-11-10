@@ -770,6 +770,11 @@ export default function Profile() {
 
       avatarPathRef.current = path;
       setProfilePicture(url);
+      window.dispatchEvent(
+        new CustomEvent("lensflow:photographer-avatar-change", {
+          detail: { userId, url: url || "" },
+        })
+      );
     } catch (err) {
       reportError("Could not update your profile picture.", err);
     }
@@ -791,6 +796,11 @@ export default function Profile() {
           await deleteAvatar(userId, avatarPathRef.current);
           avatarPathRef.current = null;
           setProfilePicture("");
+          window.dispatchEvent(
+            new CustomEvent("lensflow:photographer-avatar-change", {
+              detail: { userId, url: "" },
+            })
+          );
           setProfilePreview(false);
         } catch (err) {
           reportError("Could not delete your profile picture.", err);

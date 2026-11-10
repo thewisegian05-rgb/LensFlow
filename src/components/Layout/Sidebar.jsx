@@ -14,6 +14,10 @@ import {
 
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import { fetchProfileBundle } from "../../lib/profileApi";
+
+// Shared with the photographer Profile page for instant avatar synchronization.
+const AVATAR_CHANGED_EVENT = "lensflow:photographer-avatar-change";
 
 const mainLinks = [
   { to: "/dashboard", label: "Dashboard", icon: FaHome, end: true },
@@ -170,37 +174,116 @@ function AnimatedNavLinks({ links, onNavigate, className = "" }) {
 
 function Sidebar({ isOpen, onToggle, onClose }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [photographer, setPhotographer] = useState(() =>
     getPhotographerIdentity(null)
   );
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const activeUserIdRef = useRef(null);
+  const avatarRequestRef = useRef(0);
+  const sidebarMountedRef = useRef(false);
 
-  // Get the name submitted during photographer registration.
-  // Keep it up to date when the session changes.
+  // The Profile page stores the avatar in profileApi, not Auth metadata.
+  // Use the same resolved URL that the main Profile page displays.
+  const refreshAvatar = useCallback(async (userId) => {
+    const request = ++avatarRequestRef.current;
+    if (!userId) {
+      if (sidebarMountedRef.current) {
+        setAvatarUrl("");
+        setAvatarFailed(false);
+      }
+      return;
+    }
+
+    try {
+      const bundle = await fetchProfileBundle(userId);
+      if (
+        !sidebarMountedRef.current ||
+        activeUserIdRef.current !== userId ||
+        avatarRequestRef.current !== request
+      ) return;
+
+      setAvatarUrl(bundle?.profile?.avatarUrl || "");
+      setAvatarFailed(false);
+    } catch (error) {
+      console.error("Could not load sidebar profile picture:", error);
+      // Keep the existing avatar (or initials) if the refresh fails.
+    }
+  }, []);
+
+  // Keep the registration name and account type as before, plus the avatar.
   useEffect(() => {
-    let mounted = true;
+    sidebarMountedRef.current = true;
+
+    const applyUser = (user) => {
+      setPhotographer(getPhotographerIdentity(user));
+      const nextId = user?.id || null;
+      if (activeUserIdRef.current !== nextId) {
+        activeUserIdRef.current = nextId;
+        avatarRequestRef.current += 1;
+        setAvatarUrl("");
+        setAvatarFailed(false);
+      }
+      if (nextId) void refreshAvatar(nextId);
+    };
 
     const loadUser = async () => {
       const { data, error } = await supabase.auth.getUser();
-      if (!mounted) return;
+      if (!sidebarMountedRef.current) return;
       if (error) console.error("Could not load sidebar identity:", error);
-      setPhotographer(getPhotographerIdentity(data?.user));
+      applyUser(data?.user);
     };
 
-    loadUser();
+    void loadUser();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (mounted) {
-          setPhotographer(getPhotographerIdentity(session?.user));
-        }
+      (event, session) => {
+        if (!sidebarMountedRef.current) return;
+        // Ignore token refreshes: they don't change the profile picture.
+        if (event === "TOKEN_REFRESHED") return;
+        applyUser(session?.user);
       }
     );
 
     return () => {
-      mounted = false;
+      sidebarMountedRef.current = false;
+      avatarRequestRef.current += 1;
       authListener.subscription.unsubscribe();
     };
+  }, [refreshAvatar]);
+
+  // Reflect uploads/removals immediately while the Profile page is open.
+  useEffect(() => {
+    const onAvatarChanged = (event) => {
+      if (event.detail?.userId !== activeUserIdRef.current) return;
+      avatarRequestRef.current += 1; // cancel any older fetch result
+      setAvatarUrl(event.detail?.url || "");
+      setAvatarFailed(false);
+    };
+    window.addEventListener(AVATAR_CHANGED_EVENT, onAvatarChanged);
+    return () => window.removeEventListener(AVATAR_CHANGED_EVENT, onAvatarChanged);
   }, []);
+
+  // Refresh when entering/leaving Profile, in case an edit elsewhere didn't
+  // emit our event. Avoid refetching the full profile bundle on every tab click.
+  const previousPathRef = useRef(location.pathname);
+  useEffect(() => {
+    const wasProfile = previousPathRef.current.startsWith("/dashboard/profile");
+    const isProfile = location.pathname.startsWith("/dashboard/profile");
+    if ((wasProfile || isProfile) && activeUserIdRef.current) {
+      void refreshAvatar(activeUserIdRef.current);
+    }
+    previousPathRef.current = location.pathname;
+  }, [location.pathname, refreshAvatar]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (activeUserIdRef.current) void refreshAvatar(activeUserIdRef.current);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refreshAvatar]);
 
   const handleNavClick = () => {
     if (window.matchMedia("(max-width: 1023px)").matches) {
@@ -294,8 +377,17 @@ function Sidebar({ isOpen, onToggle, onClose }) {
                 }`
               }
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-500/15 text-sm font-semibold text-sky-700 ring-1 ring-sky-500/30 dark:bg-sky-500/20 dark:text-sky-300">
-                {photographer.initials}
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sky-500/15 text-sm font-semibold text-sky-700 ring-1 ring-sky-500/30 dark:bg-sky-500/20 dark:text-sky-300">
+                {avatarUrl && !avatarFailed ? (
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    onError={() => setAvatarFailed(true)}
+                  />
+                ) : (
+                  photographer.initials
+                )}
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="truncate text-sm font-semibold text-slate-900 group-hover:text-sky-600 dark:text-white dark:group-hover:text-sky-400" title={photographer.name}>

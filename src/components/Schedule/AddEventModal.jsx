@@ -1468,7 +1468,7 @@ function AddEventModal({
                   value={form.talentFee}
                   onChange={handleMoneyChange}
                   onKeyDown={blockNumberKeys}
-                  className={`${inputClass} pl-7${errRing("fee")}`}
+                  className={`${inputClass} pl-8${errRing("fee")}`}
                 />
               </div>
 
@@ -1512,7 +1512,7 @@ function AddEventModal({
                     value={form.downpaymentDue}
                     onChange={handleMoneyChange}
                     onKeyDown={blockNumberKeys}
-                    className={`${inputClass} pl-7${errRing("downpayment")}`}
+                    className={`${inputClass} pl-8${errRing("downpayment")}`}
                   />
                 </div>
 
